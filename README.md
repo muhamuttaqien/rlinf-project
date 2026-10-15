@@ -8,14 +8,12 @@ Training a **Franka Panda** robot to grasp and lift a **red cube** while **green
 
 <div align="center">
   <a href="docs/media/success.mp4">
-    <img src="docs/media/success.gif" alt="Successful SAC-Flow red-cube picking" width="900" />
+    <img src="docs/media/success.gif" alt="Successful SAC-Flow red-cube picking" width="600" />
   </a>
   <p><em>Successful red-cube picking in ManiSkill. Click to watch the full MP4.</em></p>
 </div>
 
 [Watch the full successful rollout (MP4)](docs/media/success.mp4)
-
-> The preview and video links work after `docs/media/success.gif` and `docs/media/success.mp4` have been generated and committed. Confirm that the selected rollout actually succeeds before publishing it as a success.
 
 ### Failure: red cube dropped
 
