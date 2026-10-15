@@ -1243,6 +1243,7 @@ class EnvWorker(Worker):
     @Worker.timer("evaluate")
     def evaluate(self, input_channel: Channel, rollout_channel: Channel):
         eval_metrics = defaultdict(list)
+        failure_rows = []
         for eval_rollout_epoch in range(self.eval_rollout_epoch):
             if not self.cfg.env.eval.auto_reset or eval_rollout_epoch == 0:
                 for stage_id in range(self.stage_num):
@@ -1298,6 +1299,25 @@ class EnvWorker(Worker):
                         raw_chunk_actions, stage_id
                     )
 
+                    if "failure_missed_red_grasp" in env_info:
+                        keys = (
+                            "success_once", "success_at_end", "episode_len", "return",
+                            "failure_missed_red_grasp", "failure_wrong_cube",
+                            "failure_red_dropped", "failure_failed_lift",
+                            "ever_wrong_grasp", "ever_red_grasp", "ever_red_lift", "ever_red_drop",
+                            "red_grasp_at_end", "red_lift_at_end",
+                        )
+                        count = len(env_info["failure_missed_red_grasp"])
+                        for j in range(count):
+                            row = {
+                                "eval_batch": int(eval_rollout_epoch),
+                                "stage_id": int(stage_id),
+                                "episode_in_batch": j,
+                            }
+                            for key in keys:
+                                if key in env_info:
+                                    row[key] = float(env_info[key][j].item())
+                            failure_rows.append(row)
                     for key, value in env_info.items():
                         eval_metrics[key].append(value)
 
@@ -1323,6 +1343,18 @@ class EnvWorker(Worker):
                     )
 
             self.finish_rollout(mode="eval")
+        if failure_rows:
+            import csv
+            from pathlib import Path
+            import os
+            output = Path(self.cfg.runner.logger.log_path)
+            output.mkdir(parents=True, exist_ok=True)
+            csv_path = output / f"failure_episodes_worker_{os.getpid()}.csv"
+            with csv_path.open("w", newline="") as fp:
+                writer = csv.DictWriter(fp, fieldnames=list(failure_rows[0]))
+                writer.writeheader()
+                writer.writerows(failure_rows)
+            print(f"Per-episode failure diagnostics saved: {csv_path}")
         for stage_id in range(self.stage_num):
             if self.eval_enable_offload:
                 get_env_attr(self.eval_env_list[stage_id], "offload")()

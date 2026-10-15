@@ -74,6 +74,9 @@ class ManiskillEnv(gym.Env):
             cfg.init_params.num_envs = num_envs
         env_args = OmegaConf.to_container(cfg.init_params, resolve=True)
         allow_pci_render_backend()
+        # Register project-local ManiSkill tasks in each Ray environment worker.
+        if env_args.get("id") == "PickRedCube3-v1":
+            import custom_envs.pick_red_cube3  # noqa: F401
         self.env: BaseEnv = gym.make(**env_args)
         self.prev_step_reward = torch.zeros(self.num_envs, dtype=torch.float32).to(
             self.device
@@ -239,6 +242,12 @@ class ManiskillEnv(gym.Env):
         self.returns = torch.zeros(
             self.num_envs, device=self.device, dtype=torch.float32
         )
+        # Diagnostic flags are tracked for the entire episode, independently of
+        # the reward and success condition. Only the custom three-cube task
+        # exposes these fields.
+        for name in ("red_grasp_once", "red_lift_once", "wrong_grasp_once", "red_drop_once"):
+            setattr(self, name, torch.zeros(self.num_envs, device=self.device, dtype=torch.bool))
+        self._prev_red_grasp = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
 
     def _reset_metrics(self, env_idx=None):
         if env_idx is not None:
@@ -249,12 +258,16 @@ class ManiskillEnv(gym.Env):
                 self.success_once[mask] = False
                 self.fail_once[mask] = False
                 self.returns[mask] = 0
+                for name in ("red_grasp_once", "red_lift_once", "wrong_grasp_once", "red_drop_once", "_prev_red_grasp"):
+                    getattr(self, name)[mask] = False
         else:
             self.prev_step_reward[:] = 0
             if self.record_metrics:
                 self.success_once[:] = False
                 self.fail_once[:] = False
                 self.returns[:] = 0.0
+                for name in ("red_grasp_once", "red_lift_once", "wrong_grasp_once", "red_drop_once", "_prev_red_grasp"):
+                    getattr(self, name)[:] = False
 
     def _record_metrics(self, step_reward, infos):
         episode_info = {}
@@ -265,6 +278,35 @@ class ManiskillEnv(gym.Env):
         if "fail" in infos:
             self.fail_once = self.fail_once | infos["fail"]
             episode_info["fail_once"] = self.fail_once.clone()
+        if "red_lifted" in infos and "is_grasped" in infos and "wrong_grasp" in infos:
+            grasp = infos["is_grasped"].bool()
+            lifted = infos["red_lifted"].bool()
+            wrong = infos["wrong_grasp"].bool()
+            self.red_drop_once |= self._prev_red_grasp & ~grasp
+            self.red_grasp_once |= grasp
+            self.red_lift_once |= lifted & grasp
+            self.wrong_grasp_once |= wrong
+            self._prev_red_grasp = grasp.clone()
+            final_success = infos["success"].bool()
+            # Mutually exclusive primary failure categories. Wrong-cube grasp
+            # is prioritized; a red drop takes precedence over an inability
+            # to lift; a never-grasped red cube counts as missed grasp.
+            wrong_fail = ~final_success & self.wrong_grasp_once
+            drop_fail = ~final_success & ~wrong_fail & self.red_drop_once
+            lift_fail = ~final_success & ~wrong_fail & ~drop_fail & self.red_grasp_once
+            miss_fail = ~final_success & ~wrong_fail & ~drop_fail & ~lift_fail
+            episode_info.update({
+                "failure_wrong_cube": wrong_fail.clone(),
+                "failure_red_dropped": drop_fail.clone(),
+                "failure_failed_lift": lift_fail.clone(),
+                "failure_missed_red_grasp": miss_fail.clone(),
+                "ever_wrong_grasp": self.wrong_grasp_once.clone(),
+                "ever_red_grasp": self.red_grasp_once.clone(),
+                "ever_red_lift": self.red_lift_once.clone(),
+                "ever_red_drop": self.red_drop_once.clone(),
+                "red_grasp_at_end": grasp.clone(),
+                "red_lift_at_end": lifted.clone(),
+            })
         episode_info["return"] = self.returns.clone()
         episode_info["episode_len"] = self.elapsed_steps.clone()
         episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
