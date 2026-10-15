@@ -6,7 +6,12 @@ Training a **Franka Panda** robot to grasp and lift a **red cube** while **green
 
 ### Successful red-cube pick
 
-[![Successful red-cube pick](docs/media/success.gif)](docs/media/success.mp4)
+<div align="center">
+  <a href="docs/media/success.mp4">
+    <img src="docs/media/success.gif" alt="Successful SAC-Flow red-cube picking" width="900" />
+  </a>
+  <p><em>Successful red-cube picking in ManiSkill. Click to watch the full MP4.</em></p>
+</div>
 
 [Watch the full successful rollout (MP4)](docs/media/success.mp4)
 
