@@ -67,6 +67,19 @@ The **seed-2000 failure-tracking run** reported:
 
 The one unsuccessful final state involved a previously lifted red cube that was no longer grasped at episode end. These figures are simulation results under the current reset distribution, not evidence of real-robot performance.
 
+## Policy rollout videos
+
+These clips are from **evaluation of the saved step-8000 policy**, not random actions or training-time demonstrations. The red cube is the target; green and blue are distractors.
+
+| Successful pick | Failure: red cube dropped |
+|---|---|
+| [![Successful red-cube pick](docs/media/success.gif)](docs/media/success.mp4) | [![Red-cube drop](docs/media/failure.gif)](docs/media/failure.mp4) |
+| **Success:** red cube grasped and held up at episode end. [Watch MP4](docs/media/success.mp4) | **Failure:** red cube grasped and lifted, but grasp lost before episode end. [Watch MP4](docs/media/failure.mp4) |
+
+The failure occurred **once in 100 seed-2000 evaluation episodes** (batch 1, episode 6 within the batch, zero-indexed). The clips above must be selected from their corresponding evaluation rollouts; do not substitute an arbitrary video. GIFs provide inline previews on GitHub, while the linked MP4s provide higher-quality playback.
+
+To add the clips, run `bash scripts/prepare_readme_videos.sh /path/to/success.mp4 /path/to/failure.mp4` from the repository root. This copies the selected clips to `docs/media/` and generates the previews using `ffmpeg`. Commit the four media files alongside this README. Evaluation logs and all other videos remain excluded from Git.
+
 ## Important files
 
 | Path | Purpose |
@@ -75,6 +88,7 @@ The one unsuccessful final state involved a previously lifted red cube that was 
 | `run_red_cube3.sh` | Training launcher |
 | `evaluate_red_cube3.sh` | Checkpoint evaluation launcher |
 | `summarize_red_cube_failures.py` | Failure summary generation |
+| `scripts/prepare_readme_videos.sh` | Copy two selected evaluation clips and generate inline previews |
 | `examples/embodiment/config/maniskill_sac_flow_red_cube3.yaml` | SAC-Flow experiment configuration |
 | `examples/embodiment/config/env/maniskill_pick_red_cube3.yaml` | Simulator configuration |
 
