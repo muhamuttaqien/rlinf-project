@@ -189,6 +189,47 @@ class MetricLogger:
             if backend is None or default_backend in backend:
                 logger_instance.log(data=data, step=step)
 
+    def log_eval_videos(self, video_dir: str, step: int, max_videos: int = 3) -> int:
+        """Upload new ManiSkill evaluation MP4s to the existing W&B run.
+
+        Files are selected by recent modification, then de-duplicated by path,
+        size and mtime. Only call this after an evaluation has completed.
+        """
+        if "wandb" not in self.logger_backends or max_videos <= 0:
+            return 0
+        from pathlib import Path
+
+        base = Path(video_dir)
+        if not base.is_dir():
+            return 0
+        uploaded = getattr(self, "_uploaded_eval_videos", None)
+        if uploaded is None:
+            uploaded = set()
+            self._uploaded_eval_videos = uploaded
+        candidates = []
+        for video in base.rglob("*.mp4"):
+            try:
+                stat = video.stat()
+                if stat.st_size <= 0:
+                    continue
+                identity = (str(video.resolve()), stat.st_mtime_ns, stat.st_size)
+                if identity not in uploaded:
+                    candidates.append((stat.st_mtime_ns, video, identity))
+            except OSError:
+                continue
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        selected = candidates[:max_videos]
+        if not selected:
+            return 0
+        wandb = self.logger["wandb"]
+        for i, (_, video, identity) in enumerate(selected):
+            try:
+                wandb.log({f"eval/rollout_video_{i}": wandb.Video(str(video), format="mp4")}, step=step)
+                uploaded.add(identity)
+            except Exception as exc:
+                print(f"[W&B] Could not upload {video}: {exc}")
+        return sum(identity in uploaded for _, _, identity in selected)
+
     def log_table(self, df_data, name, step):
         if "wandb" in self.logger_backends:
             table = self.logger["wandb"].Table(dataframe=df_data)

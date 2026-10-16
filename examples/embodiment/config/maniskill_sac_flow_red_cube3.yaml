@@ -23,9 +23,9 @@ runner:
   task_type: embodied
   logger:
     log_path: "../results"
-    project_name: rlinf
-    experiment_name: "sac_flow_red_cube3"
-    logger_backends: ["tensorboard"] # wandb, swanlab
+    project_name: "rlinf-project"
+    experiment_name: "sac-red-cube"
+    logger_backends: ["tensorboard", "wandb"]
 
   max_epochs: 8000
   max_steps: -1
@@ -33,6 +33,7 @@ runner:
   only_eval: False
   val_check_interval: 50
   save_interval: 50
+  wandb_max_eval_videos: 3
 
 algorithm:
   update_epoch: 32

@@ -335,6 +335,13 @@ class EmbodiedRunner:
                 eval_metrics = self.evaluate()
                 eval_metrics = {f"eval/{k}": v for k, v in eval_metrics.items()}
                 self.metric_logger.log(data=eval_metrics, step=step)
+                # Upload a few completed evaluation videos to the same W&B run.
+                if bool(self.cfg.env.eval.video_cfg.get("save_video", False)):
+                    self.metric_logger.log_eval_videos(
+                        str(self.cfg.env.eval.video_cfg.video_base_dir),
+                        step=step,
+                        max_videos=int(self.cfg.runner.get("wandb_max_eval_videos", 3)),
+                    )
 
         if save_model:
             self._save_checkpoint()

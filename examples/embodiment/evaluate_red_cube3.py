@@ -181,6 +181,18 @@ def main(cfg) -> None:
     print("EVAL_ONLY_METRICS=" + json.dumps(clean, indent=2, sort_keys=True))
     (output / "eval_metrics.json").write_text(json.dumps(clean, indent=2, sort_keys=True))
     print("Evaluation metrics saved to:", output / "eval_metrics.json")
+    # Log metrics and rollout media to the evaluator's existing W&B run.
+    runner.metric_logger.log(
+        data={f"eval/{key}": value for key, value in clean.items()},
+        step=0,
+    )
+    if bool(cfg.env.eval.video_cfg.get("save_video", False)):
+        runner.metric_logger.log_eval_videos(
+            str(cfg.env.eval.video_cfg.video_base_dir),
+            step=0,
+            max_videos=int(cfg.runner.get("wandb_max_eval_videos", 5)),
+        )
+    runner.metric_logger.finish()
 
     if reward_group is not None:
         reward_group.stop().wait()

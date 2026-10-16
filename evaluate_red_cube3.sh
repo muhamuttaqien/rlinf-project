@@ -27,6 +27,9 @@ python "$EMBODIED_PATH/evaluate_red_cube3.py" \
   --config-name maniskill_sac_flow_red_cube3 \
   "+runner.resume_dir=$CKPT" \
   "runner.logger.log_path=$OUT" \
+  "runner.logger.project_name=rlinf-project" \
+  "runner.logger.experiment_name=sac-red-cube-eval" \
+  "runner.logger.logger_backends=[tensorboard,wandb]" \
   "env.eval.seed=2000" \
   "env.eval.total_num_envs=20" \
   "env.eval.rollout_epoch=5" \
