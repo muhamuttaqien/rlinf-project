@@ -93,5 +93,3 @@ tensorboard --logdir logs --port 6006
 - Capture the actual dropped-cube failure on video.
 - Evaluate with all three cube positions fully randomized.
 - Extend from privileged state observations to RGB input.
-
-*Experiments conducted October 14–15, 2026. Based on the open-source RLinf project; retain upstream attribution and licensing.*
