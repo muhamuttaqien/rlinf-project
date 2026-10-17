@@ -1,6 +1,18 @@
 # RLinf + ManiSkill: Three-Cube Picking
 
-Training a **Franka Panda** robot to grasp and lift a **red cube** while **green and blue cubes** act as distractors. Built on [RLinf](https://github.com/RLinf/RLinf) and [ManiSkill](https://maniskill.readthedocs.io/) using **SAC-Flow**.
+Training a **Franka Panda** robot to grasp and lift a **red cube** while **green and blue cubes** act as distractors. Built on [RLinf](https://github.com/RLinf/RLinf) and [ManiSkill](https://maniskill.readthedocs.io/) using **SAC-Flow**. The project demonstrates reinforcement learning for target-specific robotic manipulation.
+
+### Franka Panda Keyboard Teleoperation
+
+ManiSkill-based keyboard teleoperation for controlling the Franka Panda in a three-cube environment, featuring an HD external view, wrist-mounted camera, and gripper control.
+
+**Run:**
+
+```bash
+PYTHONPATH="$PWD" python scripts/control_franka.py
+```
+
+**Controls:** `W/A/S/D/R/F` for movement, `I/J/K/L/U/O` for rotation, `Z/X` for wrist twist, `SPACE` for gripper, `C` to toggle wrist camera, and `Q` to reset.
 
 ## Demo
 
