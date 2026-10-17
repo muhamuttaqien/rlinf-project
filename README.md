@@ -25,10 +25,6 @@ PYTHONPATH="$PWD" python scripts/control_franka.py
 
 [Watch the full successful rollout (MP4)](docs/media/success.mp4)
 
-### Failure: red cube dropped
-
-The failure-tracking evaluation recorded **one episode where the red cube was grasped and lifted but was no longer grasped at episode end**. Its video was **not captured among the five available evaluation recordings**, so no failure clip is linked yet. We'll add a verified failure video when available, rather than showing an unrelated rollout.
-
 ## Experiment
 
 | Component | Configuration |
@@ -46,23 +42,37 @@ The failure-tracking evaluation recorded **one episode where the red cube was gr
 
 ## Results
 
-Independent evaluation of the **step-8000 SAC-Flow checkpoint** across five random seeds, with 100 episodes per seed (500 episodes total).
+Independent evaluation of the **step-8000 SAC-Flow checkpoint** across five random seeds, with 100 episodes per seed (**500 episodes total**).
 
 | **Evaluation** | **Success at least once** | **Success at episode end** |
 |---|---:|---:|
-| Seed 1000 (100 episodes) | 100% | 90% |
+| Seed 1000 (100 episodes) | 97% | 91% |
 | Seed 2000 (100 episodes) | 100% | 94% |
-| Seed 3000 (100 episodes) | 100% | 74% |
-| Seed 4000 (100 episodes) | 95% | 86% |
+| Seed 3000 (100 episodes) | 100% | 77% |
+| Seed 4000 (100 episodes) | 94% | 84% |
 | Seed 5000 (100 episodes) | 100% | 98% |
-| **Overall (500 episodes)** | **99.0%** | **88.4%** |
-| **Std. across seeds** | **2.24 pp** | **9.21 pp** |
+| **Overall (500 episodes)** | **98.2%** | **88.8%** |
+| **Std. across seeds** | **2.68 pp** | **8.35 pp** |
 
-The policy successfully grasped and lifted the target red cube in **99.0% of episodes**, while **88.4% maintained success until episode end**. The difference highlights occasional failures to maintain a stable grasp or lift.
+The policy successfully grasped and lifted the target red cube in **98.2% of episodes**, while **88.8% maintained success until episode end**. Performance varies across random seeds, with seed 3000 exhibiting the lowest final success rate (77%).
 
-The variation across seeds, particularly the 74% final success rate for seed 3000, suggests that the policy's robustness depends on the sampled initial conditions.
+These results are obtained in simulation using privileged state observations, rather than vision-based object recognition.
 
-**Evaluation setup:** ManiSkill simulation, 100 steps per episode, using the same trained checkpoint for all five seeds. These results use privileged state observations rather than RGB-based object recognition.
+## Failure Analysis
+
+Failure diagnostics from the 500 evaluation episodes reveal that **dropping the red cube after grasping or lifting** is the primary failure mode.
+
+| **Failure category** | **Seed 1000** | **Seed 2000** | **Seed 3000** | **Seed 4000** | **Seed 5000** | **Total** |
+|---|---:|---:|---:|---:|---:|---:|
+| Red cube dropped | 9 | 6 | 23 | 14 | 2 | **54** |
+| Missed red grasp | 0 | 0 | 0 | 2 | 0 | **2** |
+| Wrong-cube grasp | 0 | 0 | 0 | 0 | 0 | **0** |
+
+Of the 500 episodes, **56 (11.2%) did not satisfy the success condition at episode end**. The recorded failure categories indicate that maintaining a stable grasp is a greater challenge than initially reaching and lifting the target.
+
+The absence of wrong-cube grasps suggests that the policy reliably distinguishes the target from distractors under the current state-based observation setup.
+
+**Note:** Failure categories are based on the recorded diagnostic flags. They should not be interpreted as mutually exclusive unless confirmed by the evaluation implementation.
 
 ## Run
 
