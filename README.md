@@ -48,23 +48,23 @@ The failure-tracking evaluation recorded **one episode where the red cube was gr
 
 ## Results
 
-Independent evaluation of the step-8000 checkpoint:
+Independent evaluation of the **step-8000 SAC-Flow checkpoint** across five random seeds, with 100 episodes per seed (500 episodes total).
 
-| Evaluation | Success at least once | Success at episode end |
+| **Evaluation** | **Success at least once** | **Success at episode end** |
 |---|---:|---:|
-| Seed 1000 (100 episodes) | 95% | 90% |
-| Seed 2000 (100 episodes) | **100%** | **99%** |
+| Seed 1000 (100 episodes) | 100% | 90% |
+| Seed 2000 (100 episodes) | 100% | 94% |
+| Seed 3000 (100 episodes) | 100% | 74% |
+| Seed 4000 (100 episodes) | 95% | 86% |
+| Seed 5000 (100 episodes) | 100% | 98% |
+| **Overall (500 episodes)** | **99.0%** | **88.4%** |
+| **Std. across seeds** | **2.24 pp** | **9.21 pp** |
 
-The seed-2000 failure tracker reported:
+The policy successfully grasped and lifted the target red cube in **99.0% of episodes**, while **88.4% maintained success until episode end**. The difference highlights occasional failures to maintain a stable grasp or lift.
 
-| Failure category | Episodes |
-|---|---:|
-| Missed red grasp | 0 |
-| Wrong-cube grasp | 0 |
-| Red cube dropped | **1** |
-| Failed lift | 0 |
+The variation across seeds, particularly the 74% final success rate for seed 3000, suggests that the policy's robustness depends on the sampled initial conditions.
 
-These results are from simulation, not physical robot deployment. Reaching the success condition once does not necessarily mean maintaining it until episode end.
+**Evaluation setup:** ManiSkill simulation, 100 steps per episode, using the same trained checkpoint for all five seeds. These results use privileged state observations rather than RGB-based object recognition.
 
 ## Run
 
