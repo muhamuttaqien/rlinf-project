@@ -4,9 +4,7 @@ Training a **Franka Panda** robot to grasp and lift a **red cube** while **green
 
 ## Keyboard Teleoperation
 
-ManiSkill-based keyboard teleoperation for controlling the Franka Panda in a three-cube environment, featuring an HD external view, wrist-mounted camera, and gripper control.
-
-**Run:**
+ManiSkill-based keyboard teleoperation for controlling the Franka Panda in a three-cube environment, featuring an HD external view, wrist-mounted camera, and gripper control. Run:
 
 ```bash
 PYTHONPATH="$PWD" python scripts/control_franka.py
