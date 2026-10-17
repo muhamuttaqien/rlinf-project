@@ -5,7 +5,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-out = Path("logs/evaluation-red-cube3-failures-seed2000")
+out = Path("logs/evaluation-red-cube3-failures-seed")
 files = sorted(out.glob("failure_episodes_worker_*.csv"))
 if not files:
     raise SystemExit(f"No per-episode CSV found in {out}. Run evaluation first.")
