@@ -31,3 +31,31 @@ To test the preparation script:
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest \
   tests/unit_tests/test_stackcube_world_model_prepare.py -q
 ```
+
+
+## Action-conditioned eight-step window indices
+
+The existing RLinf Wan configuration uses five condition frames plus eight
+generated frames; OpenSora uses four condition frames plus eight generated
+frames. Prepare lazy supervised windows for both:
+
+```bash
+python scripts/index_stackcube_world_model.py --backend wan \
+  --input data/stackcube_world_model_dual \
+  --output data/stackcube_wm_ready/wan_windows.json
+python scripts/index_stackcube_world_model.py --backend opensora \
+  --input data/stackcube_world_model_dual \
+  --output data/stackcube_wm_ready/opensora_windows.json
+```
+
+These indices retain both camera views and explicitly align
+`condition=o[t-To+1:t]`, `actions=a[t:t+8]`, and
+`targets=o[t+1:t+8]`. They are **offline training-window indices**, not
+the native training format of DiffSynth Wan or OpenSora STDiT.
+Both backends still require appropriate model-training configuration, a
+StackCube-trained reward model, and validation of action conventions.
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest \
+  tests/unit_tests/test_stackcube_world_model_windows.py -q
+```
