@@ -59,3 +59,32 @@ StackCube-trained reward model, and validation of action conventions.
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest \
   tests/unit_tests/test_stackcube_world_model_windows.py -q
 ```
+
+
+## Prediction evaluation baseline (no model weights needed)
+
+Before training Wan/OpenSora, run the eight-step **persistence baseline** on the
+aligned StackCube windows. It predicts that the last observed frame remains
+unchanged across the next eight steps. MAE is reported on the 0–255 RGB scale,
+separately for the base camera and wrist camera.
+
+```bash
+python scripts/evaluate_stackcube_prediction.py \
+  --index data/stackcube_wm_ready/wan_windows.json \
+  --output outputs/stackcube_prediction/wan_persistence \
+  --max-windows 50
+python scripts/evaluate_stackcube_prediction.py \
+  --index data/stackcube_wm_ready/opensora_windows.json \
+  --output outputs/stackcube_prediction/opensora_persistence \
+  --max-windows 50
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest \
+  tests/unit_tests/test_stackcube_prediction_eval.py -q
+```
+
+Output: `metrics.json`, `base_persistence_comparison.png` and
+`wrist_persistence_comparison.png`. The images compare last observation,
+ground-truth final frame, and unchanged-frame prediction.
+
+**This is not Wan or OpenSora inference.** It establishes a verifiable metric
+and visualization pipeline before implementing and evaluating actual model
+predictions. The official LIBERO checkpoints are not validated for StackCube.
