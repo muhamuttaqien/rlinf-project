@@ -88,3 +88,26 @@ ground-truth final frame, and unchanged-frame prediction.
 **This is not Wan or OpenSora inference.** It establishes a verifiable metric
 and visualization pipeline before implementing and evaluating actual model
 predictions. The official LIBERO checkpoints are not validated for StackCube.
+
+
+## Wan action-history validation (single indexed window)
+
+The inference script now uses recorded four transition actions from the five
+conditioning images, plus a padded first slot; it exposes three future-action
+modes: `real`, `zero`, and `shuffled`. All three use the same image
+conditioning and seed.
+
+```bash
+python scripts/infer_stackcube_wan.py --check-only --action-mode real
+for mode in real zero shuffled; do
+  python scripts/infer_stackcube_wan.py --window 0 --steps 5 --seed 7 --action-mode "$mode"
+done
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest \
+  tests/unit_tests/test_stackcube_wan_inference.py -q
+```
+
+Outputs are separated into `outputs/stackcube_prediction/wan_zero_shot/<mode>/`
+and contain a matched persistence MAE alongside Wan MAE and PSNR. Small
+differences across modes do not establish action comprehension; LIBERO and
+ManiSkill action semantics are not proven equivalent, and quantitative results
+require evaluation across multiple held-out episodes.
