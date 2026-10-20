@@ -47,6 +47,38 @@ def register(root):
         status = "updated" if insert_registry(path, marker, snippet) else "already registered"
         print(f"{status}: {path}")
 
+    # Allow upstream RLDSDataset to open our standalone prebuilt TFDS dataset.
+    loader = root / "prismatic/vla/datasets/rlds/dataset.py"
+    if not loader.is_file():
+        raise FileNotFoundError(loader)
+    original = loader.read_text()
+    updated = original
+    old = '    builder = tfds.builder(name, data_dir=data_dir)'
+    new = ('    builder = (tfds.builder_from_directory(\\n'
+           '        str(Path(data_dir) / name / "1.0.0"))\\n'
+           '        if name == "stack_cube_builder" else tfds.builder(name, data_dir=data_dir))')
+    new = new.replace('\\n', '\n')
+    if old in updated:
+        updated = updated.replace(old, new)
+        # pathlib is imported locally in the loader function to avoid
+        # changing module-level imports in the upstream project.
+        updated = updated.replace('    builder = (tfds.builder_from_directory(',
+                                  '    from pathlib import Path\n    builder = (tfds.builder_from_directory(')
+    elif new not in updated:
+        raise ValueError("Upstream TFDS builder interface changed")
+    split_old = '    split = "train" if train else "val"'
+    split_new = '    split = "train" if train else ("validation" if name == "stack_cube_builder" else "val")'
+    if split_old in updated:
+        updated = updated.replace(split_old, split_new)
+    elif split_new not in updated:
+        raise ValueError("Upstream split interface changed")
+    if updated != original:
+        loader.write_text(updated)
+        print(f"updated: {loader}")
+    else:
+        print(f"already registered: {loader}")
+
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
