@@ -21,10 +21,17 @@ def main():
     dataset, stats=make_dataset_from_rlds(
         **kwargs, train=True, shuffle=False, num_parallel_reads=1,
         num_parallel_calls=1)
-    # The model receives eight action targets per observation, not a full trajectory.\n    chunked = apply_trajectory_transforms(\n        dataset, train=True, window_size=1, future_action_window_size=7,\n        skip_unlabeled=True, num_parallel_calls=1)\n    element=next(iter(chunked.flatten(num_parallel_calls=1).take(1)))
+    # The model receives eight action targets per observation, not a full trajectory.
+    chunked = apply_trajectory_transforms(
+        dataset, train=True, window_size=1, future_action_window_size=7,
+        skip_unlabeled=True, num_parallel_calls=1)
+    element=next(iter(chunked.flatten(num_parallel_calls=1).take(1)))
     print("StackCube OpenVLA-OFT RLDS sample loaded")
     print("Observation keys:",list(element["observation"].keys()))
-    print("Action shape:",element["action"].shape)\n    assert element["action"].shape == (8, 7), "Expected one eight-action policy chunk"\n    assert "language_instruction" in element["task"]\n    print("Language:", element["task"]["language_instruction"].numpy().decode())
+    print("Action shape:",element["action"].shape)
+    assert element["action"].shape == (8, 7), "Expected one eight-action policy chunk"
+    assert "language_instruction" in element["task"]
+    print("Language:", element["task"]["language_instruction"].numpy().decode())
     print("Action statistics keys:",list(stats["action"].keys()))
 
 
