@@ -19,10 +19,11 @@ def _record(path, *, frames=4, steps=3, action_dim=7):
     with h5py.File(path, "w") as file:
         group = file.create_group("traj_0")
         group.create_dataset("actions", data=np.zeros((steps, 1, action_dim), dtype=np.float32))
-        group.create_dataset(
-            "obs/sensor_data/base_camera/rgb",
-            data=np.zeros((frames, 1, 8, 8, 3), dtype=np.uint8),
-        )
+        for camera in ("base_camera", "hand_camera"):
+            group.create_dataset(
+                f"obs/sensor_data/{camera}/rgb",
+                data=np.zeros((frames, 1, 8, 8, 3), dtype=np.uint8),
+            )
 
 
 def test_export_valid(tmp_path):
@@ -54,3 +55,25 @@ def test_rejects_invalid_image_size(tmp_path):
     _record(source)
     with pytest.raises(ValueError, match="image_size must be positive"):
         module.convert(source, tmp_path / "converted", image_size=0)
+
+
+def test_export_both_cameras(tmp_path):
+    source = tmp_path / "trajectories.h5"
+    _record(source)
+    manifest = module.convert(source, tmp_path / "converted",
+                              cameras=("base_camera", "hand_camera"))
+    assert manifest["cameras"] == ["base_camera", "hand_camera"]
+    with np.load(tmp_path / "converted" / "traj_0.npz") as data:
+        assert data["base_rgb"].shape == (4, 256, 256, 3)
+        assert data["wrist_rgb"].shape == (4, 256, 256, 3)
+        assert data["actions"].shape == (3, 7)
+
+
+def test_rejects_missing_second_camera(tmp_path):
+    source = tmp_path / "trajectories.h5"
+    _record(source)
+    with h5py.File(source, "r+") as file:
+        del file["traj_0/obs/sensor_data/hand_camera"]
+    with pytest.raises(ValueError, match="No RGB observation"):
+        module.convert(source, tmp_path / "converted",
+                       cameras=("base_camera", "hand_camera"))
