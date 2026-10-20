@@ -33,3 +33,28 @@ fine-tuning or rollout. The current 100 demonstrated episodes are suitable
 for a preliminary experiment but may be insufficient for robust performance.
 
 **No policy weights are modified or trained by this script.**
+
+
+## Verified SFT training compatibility
+
+The generic RLinf trainer `examples/sft/train_vla_sft.py` uses
+`FSDPVlaSftWorker`. Its `build_dataloader()` does not register
+`openvla_oft`, so passing this dataset to that runner is **not supported**.
+
+The upstream OpenVLA-OFT repository (`moojink/openvla-oft`) provides
+`vla-scripts/finetune.py`, which trains from RLDS using `RLDSDataset`
+and `RLDSBatchTransform`. It cannot consume our intermediate
+`index.json` directly.
+
+Next work: implement a TensorFlow Datasets RLDS exporter plus the custom
+StackCube OXE registration, verify camera, robot embodiment and action
+normalization, and then validate the official LoRA training path. Do not
+use `unnorm_key: bridge_orig` for StackCube without confirming conversion.
+
+```bash
+python scripts/audit_stackcube_openvlaoft_sft.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest \
+  tests/unit_tests/test_stackcube_openvlaoft_audit.py -q
+```
+
+This audit is a compatibility gate, **not** policy training.
