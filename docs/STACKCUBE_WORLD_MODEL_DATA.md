@@ -7,7 +7,7 @@ on ManiSkill.
 ## 1. Verify the existing Franka Panda simulator
 
 ```bash
-python scripts/smoke_test_stackcube.py --robot panda --obs-mode rgb --steps 10
+python scripts/smoke_test_stackcube.py --robot panda --obs-mode rgb --image-size 256 --steps 10
 ```
 
 ## 2. Collect ManiSkill Panda StackCube demonstrations
@@ -38,10 +38,11 @@ camera, observation, and control settings before exporting.
 python scripts/export_stackcube_world_model.py \
   --input /path/to/rgb_recording.h5 \
   --output data/stackcube_world_model \
-  --camera base_camera
+  --camera base_camera \
+  --image-size 256
 ```
 
-Each `traj_N.npz` contains `rgb` of shape `[T+1,H,W,3]` and
+Each `traj_N.npz` contains `rgb` of shape `[T+1,256,256,3]` and
 `actions` of shape `[T,7]`. `manifest.json` lists each sequence. The
 exporter fails clearly on missing RGB, mismatched time axes, and incorrect
 action dimensions, rather than silently mixing invalid data.
@@ -57,3 +58,5 @@ checkpoints and action normalizers are **not** interchangeable with StackCube.
 ```bash
 python -m pytest tests/unit_tests/test_stackcube_world_model_export.py -q
 ```
+
+Camera acquisition uses ManiSkill `sensor_configs={"width": 256, "height": 256}` in the smoke test. The exporter also resizes any recorded frames to 256x256 using bilinear filtering. This resizing alone does not make ManiSkill recordings compatible with Wan/OpenSora checkpoints.
