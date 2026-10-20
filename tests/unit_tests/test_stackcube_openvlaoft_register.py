@@ -15,6 +15,9 @@ def test_registry_idempotent(tmp_path):
     d.mkdir(parents=True)
     for name in ("configs.py", "transforms.py", "mixtures.py"):
         (d / name).write_text("REGISTRY = {\n}\n")
+    loader = root / "prismatic/vla/datasets/rlds/dataset.py"
+    loader.parent.mkdir(parents=True, exist_ok=True)
+    loader.write_text('    builder = tfds.builder(name, data_dir=data_dir)\\n    split = "train" if train else "val"\\n')
     module.register(root)
     first = {x.name: x.read_text() for x in d.iterdir()}
     module.register(root)
@@ -22,3 +25,5 @@ def test_registry_idempotent(tmp_path):
     assert '"stack_cube_builder"' in first["configs.py"]
     assert '"stack_cube_builder"' in first["mixtures.py"]
     assert '"stack_cube_builder"' in first["transforms.py"]
+    assert "builder_from_directory" in loader.read_text()
+    assert '"validation"' in loader.read_text()
