@@ -72,6 +72,24 @@ def register(root):
         updated = updated.replace(split_old, split_new)
     elif split_new not in updated:
         raise ValueError("Upstream split interface changed")
+    # The upstream code computes stats from split="all" by default.
+    # StackCube has a held-out validation split, so compute normalization
+    # statistics on the 90 training episodes ONLY. Change the cache key
+    # to prevent reuse of previously computed all-split statistics.
+    stats_split_old = 'builder, split="all", shuffle=False, num_parallel_reads=num_parallel_reads'
+    stats_split_new = ('builder, split=("train" if name == "stack_cube_builder" else "all"), '
+                       'shuffle=False, num_parallel_reads=num_parallel_reads')
+    if stats_split_old in updated:
+        updated = updated.replace(stats_split_old, stats_split_new)
+    elif stats_split_new not in updated:
+        raise ValueError("Upstream statistics split interface changed")
+    stats_hash_old = 'str(builder.info),'
+    stats_hash_new = ('str(builder.info) + ("_stackcube_train_only_v1" '
+                      'if name == "stack_cube_builder" else ""),')
+    if stats_hash_old in updated:
+        updated = updated.replace(stats_hash_old, stats_hash_new)
+    elif stats_hash_new not in updated:
+        raise ValueError("Upstream statistics cache interface changed")
     if updated != original:
         loader.write_text(updated)
         print(f"updated: {loader}")
