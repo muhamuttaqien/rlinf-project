@@ -31,7 +31,7 @@ def test_export_valid(tmp_path):
     manifest = module.convert(source, tmp_path / "converted")
     assert manifest["episodes"][0]["steps"] == 3
     result = np.load(tmp_path / "converted" / "traj_0.npz")
-    assert result["rgb"].shape == (4, 8, 8, 3)
+    assert result["rgb"].shape == (4, 256, 256, 3)
     assert result["actions"].shape == (3, 7)
 
 
@@ -47,3 +47,10 @@ def test_rejects_wrong_action_dimension(tmp_path):
     _record(source, action_dim=8)
     with pytest.raises(ValueError, match="7-D Panda"):
         module.convert(source, tmp_path / "converted")
+
+
+def test_rejects_invalid_image_size(tmp_path):
+    source = tmp_path / "trajectories.h5"
+    _record(source)
+    with pytest.raises(ValueError, match="image_size must be positive"):
+        module.convert(source, tmp_path / "converted", image_size=0)
