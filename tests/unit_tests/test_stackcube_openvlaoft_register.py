@@ -27,3 +27,8 @@ def test_registry_idempotent(tmp_path):
     assert '"stack_cube_builder"' in first["transforms.py"]
     assert "builder_from_directory" in loader.read_text()
     assert '"validation"' in loader.read_text()
+
+
+def test_loader_smoke_script_is_valid_python():
+    script = Path(__file__).resolve().parents[2] / "scripts" / "check_stackcube_openvlaoft_loader.py"
+    compile(script.read_text(), str(script), "exec")
