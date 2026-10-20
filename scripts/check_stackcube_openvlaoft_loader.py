@@ -12,9 +12,9 @@ def main():
     p.add_argument("--data-root",type=Path,default=Path("data/stackcube_rlds"))
     args=p.parse_args()
     sys.path.insert(0,str(args.openvla_oft.resolve()))
-    from prismatic.vla.datasets.rlds.oxe.materialize import get_oxe_dataset_kwargs
+    from prismatic.vla.datasets.rlds.oxe.materialize import make_oxe_dataset_kwargs
     from prismatic.vla.datasets.rlds.dataset import make_dataset_from_rlds
-    kwargs=get_oxe_dataset_kwargs(
+    kwargs=make_oxe_dataset_kwargs(
         "stack_cube_builder", args.data_root.resolve(),
         load_camera_views=("primary","wrist"),
         load_proprio=False,load_language=True)
