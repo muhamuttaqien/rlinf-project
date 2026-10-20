@@ -54,7 +54,7 @@ def dry_run(index_path):
     return counts
 
 
-def build(index_path, output, dataset_name="stackcube_panda"):
+def build(index_path, output):
     try:
         import tensorflow as tf
         import tensorflow_datasets as tfds
@@ -67,7 +67,9 @@ def build(index_path, output, dataset_name="stackcube_panda"):
         RELEASE_NOTES = {"1.0.0": "ManiSkill StackCube Panda dual-camera actions"}
 
         def _info(self):
-            return self.dataset_info_from_configs(
+            return tfds.core.DatasetInfo(
+                builder=self,
+                description="ManiSkill StackCube Panda dual-camera action demonstrations",
                 features=tfds.features.FeaturesDict({
                     "steps": tfds.features.Dataset({
                         "observation": tfds.features.FeaturesDict({
@@ -95,8 +97,8 @@ def build(index_path, output, dataset_name="stackcube_panda"):
                         source, entry, "Stack the red cube on top of the green cube."))
                 }
 
-    # Dataset name is derived from the class by TFDS; use the standard
-    # stack_cube_builder name unless explicitly registered in upstream.
+    # DatasetInfo is built explicitly rather than searching a dataset package
+    # alongside this standalone .py file.
     builder = StackCubeBuilder(data_dir=str(output))
     builder.download_and_prepare()
     return str(builder.data_dir)
