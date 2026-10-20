@@ -4,13 +4,20 @@ set -euo pipefail
 # ManiSkill motion-planning demonstrations for subsequent RECAP dataset preparation.
 # Run from repository root with the embodied virtual environment activated.
 COUNT="${1:-100}"
+# Pass --replay-only to reuse a previously collected dataset without recollecting.
+REPLAY_ONLY=false
+if [[ "$COUNT" == "--replay-only" ]]; then
+  REPLAY_ONLY=true
+  COUNT=10
+fi
 BASE="${2:-outputs/stackcube_recap}"
 if ! [[ "$COUNT" =~ ^[1-9][0-9]*$ ]]; then
   echo "Expected positive integer trajectory count, got: $COUNT" >&2
   exit 2
 fi
 mkdir -p "$BASE/raw" "$BASE/rgb"
-echo "Collecting $COUNT successful StackCube expert trajectories..."
+if [[ "$REPLAY_ONLY" == false ]]; then
+  echo "Collecting $COUNT successful StackCube expert trajectories..."
 python -m mani_skill.examples.motionplanning.panda.run \
   -e StackCube-v1 \
   -n "$COUNT" \
@@ -18,8 +25,9 @@ python -m mani_skill.examples.motionplanning.panda.run \
   -o none \
   --record-dir "$BASE/raw" \
   --traj-name stackcube_expert
+fi
 
-RAW="$BASE/raw/stackcube_expert.h5"
+RAW="$BASE/raw/StackCube-v1/motionplanning/stackcube_expert.h5"
 if [[ ! -f "$RAW" ]]; then
   echo "Trajectory not found at $RAW. Search the recording directory:" >&2
   find "$BASE/raw" -type f -name '*.h5' >&2
