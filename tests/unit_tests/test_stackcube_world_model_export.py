@@ -1,0 +1,49 @@
+# Copyright 2026 The RLinf Authors.
+# Licensed under the Apache License, Version 2.0
+"""CPU-only tests for the StackCube dataset exporter."""
+
+import importlib.util
+from pathlib import Path
+
+import h5py
+import numpy as np
+import pytest
+
+MODULE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "export_stackcube_world_model.py"
+spec = importlib.util.spec_from_file_location("stackcube_export", MODULE_PATH)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+
+def _record(path, *, frames=4, steps=3, action_dim=7):
+    with h5py.File(path, "w") as file:
+        group = file.create_group("traj_0")
+        group.create_dataset("actions", data=np.zeros((steps, 1, action_dim), dtype=np.float32))
+        group.create_dataset(
+            "obs/sensor_data/base_camera/rgb",
+            data=np.zeros((frames, 1, 8, 8, 3), dtype=np.uint8),
+        )
+
+
+def test_export_valid(tmp_path):
+    source = tmp_path / "trajectories.h5"
+    _record(source)
+    manifest = module.convert(source, tmp_path / "converted")
+    assert manifest["episodes"][0]["steps"] == 3
+    result = np.load(tmp_path / "converted" / "traj_0.npz")
+    assert result["rgb"].shape == (4, 8, 8, 3)
+    assert result["actions"].shape == (3, 7)
+
+
+def test_rejects_misaligned_frames(tmp_path):
+    source = tmp_path / "trajectories.h5"
+    _record(source, frames=3)
+    with pytest.raises(ValueError, match="T\\+1 RGB"):
+        module.convert(source, tmp_path / "converted")
+
+
+def test_rejects_wrong_action_dimension(tmp_path):
+    source = tmp_path / "trajectories.h5"
+    _record(source, action_dim=8)
+    with pytest.raises(ValueError, match="7-D Panda"):
+        module.convert(source, tmp_path / "converted")
