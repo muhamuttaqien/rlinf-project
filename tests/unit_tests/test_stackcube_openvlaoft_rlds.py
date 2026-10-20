@@ -24,3 +24,11 @@ def test_rlds_step_alignment(tmp_path):
     assert steps[0]["is_first"] is True
     assert steps[-1]["is_last"] is True
     assert steps[0]["observation"]["wrist_image"].shape==(256,256,3)
+
+
+def test_tfds_info_does_not_use_config_discovery():
+    # Standalone TFDS builders must not search for dataset metadata adjacent
+    # to this script's .py file.
+    exporter = Path(module.__file__).read_text()
+    assert "dataset_info_from_configs" not in exporter
+    assert "tfds.core.DatasetInfo(" in exporter
