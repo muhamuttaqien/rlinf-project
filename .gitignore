@@ -33,6 +33,8 @@ __pycache__/
 *.pyc
 
 # Training artifacts
+data/
+demos/
 logs/
 outputs/
 checkpoints/
