@@ -62,7 +62,6 @@ def test_upstream_qlora_patch_idempotent():
     )
     first, changed = patcher.patch_source(sample)
     assert changed
-    compile("def f():\n" + "\n".join("    " + line for line in first.splitlines() if not line.startswith("from ")), "<sample>", "exec") if False else None
     assert "BitsAndBytesConfig(" in first
     assert "gradient_checkpointing_enable()" in first
     second, changed_again = patcher.patch_source(first)
