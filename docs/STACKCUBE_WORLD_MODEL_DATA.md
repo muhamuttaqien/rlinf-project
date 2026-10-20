@@ -38,7 +38,7 @@ camera, observation, and control settings before exporting.
 python scripts/export_stackcube_world_model.py \
   --input /path/to/rgb_recording.h5 \
   --output data/stackcube_world_model \
-  --camera base_camera \
+  --cameras base_camera hand_camera \
   --image-size 256
 ```
 
@@ -79,3 +79,23 @@ Inspect `manifest.json` and verify every source episode's final `success`
 flag before using the exported sequences for training. The exporter currently
 validates dimensions but does not filter unsuccessful episodes or retain reward
 labels. Its NPZ files are an intermediate format, not Wan/OpenSora training inputs.
+
+
+## Dual-view export with progress reporting
+
+The default CLI exports **both cameras** as `base_rgb` and `wrist_rgb`;
+`actions` is shared and synchronized across the views. The progress bar uses
+`tqdm` and advances after each episode is compressed and saved to disk.
+Large RGB sequences may take considerable time to compress.
+
+```bash
+python scripts/export_stackcube_world_model.py \
+  --input demos/StackCube-v1/motionplanning/stackcube_100.rgb.pd_ee_delta_pose.physx_cpu.h5 \
+  --output data/stackcube_world_model_dual \
+  --cameras base_camera hand_camera \
+  --image-size 256
+```
+
+The earlier `--camera base_camera` option remains available for single-view
+exports, which continue to use the legacy `rgb` key. Use a new output directory
+rather than mixing previously exported single-view NPZs with dual-view NPZs.
