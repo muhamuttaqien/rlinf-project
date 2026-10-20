@@ -60,3 +60,22 @@ python -m pytest tests/unit_tests/test_stackcube_world_model_export.py -q
 ```
 
 Camera acquisition uses ManiSkill `sensor_configs={"width": 256, "height": 256}` in the smoke test. The exporter also resizes any recorded frames to 256x256 using bilinear filtering. This resizing alone does not make ManiSkill recordings compatible with Wan/OpenSora checkpoints.
+
+## Verified local StackCube recording (2026-10-20)
+
+The local Panda motion planner produced a 100-episode replay with 7-D
+`pd_ee_delta_pose` actions and 256x256 RGB observations from `base_camera`
+and `hand_camera`:
+
+```bash
+python scripts/export_stackcube_world_model.py \
+  --input demos/StackCube-v1/motionplanning/stackcube_100.rgb.pd_ee_delta_pose.physx_cpu.h5 \
+  --output data/stackcube_world_model \
+  --camera base_camera \
+  --image-size 256
+```
+
+Inspect `manifest.json` and verify every source episode's final `success`
+flag before using the exported sequences for training. The exporter currently
+validates dimensions but does not filter unsuccessful episodes or retain reward
+labels. Its NPZ files are an intermediate format, not Wan/OpenSora training inputs.
