@@ -12,6 +12,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+from PIL import Image
 
 
 def _rgb_dataset(group, camera):
@@ -49,7 +50,7 @@ def _strip_batch(array, kind):
     return array
 
 
-def export_episode(group, camera):
+def export_episode(group, camera, image_size=256):
     """Return aligned RGB frames and continuous actions from one episode."""
     if "actions" not in group:
         raise ValueError(f"Episode {group.name} does not contain actions")
@@ -72,11 +73,19 @@ def export_episode(group, camera):
         )
     if frames.dtype != np.uint8:
         raise ValueError(f"{source}: expected uint8 RGB images, got {frames.dtype}")
-    return frames[..., :3], actions.astype(np.float32)
+    frames = frames[..., :3]
+    if frames.shape[1:3] != (image_size, image_size):
+        frames = np.stack([
+            np.asarray(Image.fromarray(frame).resize((image_size, image_size), Image.Resampling.BILINEAR))
+            for frame in frames
+        ])
+    return frames, actions.astype(np.float32)
 
 
-def convert(input_path, output_dir, camera="base_camera"):
+def convert(input_path, output_dir, camera="base_camera", image_size=256):
     """Export all recorded episodes and write a machine-readable manifest."""
+    if image_size <= 0:
+        raise ValueError("image_size must be positive")
     input_path = Path(input_path)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -89,7 +98,7 @@ def convert(input_path, output_dir, camera="base_camera"):
         if not names:
             raise ValueError("No traj_* groups found in the ManiSkill HDF5 recording")
         for name in names:
-            frames, actions = export_episode(file[name], camera)
+            frames, actions = export_episode(file[name], camera, image_size)
             path = output_dir / f"{name}.npz"
             np.savez_compressed(path, rgb=frames, actions=actions)
             manifest["episodes"].append(
@@ -107,8 +116,9 @@ def main():
     parser.add_argument("--input", required=True, type=Path, help="ManiSkill .h5 recording")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--camera", default="base_camera")
+    parser.add_argument("--image-size", type=int, default=256)
     args = parser.parse_args()
-    manifest = convert(args.input, args.output, args.camera)
+    manifest = convert(args.input, args.output, args.camera, args.image_size)
     print(f"Exported {len(manifest['episodes'])} episodes to {args.output}")
 
 
