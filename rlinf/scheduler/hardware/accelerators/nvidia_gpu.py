@@ -345,8 +345,31 @@ class NvidiaGPUManager(AcceleratorManager):
 
     @staticmethod
     def get_num_devices():
-        """Get the number of NVIDIA GPU devices on the node."""
-        return NvidiaGPUAcceleratorManager.get_current_node_num_accelerators()
+        """Get NVIDIA GPUs, honoring explicit local Ray resources if NVML fails.
+
+        The isolated local Ray startup may declare one GPU explicitly when
+        CUDA is available but Ray's NVML-based enumeration returns zero.
+        Mirror that resource count in RLinf's node probe, which otherwise
+        labels an actual GPU training worker NO_ACCEL. Never override a
+        shared Ray cluster's hardware discovery.
+        """
+        detected = NvidiaGPUAcceleratorManager.get_current_node_num_accelerators()
+        if detected > 0:
+            return detected
+        if os.environ.get("RAY_ADDRESS", "").strip().lower() == "local":
+            configured = os.environ.get("RLINF_RAY_LOCAL_NUM_GPUS", "").strip()
+            if configured:
+                count = int(configured)
+                if count < 1:
+                    raise ValueError("RLINF_RAY_LOCAL_NUM_GPUS must be positive")
+                logger.warning(
+                    "Ray's NVIDIA detection reported %s GPUs; using %s "
+                    "explicitly configured local GPU resource(s).",
+                    detected,
+                    count,
+                )
+                return count
+        return detected
 
     @staticmethod
     def get_accelerator_type():
