@@ -137,6 +137,35 @@ The configuration explicitly uses:
   actions); no RLT, no value head.
 - Native OpenPI SFT loader and existing FSDP training infrastructure.
 
+### Install the RLinf OpenPI runtime in a separate environment
+
+The ManiSkill data-collection venv does not necessarily contain OpenPI.
+Use a dedicated environment, leaving the working collector `.venv` intact:
+
+```bash
+# From the repository root
+bash requirements/install.sh embodied --model openpi --env maniskill_libero \
+  --venv .venv-openpi --no-flash-attn --no-root
+source .venv-openpi/bin/activate
+
+python -c "import openpi, openpi.training.data_loader; print(openpi.__file__)"
+uv pip show rlinf-openpi
+```
+
+The installer pins `rlinf-openpi==0.1.1`, its compatible transformer
+package, JAX/Orbax versions, and tokenizer assets. Do not simply install
+a generic `openpi` package into the simulator venv.
+
+Native NVIDIA hosts usually provide the ICD at
+`/usr/share/vulkan/icd.d/nvidia_icd.json`; the installer now selects
+that path when present, otherwise retaining the Docker fallback
+`/etc/vulkan/icd.d/nvidia_icd.json`. Verify with `vulkaninfo --summary`
+if the OpenPI environment is also used for RGB rendering.
+
+The `--no-flash-attn` flag skips an optional CUDA-kernel installation for
+initial import/statistics tests. Training may require additional GPU
+libraries; verify that separately on the intended training device.
+
 ### Inspect configuration tests and compute normalization statistics
 
 Run:
