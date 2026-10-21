@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Contract tests for read-only embedded-image LeRobot v3 OpenPI integration."""
+"""Regression tests for StackCube v3 embedded-Parquet/OpenPI compatibility."""
 
+import io
 import json
+import pickle
 from types import SimpleNamespace
 
 import numpy as np
@@ -30,9 +32,12 @@ from rlinf.data.datasets.openpi.v3_stackcube_dataset import (
 def v3_stackcube(tmp_path):
     pa = pytest.importorskip("pyarrow")
     pq = pytest.importorskip("pyarrow.parquet")
+    from PIL import Image
 
     root = tmp_path / "local" / "stackcube"
-    (root / "meta").mkdir(parents=True)
+    (root / "meta" / "episodes" / "chunk-000").mkdir(parents=True)
+    (root / "data" / "chunk-000").mkdir(parents=True)
+
     info = {
         "codebase_version": "v3.0",
         "fps": 20,
@@ -52,63 +57,80 @@ def v3_stackcube(tmp_path):
         ),
         root / "meta" / "tasks.parquet",
     )
+
+    rows = []
+    for idx in range(6):
+        png_data = io.BytesIO()
+        Image.fromarray(
+            np.full((224, 224, 3), idx * 30, dtype=np.uint8)
+        ).save(png_data, format="PNG")
+        rows.append(
+            {
+                "index": idx,
+                "episode_index": idx // 3,
+                "frame_index": idx % 3,
+                "state": [float(idx)] * 9,
+                "actions": [float(idx)] * 8,
+                "image": {"bytes": png_data.getvalue(), "path": None},
+            }
+        )
+
+    # An episode spans two Parquet shards and the first file has 2 row groups.
+    pq.write_table(
+        pa.Table.from_pylist(rows[:4]),
+        root / "data" / "chunk-000" / "file-000.parquet",
+        row_group_size=2,
+    )
+    pq.write_table(
+        pa.Table.from_pylist(rows[4:]),
+        root / "data" / "chunk-000" / "file-001.parquet",
+        row_group_size=1,
+    )
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "episode_index": ep,
+                    "length": 3,
+                    "dataset_from_index": ep * 3,
+                    "dataset_to_index": (ep + 1) * 3,
+                }
+                for ep in range(2)
+            ]
+        ),
+        root / "meta" / "episodes" / "chunk-000" / "file-000.parquet",
+    )
     return root
 
 
-def test_v3_reader_uses_native_lerobot_for_embedded_images_and_action_windows(
-    v3_stackcube, monkeypatch
-):
-    pytest.importorskip("lerobot.datasets.lerobot_dataset")
-    import lerobot.datasets.lerobot_dataset as lerobot_dataset
-
-    called = {}
-    class FakeNativeDataset:
-        def __init__(self, repo_id, root, delta_timestamps):
-            called.update(
-                repo_id=repo_id,
-                root=root,
-                delta_timestamps=delta_timestamps,
-            )
-            self.meta = SimpleNamespace(episodes=[{}, {}])
-
-        def __len__(self):
-            return 6
-
-        def __getitem__(self, idx):
-            episode_end = ((idx // 3) + 1) * 3 - 1
-            actions = np.asarray(
-                [[min(idx + j, episode_end)] * 8 for j in range(4)],
-                dtype=np.float32,
-            )
-            return {
-                "state": np.full(9, idx, dtype=np.float32),
-                "actions": actions,
-                "image": np.ones((3, 224, 224), dtype=np.float32) / 2,
-                "episode_index": idx // 3,
-                "frame_index": idx % 3,
-            }
-
-    monkeypatch.setattr(lerobot_dataset, "LeRobotDataset", FakeNativeDataset)
+def test_v3_reader_loads_images_from_parquet_without_lerobot(v3_stackcube):
     dataset = V3StackCubeDataset(v3_stackcube, action_horizon=4)
     assert is_lerobot_v3_dataset(v3_stackcube)
     assert len(dataset) == 6
-    assert called["root"] == v3_stackcube.resolve()
-    np.testing.assert_allclose(
-        called["delta_timestamps"]["actions"], np.arange(4) / 20
-    )
+    assert len(dataset.episodes) == 2
 
     last_first = dataset[2]
     np.testing.assert_allclose(last_first["actions"][:, 0], [2, 2, 2, 2])
-    assert last_first["image"].shape == (3, 224, 224)
     assert last_first["state"].shape == (9,)
+    assert last_first["image"].shape == (224, 224, 3)
+    assert last_first["image"].dtype == np.uint8
     assert not last_first["wrist_image"].any()
+    np.testing.assert_array_equal(last_first["frame_index"], 2)
+    assert np.all(last_first["image"] == 60)
 
     first_second = dataset[3]
     np.testing.assert_allclose(first_second["actions"][:, 0], [3, 4, 5, 5])
     assert first_second["frame_index"] == 0
+    assert np.all(first_second["image"] == 90)
+
+    across_shards = dataset[4]
+    assert np.all(across_shards["image"] == 120)
+
+    restored = pickle.loads(pickle.dumps(dataset))
+    assert np.all(restored[5]["image"] == 150)
 
 
-def test_v3_reader_rejects_wrong_metadata(v3_stackcube, monkeypatch):
+def test_v3_reader_rejects_wrong_metadata(v3_stackcube):
     info_path = v3_stackcube / "meta" / "info.json"
     info = json.loads(info_path.read_text(encoding="utf-8"))
     info["features"]["actions"]["shape"] = [7]
