@@ -20,10 +20,11 @@ def main():
         version_base="1.1",
     ):
         cfg = hydra.compose(config_name="stackcube_panda_sft_openpi_pi05")
-    source = OmegaConf.to_container(cfg.data.train_data_paths, resolve=True)
+    resolved_cfg = OmegaConf.to_container(cfg, resolve=True)
+    source = resolved_cfg["data"]["train_data_paths"]
     if not (Path(source) / "meta" / "info.json").exists():
         raise FileNotFoundError(f"LeRobot dataset missing: {source}")
-    stats = Path(OmegaConf.to_container(cfg.actor.model.openpi_data.norm_stats_path, resolve=True))
+    stats = Path(resolved_cfg["actor"]["model"]["openpi_data"]["norm_stats_path"])
     if not stats.is_file():
         raise FileNotFoundError(
             f"OpenPI normalization missing: {stats}. "
