@@ -39,7 +39,9 @@ def load_task_descriptions(dataset_path: str | Path) -> dict[int, str]:
                 index = int(record.get("task_index", len(tasks)))
                 prompt = record["task"]
                 if not isinstance(prompt, str) or not prompt.strip():
-                    raise ValueError(f"Invalid task description for index {index}: {prompt!r}")
+                    raise ValueError(
+                    f"Invalid task description for index {index}: {prompt!r}"
+                )
                 tasks[index] = prompt
         return tasks
 
@@ -53,7 +55,9 @@ def load_task_descriptions(dataset_path: str | Path) -> dict[int, str]:
     schema = pq.read_schema(parquet_path)
     available = set(schema.names)
     if "task_index" not in available:
-        raise ValueError(f"{parquet_path} has no task_index column; found {sorted(available)}")
+        raise ValueError(
+            f"{parquet_path} has no task_index column; found {sorted(available)}"
+        )
 
     text_column = next(
         (key for key in ("task", "__index_level_0__") if key in available),
@@ -66,13 +70,18 @@ def load_task_descriptions(dataset_path: str | Path) -> dict[int, str]:
         )
     text_type = schema.field(text_column).type
     if not (pa.types.is_string(text_type) or pa.types.is_large_string(text_type)):
-        raise ValueError(f"{parquet_path} task column {text_column} must contain strings, got {text_type}")
+        raise ValueError(
+            f"{parquet_path} task column {text_column} must contain strings, "
+            f"got {text_type}"
+        )
 
     columns = ["task_index", text_column]
     for record in pq.read_table(parquet_path, columns=columns).to_pylist():
         index = int(record["task_index"])
         prompt = record[text_column]
         if not isinstance(prompt, str) or not prompt.strip():
-            raise ValueError(f"Invalid task description for index {index}: {prompt!r}")
+            raise ValueError(
+                    f"Invalid task description for index {index}: {prompt!r}"
+                )
         tasks[index] = prompt
     return tasks
