@@ -66,6 +66,11 @@ sampled RGB observations using LeRobot's loader. It does not physically
 replay the trajectory or verify the stacking visually; that requires
 reviewing recorded images or videos.
 
+The installed LeRobot v3 build can put the task text in the Parquet
+column `__index_level_0__` rather than `task`. RLinf now reads either
+layout, including in the RECAP return-computation stage. No dataset
+regeneration is necessary for this metadata-format difference.
+
 ## Collect and audit 100 pilot episodes
 
 Keep pilot seeds separate from the initial smoke-test seeds (0–9); reserve
