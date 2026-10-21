@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 
 def to_rgb_uint8(image: Any) -> np.ndarray:
     """Convert a LeRobot image tensor, PIL image or numpy image to HWC RGB."""
-    if hasattr(image, "detach"):
+    is_tensor = hasattr(image, "detach")
+    if is_tensor:
         image = image.detach().cpu().numpy()
     elif hasattr(image, "convert"):
         image = image.convert("RGB")
@@ -44,7 +45,18 @@ def to_rgb_uint8(image: Any) -> np.ndarray:
     arr = np.asarray(image)
     if arr.ndim != 3:
         raise ValueError(f"Expected 3D RGB image, got {arr.shape}")
-    if arr.shape[0] in (1, 3, 4) and arr.shape[-1] not in (1, 3, 4):
+
+    # LeRobot tensors are CHW, while PIL images and decoded RGB arrays are
+    # generally HWC. A channel-first frame can have width 3 or 4 (especially
+    # in small tests), so the trailing dimension alone is not a reliable hint.
+    is_chw = is_tensor or (
+        arr.shape[0] in (1, 3, 4)
+        and (
+            arr.shape[-1] not in (1, 3, 4)
+            or (arr.shape[0] == 3 and arr.shape[-1] != 3)
+        )
+    )
+    if is_chw:
         arr = np.moveaxis(arr, 0, -1)
     if arr.shape[-1] == 4:
         arr = arr[..., :3]
