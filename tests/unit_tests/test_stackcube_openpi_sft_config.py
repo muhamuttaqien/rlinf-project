@@ -82,3 +82,73 @@ def test_stackcube_openpi_transform_ignores_placeholder_wrist():
     outputs = ManiSkillOutputs(output_action_dim=8)
     predicted = outputs({"actions": np.zeros((10, 32), dtype=np.float32)})
     assert predicted["actions"].shape == (10, 8)
+
+
+def test_v3_norm_stats_streams_parquet_shards_without_v2_metadata(tmp_path):
+    """V3 normalization must not use the old JSONL-only LeRobot loader."""
+    import importlib.util
+    import json
+
+    pyarrow = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    pytest.importorskip("openpi")
+
+    script = REPO_ROOT / "toolkits/lerobot/calculate_norm_stats.py"
+    spec = importlib.util.spec_from_file_location(
+        "stackcube_calculate_norm_stats", script
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    root = tmp_path / "dataset"
+    meta = root / "meta"
+    meta.mkdir(parents=True)
+    (meta / "info.json").write_text(
+        json.dumps(
+            {
+                "codebase_version": "v3.0",
+                "total_frames": 4,
+                "features": {
+                    "state": {"shape": [9]},
+                    "actions": {"shape": [8]},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    for index, offset in enumerate((0, 2)):
+        directory = root / "data" / "chunk-000"
+        directory.mkdir(parents=True, exist_ok=True)
+        rows = [
+            {
+                "state": [float(v)] * 9,
+                "actions": [float(v * 2)] * 8,
+            }
+            for v in range(offset, offset + 2)
+        ]
+        pq.write_table(
+            pyarrow.Table.from_pylist(rows),
+            directory / f"file-{index:03d}.parquet",
+        )
+
+    stats = module.compute_v3_lerobot_norm_stats(root)
+    assert set(stats) == {"state", "actions"}
+    np.testing.assert_allclose(stats["state"].mean, np.full(9, 1.5))
+    np.testing.assert_allclose(stats["actions"].mean, np.full(8, 3.0))
+    assert stats["state"].std.shape == (9,)
+    assert stats["actions"].q99.shape == (8,)
+
+    (meta / "info.json").write_text(
+        json.dumps(
+            {
+                "total_frames": 5,
+                "features": {
+                    "state": {"shape": [9]},
+                    "actions": {"shape": [8]},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="frame count mismatch"):
+        module.compute_v3_lerobot_norm_stats(root)
