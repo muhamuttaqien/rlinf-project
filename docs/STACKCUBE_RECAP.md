@@ -82,14 +82,17 @@ full dataloader preflight. When those prerequisites are met, an operator
 can run:
 
 ```bash
-bash examples/sft/run_vla_sft.sh stackcube_panda_sft_openpi_pi05 \
+export REPO_PATH="$PWD"
+export EMBODIED_PATH="$PWD/examples/sft"
+PYTHONPATH="$PWD:${PYTHONPATH:-}" python examples/sft/train_vla_sft.py \
+  --config-path "$PWD/examples/sft/config" \
+  --config-name stackcube_panda_sft_openpi_pi05 \
   actor.model.model_path=/absolute/path/to/pi05_base_pytorch
 ```
 
-However, the existing shell launcher may not forward extra CLI arguments;
-in that case invoke `examples/sft/train_vla_sft.py` with explicit Hydra
-overrides, or edit only the local YAML checkpoint path. Avoid launching
-training until the checkpoint path and resources are verified.
+The direct Python invocation accepts Hydra overrides, unlike the
+`run_vla_sft.sh` helper. Do not launch training until the checkpoint path
+and hardware resources are verified.
 
 **Resource caution:** A 16 GB GPU is not guaranteed to accommodate π₀.₅ SFT,
 even with a micro-batch of 1 and gradient checkpointing. CPU/loader checks
