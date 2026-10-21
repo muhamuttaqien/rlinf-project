@@ -3,6 +3,7 @@
 """Convert validated StackCube RGB HDF5 into a local LeRobot dataset."""
 
 import argparse
+import inspect
 from pathlib import Path
 
 import h5py
@@ -104,13 +105,19 @@ def main():
             img = read_frame(first[path], 0, steps)
             if img.ndim != 3 or img.shape[-1] != 3:
                 raise ValueError(f"{path} shape {img.shape} is not HWC RGB")
+            # LeRobot 0.3.x expects channel-first feature metadata,
+            # although add_frame accepts uint8 HWC numpy images.
             features[key] = {
                 "dtype": "video",
-                "shape": img.shape,
-                "names": ["height", "width", "channel"],
+                "shape": (3, img.shape[0], img.shape[1]),
+                "names": ["channel", "height", "width"],
             }
         print(f"Robot state keys: {state_keys}, flattened dimension: {state_dim}")
-        print(f"Cameras: {[features[k]['shape'] for k in camera_paths]}")
+        print(f"Cameras (CHW metadata): {[features[k]['shape'] for k in camera_paths]}")
+        # LeRobot 0.3.x requires add_frame(frame, task=...), while
+        # newer versions expect the task in the frame dictionary.
+        task_is_separate = "task" in inspect.signature(LeRobotDataset.add_frame).parameters
+        print(f"LeRobot task API: {'separate argument' if task_is_separate else 'frame field'}")
         dataset = LeRobotDataset.create(
             repo_id=args.repo_id,
             root=args.output,
@@ -133,11 +140,13 @@ def main():
                         "observation.state": state_at(g, i, n),
                         "action": np.asarray(g["actions"][i], dtype=np.float32),
                         "is_success": np.asarray([bool(success[i])], dtype=np.bool_),
-                        "task": args.task,
-                    }
+                     }
                     for key, path in camera_paths.items():
                         frame[key] = read_frame(g[path], i, n).astype(np.uint8)
-                    dataset.add_frame(frame)
+                    if task_is_separate:
+                        dataset.add_frame(frame, task=args.task)
+                    else:
+                        dataset.add_frame({**frame, "task": args.task})
                 dataset.save_episode()
                 print(f"Saved {name}: {n} frames")
         finally:
