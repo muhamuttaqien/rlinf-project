@@ -341,7 +341,7 @@ held out. Subsequent RECAP stages still require actual policy rollouts
 
 The StackCube `maniskill_stackcube_panda_sft_openpi_pi05` configuration
 now enables `wandb` alongside `tensorboard`. The W&B project is
-`rlinf-stackcube`, with run name `maniskill_stackcube_panda_pi05_sft`.
+`rlinf-openpi-recap`, with run name `maniskill_stackcube_panda_pi05_sft`.
 RLinf's existing `MetricLogger` records `train/loss`,
 `train/grad_norm`, `train/learning_rate` and timing scalars.
 
