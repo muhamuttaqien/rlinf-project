@@ -301,6 +301,10 @@ export RLINF_RAY_DISABLE_DASHBOARD=1
 # Keep the driver's selected GPU visible to the probe and let RLinf's
 # accelerator placement explicitly allocate the training GPU.
 export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
+# Ray 2.59 NVML enumeration may report zero devices even though PyTorch
+# detects cuda:0. Reserve one GPU in this isolated local Ray instance and
+# use the same explicit count in RLinf's node hardware probe.
+export RLINF_RAY_LOCAL_NUM_GPUS=1
 mkdir -p "$RAY_TMPDIR"
 test -f "$PI05_MODEL_PATH/model.safetensors"
 test -f "$STACKCUBE_NORM_STATS"
