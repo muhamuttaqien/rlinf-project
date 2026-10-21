@@ -293,15 +293,9 @@ def load_lerobot_dataset(
     )
     dataset.hf_dataset.set_transform(decode_image_struct_batch)
 
-    tasks = {}
-    tasks_path = dataset_path / "meta" / "tasks.jsonl"
-    if tasks_path.exists():
-        with open(tasks_path, "r") as f:
-            for line in f:
-                entry = json.loads(line.strip())
-                task_idx = entry.get("task_index", len(tasks))
-                task_desc = entry.get("task", "")
-                tasks[task_idx] = task_desc
+    from rlinf.data.storage.lerobot.metadata import load_task_descriptions
+
+    tasks = load_task_descriptions(dataset_path)
 
     logger.info(
         f"Loaded dataset: {len(dataset)} samples, {meta.total_episodes} episodes"
