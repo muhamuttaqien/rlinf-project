@@ -141,6 +141,24 @@ def build_stackcube_wandb_media(
                 caption=f"StackCube successful expert demonstration {int(episode_id)} (sampled)",
             )
         except Exception as exc:
-            logger.warning("Could not encode demonstration MP4 for episode %s: %s", episode_id, exc)
+            logger.warning(
+                "Could not encode demonstration MP4 for episode %s (%s); "
+                "trying GIF instead.",
+                episode_id,
+                exc,
+            )
+            try:
+                result[f"{label}/demonstration_video"] = wandb.Video(
+                    video,
+                    fps=fps,
+                    format="gif",
+                    caption=f"StackCube successful expert demonstration {int(episode_id)} (sampled)",
+                )
+            except Exception as fallback_exc:
+                logger.warning(
+                    "Could not encode demonstration GIF for episode %s: %s",
+                    episode_id,
+                    fallback_exc,
+                )
 
     return result
