@@ -132,7 +132,7 @@ def _collect_episode(env: Any, solve: Any, seed: int) -> list[dict[str, Any]] | 
         {
             **observation,
             "actions": action,
-            "is_success": True,
+            "is_success": np.array([True], dtype=np.bool_),
             "task": TASK,
         }
         for observation, action in zip(observations[:-1], actions)
@@ -183,8 +183,8 @@ def _create_dataset(repo_id: str, first_frame: dict[str, Any], fps: int):
             },
             "is_success": {
                 "dtype": "bool",
-                "shape": (),
-                "names": None,
+                "shape": (1,),
+                "names": ["is_success"],
             },
         },
         image_writer_threads=2,
