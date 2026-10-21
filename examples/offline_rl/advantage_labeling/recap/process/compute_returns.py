@@ -120,27 +120,10 @@ def _coerce_episode_success(value) -> bool:
 
 
 def _load_dataset_tasks(dataset_path: Path) -> dict[int, str]:
-    """Read LeRobot v2 JSONL or v3 Parquet task metadata."""
-    meta = dataset_path / "meta"
-    tasks = {}
-    jsonl_path = meta / "tasks.jsonl"
-    if jsonl_path.exists():
-        with jsonl_path.open(encoding="utf-8") as file:
-            for line in file:
-                if line.strip():
-                    entry = json.loads(line)
-                    tasks[int(entry.get("task_index", len(tasks)))] = str(
-                        entry["task"]
-                    )
-        return tasks
+    """Read task names from either supported LeRobot metadata representation."""
+    from rlinf.data.storage.lerobot.metadata import load_task_descriptions
 
-    parquet_path = meta / "tasks.parquet"
-    if parquet_path.exists():
-        table = pq.read_table(parquet_path, columns=["task_index", "task"])
-        for entry in table.to_pylist():
-            tasks[int(entry["task_index"])] = str(entry["task"])
-    return tasks
-
+    return load_task_descriptions(dataset_path)
 
 def _process_single_parquet(
     pq_file: str,
