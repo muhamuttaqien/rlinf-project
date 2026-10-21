@@ -93,24 +93,10 @@ def validate_episode_rows(
 
 
 def _load_tasks(root: Path) -> dict[int, str]:
-    meta = root / "meta"
-    jsonl = meta / "tasks.jsonl"
-    tasks = {}
-    if jsonl.exists():
-        for line in jsonl.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                row = json.loads(line)
-                tasks[int(row.get("task_index", len(tasks)))] = str(row["task"])
-        return tasks
+    """Read task names from either supported LeRobot metadata representation."""
+    from rlinf.data.storage.lerobot.metadata import load_task_descriptions
 
-    parquet = meta / "tasks.parquet"
-    if parquet.exists():
-        import pyarrow.parquet as pq
-
-        for row in pq.read_table(parquet, columns=["task_index", "task"]).to_pylist():
-            tasks[int(row["task_index"])] = str(row["task"])
-    return tasks
-
+    return load_task_descriptions(root)
 
 def audit_dataset(root: Path, expected_episodes: int | None = None) -> dict:
     """Validate manifest, per-frame numerical data, labels, and task IDs."""
