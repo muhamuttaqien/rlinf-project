@@ -1,8 +1,48 @@
 # Codex Experiment Progress — StackCube π₀.₅ + RECAP
 
 Updated: 2026-10-21 (Asia/Tokyo)  
-Branch: `branch-openpi-recap`  
-Current milestone: Research Milestone 5.5 — **PASSED; replay reproduced, paired evaluation complete, no unseen-seed successes**
+Branch: `branch-openpi-recap-codex`
+Current milestone: Research Milestone 6 — **PASSED for the bounded rollout pilot and dataset validation; not fully RECAP training-ready**
+
+## Milestone 6 — Rollout collection and dataset validation (2026-10-21)
+
+**Status: PASSED for the 10-episode pilot.** Collected 10 closed-loop SFT
+episodes at K=5 and a 150-step horizon on physical GPU 1. The dataset contains
+1,500 transitions, 0 native StackCube successes, 2 grasp-heuristic episodes,
+1 lift-heuristic episode, 1 transport-heuristic episode, and no native
+cube-on-cube placements. All 10 episodes timed out. Heuristic stages are not
+task success.
+
+- The bounded collector is `scripts/collect_stackcube_rollouts.py`; the
+  dataset/trace validator is `scripts/validate_stackcube_rollouts.py`.
+- Dataset and per-step raw trace artifacts are under
+  `outputs/stackcube_recap/milestone6_rollouts/pilot/`. The official RECAP
+  returns processor succeeded on a separate dataset copy at
+  `outputs/stackcube_recap/milestone6_rollouts/returns_processed/`.
+- Validation matched all 1,500 saved state/action/native-reward rows to raw
+  traces and decoded 60 sampled camera frames with PyAV. LeRobot's configured
+  torchvision decoder raised an unavailable `VideoReader` API error; direct
+  PyAV decoding verified the stored videos.
+- Pilot dataset size: 6.05 MB; full pilot artifacts: 9.11 MB. Mean episode
+  runtime 8.78 s, mean policy inference 180.8 ms/call, peak GPU allocation
+  6,808.2 MiB and reservation 6,968.0 MiB.
+- RECAP return labeling requires terminal `is_success` and creates its own
+  dynamic reward labels. It does not use the stored native ManiSkill rewards.
+  Current advantage/value data mappings have no StackCube robot type, and the
+  existing Franka EE transform is incompatible with this 18D qpos+qvel state
+  and 7D delta-pose action. The pilot is therefore not yet suitable for value
+  or advantage training.
+- A proposed, not authorized or started, first scaled batch is 100 episodes
+  with seeds 4000–4099 and the same protocol. Estimated episode runtime is
+  about 15 minutes and dataset storage about 61 MB (about 91 MB including
+  pilot-like trace/metadata). Low observed success makes success-balanced data
+  unlikely without a separately authorized collection strategy.
+- No model weights, prior outputs, system settings, or earlier experiment
+  artifacts were modified. No RECAP optimization or scaled collection started.
+
+See `docs/milestones/milestone_6_report.md` for the algorithm audit, detailed
+schema, actual validation and return-label statistics, GPU/runtime results,
+limitations, and next-step proposal.
 
 ## State at start
 
