@@ -289,6 +289,11 @@ export STACKCUBE_DATASET=local/stackcube_sft_pilot100
 export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100/norm_stats.json"
 export EMBODIED_PATH="$PWD/examples/sft"
 export CUDA_VISIBLE_DEVICES=0
+# Lab workstation: isolate this run from pre-existing Ray 2.58 / Python 3.11.14.
+# Current .venv has Ray 2.59 / Python 3.11.15. Do NOT stop shared Ray.
+export RAY_ADDRESS=local
+export RAY_TMPDIR="$HOME/.cache/ray-stackcube"
+mkdir -p "$RAY_TMPDIR"
 test -f "$PI05_MODEL_PATH/model.safetensors"
 test -f "$STACKCUBE_NORM_STATS"
 test -f "$HOME/.cache/huggingface/lerobot/$STACKCUBE_DATASET/meta/info.json"
