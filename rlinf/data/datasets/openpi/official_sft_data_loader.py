@@ -43,9 +43,10 @@ def _create_openpi_v3_data_loader(openpi_data_loader, config, root, *, shuffle):
     """Keep OpenPI's standard transforms/normalization while swapping its v2 reader.
 
     The forked loader resolves create_torch_dataset at construction time. A
-    scoped factory override swaps in the installed LeRobot v3 reader without
-    modifying OpenPI or LeRobot source. PyTorch workers begin only after the
-    normal factory has been restored. This adapter is StackCube-specific.
+    scoped factory override swaps in a read-only Parquet v3 reader without
+    modifying OpenPI or the installed v2.1-only LeRobot source. PyTorch workers
+    begin only after the normal factory has been restored. This adapter is
+    StackCube-specific.
     """
     original = openpi_data_loader.create_torch_dataset
 
@@ -124,7 +125,7 @@ def build_official_openpi_sft_dataloader(
     if is_lerobot_v3_dataset(dataset_root):
         if model_cfg.openpi.config_name != "pi05_stackcube_panda_joint":
             raise ValueError(
-                "LeRobot v3 video/Parquet adapter is validated only for "
+                "LeRobot v3 Parquet adapter is limited to "
                 "pi05_stackcube_panda_joint; refusing other model configurations"
             )
         data_loader = _create_openpi_v3_data_loader(
