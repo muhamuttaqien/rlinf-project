@@ -81,6 +81,9 @@ from rlinf.data.datasets.recap.utils import (
     load_returns_sidecar,
 )
 from rlinf.data.storage.lerobot import episode_boundaries  # noqa: E402
+from rlinf.models.embodiment.value_model.recap.checkpoint_utils import (
+    STACKCUBE_ADVANTAGE_KEY_MAPPING,
+)
 from rlinf.models.embodiment.value_model.recap.modeling_critic import ValueCriticModel
 
 logger = logging.getLogger(__name__)
@@ -88,6 +91,7 @@ logger = logging.getLogger(__name__)
 
 # Maps LeRobot dataset keys to value model observation format
 KEY_MAPPINGS = {
+    "maniskill_stackcube": STACKCUBE_ADVANTAGE_KEY_MAPPING,
     "franka": {
         # Multi-cam format (front_cam + wrist_cam)
         "observation.images.front_cam": "observation/images/front_cam",

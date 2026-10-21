@@ -787,3 +787,74 @@ approval.
 - An initial replay command exited before model initialization because
   `PYTHONPATH` was missing; the corrected retry sets `PYTHONPATH=$PWD`. No GPU
   work or episode artifacts were produced by that failed attempt.
+
+## Milestone 6.1 — StackCube RECAP value/advantage integration (partial)
+
+- Audited the existing RECAP path: it constructs task-level return labels,
+  trains a separate categorical value critic, then uses N-step rewards and
+  `V(o_t), V(o_{t+N})` for advantage labels. The current critic consumes
+  camera images and task text; it does not consume Panda state/actions. A
+  truncated episode is treated as an end boundary with zero next value.
+- Added a StackCube-specific mapping for the value-training dataset,
+  advantage inference, and existing value input transforms. The two observed
+  cameras map to base and left-wrist inputs; 18D state and 7D action are
+  preserved then padded to the existing 32D model interface. Existing
+  normalization semantics are unchanged.
+- CPU integration smoke against the actual Milestone 6 dataset passed:
+  1,500 transitions across 10 aligned 150-step episodes; native outcomes are
+  0 successes and 10 time-limit truncations. RECAP failure labels are -1 for
+  steps 0–148 and -300 at step 149; at gamma=1, returns are -449 initially
+  and -300 at the final step. Actual frame-0 images decoded from both pilot
+  videos and preprocess to finite 224×224 tensors; the absent right-wrist
+  input is masked. State/action values come from the actual episode parquet.
+- Focused test file: 6 passed (17 upstream deprecation warnings). Ruff and
+  `git diff --check` passed. A numeric fixture validates the official
+  advantage arithmetic and terminal boundary, but its supplied values are
+  test inputs, not critic predictions. No dataset advantages were generated.
+- No compatible local SigLIP2/Gemma3 assets or trained RECAP value checkpoint
+  were found. The π₀.₅ policy checkpoint is not a value checkpoint. No critic
+  was initialized; no GPU was used. Since the value model is unavailable and
+  does not consume proprioception, full value/advantage integration and RECAP
+  readiness remain unverified. Status: **PARTIAL**.
+- Report: `docs/milestones/milestone_6_1_report.md`. Smoke summary:
+  `outputs/stackcube_recap/milestone6_1_recap/data_integration_smoke.json`.
+  Source changes are the StackCube mapping, three registrations, and focused
+  tests. Existing pilot data, SFT checkpoints, and prior evaluation artifacts
+  were preserved. No commit or push was made.
+- Recommended next milestone: approve a value-model preparation design,
+  including backbone asset provenance, whether an image/text critic is
+  scientifically suitable or proprioception is required, and how successful
+  expert and failed rollout episodes will be labeled and split. Then validate
+  bounded value SFT before computing policy advantages. Do not begin RECAP
+  policy optimization or scaled rollout collection without approval.
+
+## Milestone 6.2 — RECAP critic readiness and training strategy (partial)
+
+- Audited the local RECAP algorithm, critic, return/advantage processing,
+  value-training configuration, and CFG policy configuration against the
+  π*0.6 paper and RLinf guide. The critic predicts a 201-bin return
+  distribution from images and task text; local advantage labels use N-step
+  rewards plus adjacent value estimates. Policy extraction uses CFG-conditioned
+  supervised training.
+- Confirmed that `ValueCriticModel` does not consume StackCube's preserved 18D
+  Panda state or 7D actions. No local SigLIP2/Gemma3 assets or trained critic
+  checkpoint were found. No random predictions, critic training, rollout
+  collection, or policy update were performed.
+- A bounded CPU `ValueDataset` load against the actual 1,500-transition
+  processed pilot passed. Existing test file: 6 passed, 17 upstream warnings.
+- Recomputed returns from the ten successful expert trajectories (1,084
+  transitions): range -119 to 0. The ten failed 150-step policy trajectories
+  have current configured targets -449 to -300. Under global min -449,
+  expert normalized targets span about -0.265 to 0 and failures -1 to -0.668.
+  These are consequences of the configured synthetic reward, not native dense
+  ManiSkill rewards.
+- Latest resource snapshot available: 112 GB disk free and 472 GiB RAM
+  available. No GPU workload was run and no current GPU snapshot was taken.
+- Report: `docs/milestones/milestone_6_2_report.md`. Worktree's pre-existing
+  Milestone 6.1 edits were preserved; no new code change, commit, or push.
+- Remaining decisions: image/text-only versus state-conditioned critic, reward
+  and timeout semantics, data mixing/splitting, model asset provenance, and
+  separate π₀.₅ CFG compatibility. Recommended next step is an approved,
+  bounded critic preparation/training pilot after those decisions; no
+  advantages or RECAP policy training should proceed before checkpoint
+  validation.

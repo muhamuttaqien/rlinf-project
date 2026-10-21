@@ -27,6 +27,10 @@ import openpi.models.model as _openpi_model
 import openpi.transforms as _openpi_transforms
 import torch
 
+from rlinf.models.embodiment.value_model.recap.checkpoint_utils import (
+    STACKCUBE_VALUE_REPACK_KEYS,
+)
+
 try:  # lerobot >= 0.2 layout
     from lerobot.datasets.lerobot_dataset import (
         LeRobotDataset,
@@ -87,6 +91,8 @@ _REPACK_KEYS = {
         "prompt": "prompt",
     },
 }
+
+_REPACK_KEYS["maniskill_stackcube"] = STACKCUBE_VALUE_REPACK_KEYS
 
 
 @dataclass

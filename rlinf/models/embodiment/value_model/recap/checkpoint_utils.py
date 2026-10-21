@@ -26,6 +26,27 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+STACKCUBE_VALUE_REPACK_KEYS = {
+    "image": {
+        "base_0_rgb": "observation.images.base_camera",
+        "left_wrist_0_rgb": "observation.images.hand_camera",
+    },
+    "state": "observation.state",
+    "actions": "action",
+    "prompt": "task",
+}
+STACKCUBE_INFERENCE_REPACK_KEYS = {
+    **STACKCUBE_VALUE_REPACK_KEYS,
+    "prompt": "prompt",
+}
+STACKCUBE_ADVANTAGE_KEY_MAPPING = {
+    "observation.images.base_camera": "observation.images.base_camera",
+    "observation.images.hand_camera": "observation.images.hand_camera",
+    "observation.state": "observation.state",
+    "action": "action",
+    "task": "prompt",
+}
+
 
 def load_state_dict_from_checkpoint(checkpoint_path: pathlib.Path) -> dict:
     """Load state dict from checkpoint directory or file.
@@ -155,7 +176,6 @@ def build_input_transforms(
         franka_policy,
         libero_policy,
     )
-
     _mt_map = {
         "pi0": _openpi_model.ModelType.PI0,
         "pi05": _openpi_model.ModelType.PI05,
@@ -177,10 +197,18 @@ def build_input_transforms(
             )
         )
 
+    elif env_type == "maniskill_stackcube":
+        input_transforms.append(
+            _openpi_transforms.RepackTransform(STACKCUBE_INFERENCE_REPACK_KEYS)
+        )
+        input_transforms.append(
+            _openpi_transforms.InjectDefaultPrompt(default_prompt)
+        )
+
     else:
         raise ValueError(f"Unknown environment type: {env_type}")
 
-    if norm_stats is not None:
+    if norm_stats is not None and env_type != "maniskill_stackcube":
         input_transforms.append(
             _openpi_transforms.Normalize(norm_stats, use_quantiles=use_quantile_norm)
         )
