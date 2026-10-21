@@ -346,7 +346,21 @@ class NvidiaGPUManager(AcceleratorManager):
     @staticmethod
     def get_num_devices():
         """Get the number of NVIDIA GPU devices on the node."""
-        return NvidiaGPUAcceleratorManager.get_current_node_num_accelerators()
+        num_devices = NvidiaGPUAcceleratorManager.get_current_node_num_accelerators()
+        if num_devices > 0:
+            return num_devices
+
+        # NVML can fail independently of CUDA initialization (for example,
+        # when its userspace and driver versions differ). Keep GPU workers
+        # available when PyTorch can still use the visible devices.
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                return torch.cuda.device_count()
+        except (ImportError, RuntimeError):
+            pass
+        return 0
 
     @staticmethod
     def get_accelerator_type():
@@ -370,7 +384,7 @@ class NvidiaGPUManager(AcceleratorManager):
             pynvml.nvmlShutdown()
             return model
         except pynvml.NVMLError as _:
-            return "UNKNOWN"
+            model = "UNKNOWN"
         finally:
             if initialized:
                 try:
@@ -378,6 +392,17 @@ class NvidiaGPUManager(AcceleratorManager):
                 except Exception:
                     # Ignore shutdown errors to avoid masking earlier exceptions.
                     pass
+        if model != "UNKNOWN":
+            return model
+        try:
+            import torch
+
+            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                model = torch.cuda.get_device_name(0)
+                return NvidiaGPUManager._parse_nvidia_gpu_model(model)
+        except (ImportError, RuntimeError):
+            pass
+        return "UNKNOWN"
 
     @staticmethod
     def get_accelerator_env_var(visible_accelerators: list[str]) -> dict[str, str]:

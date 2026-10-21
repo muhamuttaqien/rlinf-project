@@ -3688,6 +3688,38 @@ def _accelerator_env_var(monkeypatch, visible_accelerators: list[str]) -> dict:
     return NvidiaGPUManager.get_accelerator_env_var(visible_accelerators)
 
 
+def test_nvidia_device_count_falls_back_to_torch_when_nvml_fails(monkeypatch):
+    monkeypatch.setattr(
+        nvidia_gpu.NvidiaGPUAcceleratorManager,
+        "get_current_node_num_accelerators",
+        lambda: 0,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
+
+    assert NvidiaGPUManager.get_num_devices() == 1
+
+
+def test_nvidia_model_falls_back_to_torch_when_nvml_fails(monkeypatch):
+    import ray._private.thirdparty.pynvml as pynvml
+
+    def fail_nvml_init():
+        raise pynvml.NVMLError(18)
+
+    monkeypatch.setattr(pynvml, "nvmlInit", fail_nvml_init)
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
+    monkeypatch.setattr(
+        torch.cuda,
+        "get_device_name",
+        lambda index: "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition",
+    )
+
+    assert NvidiaGPUManager.get_accelerator_model() == (
+        "RTX PRO 6000 Blackwell Max-Q Workstation Edition"
+    )
+
+
 # ---------------------------------------------------------------------------
 # CUDA -> EGL mapping
 # ---------------------------------------------------------------------------
