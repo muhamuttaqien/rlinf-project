@@ -2,7 +2,7 @@
 
 Updated: 2026-10-21 (Asia/Tokyo)  
 Branch: `branch-openpi-recap`  
-Current milestone: Research Milestone 3 — **PASSED**
+Current milestone: Research Milestone 4 — **PASSED (1,084/1,084 steps; inference readiness passed)**
 
 ## State at start
 
@@ -322,3 +322,60 @@ because no implementation code changed. The run logs, per-second memory CSVs,
 checkpoint data, and TensorBoard events are ignored local experiment artifacts.
 The report and initial progress update were committed locally as
 `f46af797add1c3436458407fe0f44f902f42d7b2`; no commit was pushed.
+
+## Milestone 4 — Full StackCube π₀.₅ SFT (2026-10-21)
+
+**Status: PASSED for approved training execution, numerical stability, and
+inference readiness.** This does not claim policy performance, convergence, or
+StackCube success. Milestone 5 remains pending approval.
+
+- The standard `examples/sft/train_vla_sft.py` Ray/FSDP launcher completed the
+  approved 4 epochs and exactly 1,084 optimizer steps on physical GPU 1. The
+  training loop took 51:09; launcher startup-to-idle samples bound the total
+  duration to about 52 minutes. No interruption or resume was needed.
+- Dataset and normalization remained unchanged: 10 demos/1,084 frames, 18D
+  Panda state, 7D `pd_ee_delta_pose` action, two RGB cameras, and norm file
+  SHA-256 `9740881e6e1ff87773a0247397826ace1d2935a79e668105ec3eee45170456c7`.
+  The official OpenPI loader passed with action `(1,10,32)`, state `(1,32)`,
+  two 224×224 image streams, and 200 prompt tokens.
+- The run was initialized fresh from the official pretrained Orbax source
+  `gs://openpi-assets/checkpoints/pi05_base/params` converted to
+  `checkpoints/torch/pi05_stackcube_panda_base/model.safetensors`. M3.2's
+  step-10 checkpoint lacked a data cursor, so this was not an exact resume.
+- Exact approved settings: effective batch 4; micro-batch 1; accumulation 4;
+  seed 42; AdamW LR `2.5e-5`; 2 warmup steps; cosine schedule; gradient clip
+  1.0; periodic saves at steps 542 and 1,084. Dedicated config and resolved
+  snapshot are under `outputs/stackcube_recap/full_sft/config/`.
+- All 1,084 logged loss/gradient/LR readings were finite. Loss first/final was
+  0.141/0.0119, min/max/mean 0.00222/0.141/0.022706. Gradient norm
+  first/final was 1.66/0.493, min/max/mean 0.0942/3.51/0.563395. Logged LR
+  ranged from `6.25e-8` to `2.5e-5` (mean `1.25318e-5`). Full per-step
+  history is in `outputs/stackcube_recap/full_sft/logs/training.log`.
+- Checkpoints at
+  `outputs/stackcube_recap/full_sft/results/stackcube_panda_pi05_full_sft/checkpoints/global_step_542/`
+  and `global_step_1084/` each contain DCP metadata/shard and 6,946,527,306-byte
+  consolidated weights. The final weights loaded with the RLinf OpenPI eval
+  factory as the expected 3.35B Pi0.5 model. `action_out_proj.weight` differs
+  from the official base (L2 delta 0.09267354).
+- One call through `Pi0Eval.predict_action_batch` with a real dataset sample
+  loaded the established normalization path and returned finite actions
+  shaped `(1,10,7)` from two `(1,128,128,3)` images and state `(1,18)`. This
+  was an inference-readiness check only; no action was executed in ManiSkill.
+- GPU 1 peak sampled usage was 36,578 MiB, peak utilization 69%, and minimum
+  free memory 60,673 MiB. Inference peak allocated/reserved memory was
+  6,808.2/6,968.0 MiB. Post-run GPU was idle with 97,235 MiB free and no
+  compute process. System RAM available was 472 GiB and disk free was 114 GiB.
+- The existing FSDP config had AMP disabled; a PyTorch process-group barrier
+  device-context warning was emitted. Neither affected the run. No validation
+  loss was available because the current embodied SFT evaluation path does not
+  implement validation, and no trajectory-held-out split was supported.
+- Persistent run logs, memory sampling, and inference evidence are under
+  `outputs/stackcube_recap/full_sft/logs/`. The completed report is
+  `docs/milestones/milestone_4_report.md`.
+- Tracked changes are the progress log and Milestone 4 report. The start commit
+  is `1e096ce6`; no Milestone 4 commit was made because a sandbox attempt to
+  write `.git/index` was blocked by read-only repository metadata. No
+  permissions were changed and no commit was pushed.
+
+The next research milestone is baseline ManiSkill evaluation (Milestone 5),
+which is not started and requires separate approval.
