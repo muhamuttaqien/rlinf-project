@@ -101,3 +101,77 @@ are deliberately separated from GPU training.
 Future milestones: scale to 100–200 validated demonstrations; establish a
 π₀.₅ SFT baseline; collect autonomous successful *and failed* rollouts;
 apply RLinf's four RECAP offline stages; compare held-out success rates.
+
+## SFT checkpoint and hardware preflight (next milestone)
+
+Before loading π₀.₅, inspect GPU capacity (the workstation GPU is not yet
+established) and confirm the checkpoint layout:
+
+```bash
+git pull --ff-only origin branch-openpi-recap
+nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
+PYTHONPATH="$PWD" python scripts/check_stackcube_sft_readiness.py
+# When you have a converted base checkpoint:
+PYTHONPATH="$PWD" python scripts/check_stackcube_sft_readiness.py \
+  --checkpoint /absolute/path/to/pi05_base_openpi
+```
+
+A model checkpoint is **not** part of the 10 demonstration episodes.
+RLinf's supported base checkpoint layout stores bare `Pi0` tensors
+(`llm.*`, `img.*`, …) in `model.safetensors`. Arbitrary third-party
+π₀.₅ safetensors files may contain the official upstream
+`paligemma_with_expert.*` layout and need conversion.
+
+Official π₀.₅ base weights are available as a JAX Orbax checkpoint at
+`gs://openpi-assets/checkpoints/pi05_base`. See
+https://rlinf.readthedocs.io/en/latest/rst_source/examples/embodied/sft_openpi.html
+and the in-repo
+`rlinf/utils/ckpt_convertor/openpi/README.md`.
+To download (requires Google Cloud CLI and enough disk space):
+
+```bash
+mkdir -p checkpoints/jax
+gcloud storage cp --recursive \
+  gs://openpi-assets/checkpoints/pi05_base checkpoints/jax/
+```
+
+To convert to the RLinf layout using the **same StackCube norm stats** and
+the action horizon chosen in `pi05_stackcube_panda`:
+
+```bash
+python -m rlinf.utils.ckpt_convertor.openpi.convert \
+  --mode jax_to_openpi \
+  --input-model "$PWD/checkpoints/jax/pi05_base" \
+  --input-norm-stats "$PWD/outputs/stackcube_recap/openpi_norm/stackcube_panda/norm_stats.json" \
+  --output-model "$PWD/checkpoints/torch/pi05_stackcube_panda_base" \
+  --output-norm-stats "$PWD/checkpoints/torch/pi05_stackcube_panda_base/stackcube_panda/norm_stats.json" \
+  --action-dim 32 --action-horizon 10 --max-token-len 200
+```
+
+Do not start this large model download or conversion unless GPU memory,
+storage, and checkpoint provenance are understood. The preflight reads
+only safetensors metadata, **not** all model tensors; it cannot prove
+the full model can train.
+
+The SFT YAML deliberately sets `openpi.torch_compile: False` for easier
+first-step debugging. The preflight YAML uses micro-batch 1, but π₀.₅
+full-model gradients and Adam optimizer states may still exceed a single
+GPU's memory. No multi-GPU/FSDP allocation or QLoRA solution is validated
+for this StackCube config.
+
+Once the model and resources are verified, make the first test **one
+optimization step** with explicit Hydra overrides:
+
+```bash
+export REPO_PATH="$PWD"
+export EMBODIED_PATH="$PWD/examples/sft"
+PYTHONPATH="$PWD:${PYTHONPATH:-}" python examples/sft/train_vla_sft.py \
+  --config-path "$PWD/examples/sft/config" \
+  --config-name stackcube_panda_sft_openpi_pi05 \
+  actor.model.model_path="$PWD/checkpoints/torch/pi05_stackcube_panda_base" \
+  runner.max_steps=1 runner.save_interval=1
+```
+
+Record whether it reaches an optimizer step, checkpoint write, and the
+peak GPU memory usage. The complete RLinf training run is not yet
+validated; RECAP can begin only after SFT baseline and rollout collection.
