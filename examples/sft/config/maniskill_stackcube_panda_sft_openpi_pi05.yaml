@@ -23,7 +23,7 @@ runner:
   task_type: sft
   logger:
     log_path: "../results"
-    project_name: rlinf-stackcube
+    project_name: rlinf-openpi-recap
     experiment_name: "maniskill_stackcube_panda_pi05_sft"
     logger_backends: ["wandb", "tensorboard"]
     # Log expert dataset examples once at startup; not learned-policy rollouts.
