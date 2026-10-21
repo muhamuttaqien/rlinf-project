@@ -39,6 +39,8 @@ task success.
   unlikely without a separately authorized collection strategy.
 - No model weights, prior outputs, system settings, or earlier experiment
   artifacts were modified. No RECAP optimization or scaled collection started.
+- Validated source and report commit: `d0700826`
+  (`feat(stackcube): collect validated recap rollouts`); no push was made.
 
 See `docs/milestones/milestone_6_report.md` for the algorithm audit, detailed
 schema, actual validation and return-label statistics, GPU/runtime results,

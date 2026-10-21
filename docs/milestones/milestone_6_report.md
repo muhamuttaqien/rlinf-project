@@ -185,8 +185,9 @@ value-model config/checkpoint, and a focused end-to-end validation.
 Source changes: `scripts/collect_stackcube_rollouts.py` and
 `scripts/validate_stackcube_rollouts.py`. Documentation changes:
 `docs/milestones/milestone_6_report.md` and
-`docs/CODEX_EXPERIMENT_PROGRESS.md`. The local commit and final Git state are
-recorded after validation; no push was performed.
+`docs/CODEX_EXPERIMENT_PROGRESS.md`. Validated implementation and report
+commit: `d0700826` (`feat(stackcube): collect validated recap rollouts`). No
+push was performed.
 
 Recommended next milestone: implement and test a StackCube-specific RECAP value
 dataset/observation mapping and value-model configuration, including input
