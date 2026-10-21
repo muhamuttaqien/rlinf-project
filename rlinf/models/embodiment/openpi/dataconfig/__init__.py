@@ -198,6 +198,25 @@ _CONFIGS = [
         num_workers=0,
     ),
     TrainConfig(
+        name="pi05_stackcube",
+        model=pi0_config.Pi0Config(
+            pi05=True, action_horizon=10, discrete_state_input=True
+        ),
+        data=LeRobotManiSkillDataConfig(
+            repo_id="local/stackcube-panda-recap",
+            base_config=DataConfig(
+                prompt_from_task=False, action_sequence_keys=("action",)
+            ),
+            base_image_key="observation.images.base_camera",
+            wrist_image_key="observation.images.hand_camera",
+            action_key="action",
+            prompt_key="task",
+        ),
+        pytorch_weight_path="checkpoints/torch/pi05_base",
+        batch_size=1,
+        num_workers=0,
+    ),
+    TrainConfig(
         name="pi05_rlt_maniskill_joint",
         model=pi0_config.Pi0Config(
             pi05=True,

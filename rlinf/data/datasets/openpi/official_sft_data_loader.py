@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 from typing import Any
 
 from omegaconf import OmegaConf
@@ -43,6 +44,9 @@ def build_official_openpi_sft_dataloader(
             "OpenPI SFT requires data.train_data_paths to be set to a local "
             "dataset path or LeRobot repo id."
         )
+    local_root = Path(repo_id).expanduser()
+    if (local_root / "meta" / "info.json").is_file():
+        repo_id = str(local_root.resolve())
 
     import openpi.training.data_loader as openpi_data_loader
 
