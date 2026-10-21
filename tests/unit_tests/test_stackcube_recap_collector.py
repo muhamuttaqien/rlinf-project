@@ -73,6 +73,36 @@ def test_stackcube_solver_hooks_unwrapped_steps():
     frames = collector._collect_episode(env, fake_solver, 0)
     assert len(frames) == 1
     assert frames[0]["actions"].shape == (8,)
-    assert frames[0]["is_success"] is True
+    assert frames[0]["is_success"].shape == (1,)
+    assert frames[0]["is_success"].dtype == np.bool_
+    assert bool(frames[0]["is_success"][0])
     assert env.reset.__func__ is original_reset
     assert env.step.__func__ is original_step
+
+
+def test_stackcube_lerobot_boolean_feature(monkeypatch):
+    """Confirm LeRobot can describe scalar successes as shape-(1,) booleans."""
+    import pytest
+
+    collector = _collector()
+    first_frame = {
+        "image": np.zeros((4, 4, 3), dtype=np.uint8),
+        "wrist_image": np.zeros((4, 4, 3), dtype=np.uint8),
+    }
+
+    try:
+        from lerobot.datasets.utils import get_hf_features_from_features
+    except ImportError:
+        pytest.skip("LeRobot is optional in the lightweight unit-test environment")
+
+    # Validate against the installed LeRobot version, without writing datasets.
+    success_feature = {
+        "is_success": {
+            "dtype": "bool",
+            "shape": (1,),
+            "names": ["is_success"],
+        }
+    }
+    converted = get_hf_features_from_features(success_feature)
+    assert converted["is_success"].dtype == "bool"
+    assert collector._positive_int("1") == 1
