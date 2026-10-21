@@ -80,8 +80,9 @@ def test_stackcube_solver_hooks_unwrapped_steps():
     assert env.step.__func__ is original_step
 
 
-def test_stackcube_lerobot_boolean_feature(monkeypatch):
-    """Confirm LeRobot can describe scalar successes as shape-(1,) booleans."""
+
+def test_stackcube_lerobot_boolean_feature():
+    """Ensure the scalar success schema agrees with LeRobot's feature mapper."""
     import pytest
 
     collector = _collector()
@@ -89,20 +90,17 @@ def test_stackcube_lerobot_boolean_feature(monkeypatch):
         "image": np.zeros((4, 4, 3), dtype=np.uint8),
         "wrist_image": np.zeros((4, 4, 3), dtype=np.uint8),
     }
+    features = collector._dataset_features(first_frame)
+    assert features["is_success"]["dtype"] == "bool"
+    assert features["is_success"]["shape"] == (1,)
+    assert features["state"]["shape"] == (9,)
+    assert features["actions"]["shape"] == (8,)
 
     try:
         from lerobot.datasets.utils import get_hf_features_from_features
     except ImportError:
         pytest.skip("LeRobot is optional in the lightweight unit-test environment")
 
-    # Validate against the installed LeRobot version, without writing datasets.
-    success_feature = {
-        "is_success": {
-            "dtype": "bool",
-            "shape": (1,),
-            "names": ["is_success"],
-        }
-    }
-    converted = get_hf_features_from_features(success_feature)
-    assert converted["is_success"].dtype == "bool"
-    assert collector._positive_int("1") == 1
+    # This calls the exact LeRobot mapper that rejected shape () in the trace.
+    mapped = get_hf_features_from_features(features)
+    assert mapped["is_success"].dtype == "bool"
