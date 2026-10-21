@@ -557,10 +557,16 @@ configure_nvidia() {
     PLATFORM_TORCH_STR=""
     PLATFORM_TORCH_INDEX=""
     PLATFORM_TORCH_PACKAGES=()
+    # On native Ubuntu the NVIDIA ICD usually lives under /usr/share.
+    # Container NVIDIA runtimes can inject it under /etc at execution time.
+    local nvidia_vk_icd="/etc/vulkan/icd.d/nvidia_icd.json"
+    if [ -f "/usr/share/vulkan/icd.d/nvidia_icd.json" ]; then
+        nvidia_vk_icd="/usr/share/vulkan/icd.d/nvidia_icd.json"
+    fi
     PLATFORM_VENV_EXPORTS=(
         "export NVIDIA_DRIVER_CAPABILITIES=all"
-        "export VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json"
-        "export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json"
+        "export VK_DRIVER_FILES=${nvidia_vk_icd}"
+        "export VK_ICD_FILENAMES=${nvidia_vk_icd}"
     )
     PLATFORM_FLASH_ATTN_INSTALL=1
     PLATFORM_FLASH_ATTN_PREBUILT=1
