@@ -336,6 +336,48 @@ successful training demonstrations toward 1,000, keeping evaluation seeds
 held out. Subsequent RECAP stages still require actual policy rollouts
 (including failures), value-model checkpoints, advantage inference and CFG.
 
+
+### Weights & Biases dashboard for StackCube SFT
+
+The StackCube `maniskill_stackcube_panda_sft_openpi_pi05` configuration
+now enables `wandb` alongside `tensorboard`. The W&B project is
+`rlinf-stackcube`, with run name `maniskill_stackcube_panda_pi05_sft`.
+RLinf's existing `MetricLogger` records `train/loss`,
+`train/grad_norm`, `train/learning_rate` and timing scalars.
+
+At run initialization, the **driver process** also reads the *local*
+LeRobot StackCube training dataset, chooses up to two expert episodes,
+and logs three base-camera snapshots plus one sampled video per episode.
+The videos contain actual **expert demonstrations** from the dataset,
+not model-generated trajectories or policy evaluation. Each video
+decodes at most 32 frames, distributed across the entire episode.
+MP4 encoding falls back to GIF if needed. Media uploads are attempted
+once per run, not at every training step. They may be omitted with a
+warning if local data or the encoder is unavailable; this does not
+abort GPU training.
+
+The lab workstation uses its own NVIDIA/NVML workaround as validated
+separately. Keep the working GPU, Ray and `LD_LIBRARY_PATH` variables
+in the same terminal. Verify W&B is installed and authenticated:
+
+```bash
+python -c "import wandb; print('wandb:', wandb.__version__)"
+wandb login
+```
+
+Then run the usual 200-step command with W&B online (default). For
+quick media verification, first use
+`runner.max_steps=1 runner.save_interval=-1 actor.global_batch_size=1`.
+Expected W&B panels include
+`dataset/expert_episode_000/snapshots` and
+`dataset/expert_episode_000/demonstration_video`, as well as training
+metrics. The W&B run link appears in console output after initialization.
+
+To turn off dataset media logging without disabling W&B metrics, pass
+`runner.logger.sft_media.enabled=false`. Later, evaluate the saved
+policy in ManiSkill to obtain actual **policy rollout** videos and
+success rates; SFT demonstrations are not evidence of policy performance.
+
 ## Next milestones
 
 1. Train/evaluate an OpenPI π₀.₅ baseline using a matching `pd_joint_pos`
