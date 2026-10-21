@@ -37,6 +37,14 @@ def test_hwc_uint8_preserved():
     np.testing.assert_array_equal(media.to_rgb_uint8(frame), frame)
 
 
+def test_small_hwc_rgb_image_remains_channel_last():
+    # Height 3 is not, by itself, a channel-first image indicator.
+    image = np.zeros((3, 2, 3), dtype=np.uint8)
+    image[..., 1] = 128
+    result = media.to_rgb_uint8(image)
+    np.testing.assert_array_equal(result, image)
+
+
 def test_bounded_episode_sampling_includes_endpoints():
     assert media.evenly_spaced_indices(np.arange(10, 15), 3) == [10, 12, 14]
 
