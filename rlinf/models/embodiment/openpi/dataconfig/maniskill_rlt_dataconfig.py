@@ -36,6 +36,7 @@ class LeRobotRLTManiSkillJointDataConfig(DataConfigFactory):
     prompt_key: str | None = None
     default_prompt: str | None = None
     output_action_dim: int = 8
+    use_wrist_image: bool = True
 
     @override
     def create(
@@ -62,7 +63,7 @@ class LeRobotRLTManiSkillJointDataConfig(DataConfigFactory):
             inputs=[
                 maniskill_policy.ManiSkillInputs(
                     model_type=model_config.model_type,
-                    use_wrist_image=True,
+                    use_wrist_image=self.use_wrist_image,
                     default_prompt=self.default_prompt,
                 )
             ],
