@@ -273,3 +273,51 @@ library path. The system-wide NVML package/link mismatch remains and requires
 an administrator-managed correction for a persistent host fix. The regular
 one-step FSDP path is verified with the scoped workaround. No full SFT,
 rollout, RECAP, or Milestone 4 work was started.
+
+## Milestone 3.2 — Bounded SFT training validation (2026-10-21)
+
+**Status: PASSED for bounded execution and checkpoint resume.** GPU 1 was idle
+at preflight (97,235 MiB free, 0% utilization, no compute process). The
+standard RLinf SFT launcher resumed the step-1 FSDP checkpoint, ran eight
+updates through global step 9, saved step 9, resumed that checkpoint, ran one
+more update, and saved global step 10. This is nine optimizer updates in
+Milestone 3.2 and ten cumulative standard-launcher updates including the
+Milestone 3.1 step. No full SFT was started.
+
+Both invocations used the M3.1 process-scoped NVML path
+`/tmp/rlinf_m31_nvml590:/opt/slurm/24.11.0/lib`, set `CUDA_VISIBLE_DEVICES=0,1,2,3`
+for RLinf hardware enumeration, and assigned the sole actor to physical
+hardware rank 1 (`visible_accelerators=['1']`). Existing dataset, pretrained
+checkpoint, action layout, and normalization were unchanged. Logs:
+`m32_sft_resume_step1_to9.log` and `m32_sft_resume_step9_to10.log`.
+
+TensorBoard contained ten finite loss/grad-norm samples, including the prior
+step-1 update and nine M3.2 updates. For the complete history and exact values,
+see `docs/milestones/milestone_3_2_report.md`. M3.2 loss ranged from
+`0.00737754` to `0.17289411`; gradient norms ranged from `0.366478` to
+`5.640074`. The YAML's existing norm clipping is 1.0. No non-finite warning
+was found. These results support numerical execution stability only; they do
+not establish convergence or task success.
+
+Saved FSDP checkpoints:
+- `outputs/stackcube_recap/milestone3/results/stackcube_panda_pi05_sft/checkpoints/global_step_9/`
+- `outputs/stackcube_recap/milestone3/results/stackcube_panda_pi05_sft/checkpoints/global_step_10/`
+
+Each has a nonempty DCP shard, metadata, and full weights. DCP metadata
+contains model, optimizer, LR scheduler, RNG, and FSDP version state. The
+step-9 checkpoint was successfully resumed for the step-10 update. GPU memory
+sampling at 1 s intervals reported peak used memory 41,642 MiB (of 97,887
+MiB), minimum free memory 55,609 MiB, and maximum utilization 76%; post-run
+GPU 1 had 97,235 MiB free and no compute process. Disk free space after both
+checkpoints was 166 GiB.
+
+The saved actor directories have no `data.pt` iterator sidecar. RLinf's VLA
+worker saves that state only for a `StatefulDataLoader`; the OpenPI loader
+used here did not write one. Thus resume restored model, optimizer, scheduler,
+RNG, and runner step, but exact data cursor/sample-order continuation was not
+verified and the loader may restart after resumption.
+
+No tracked source or configuration changes were needed. No tests were run
+because no implementation code changed. The run logs, per-second memory CSVs,
+checkpoint data, and TensorBoard events are ignored local experiment artifacts.
+The Milestone 3.2 documentation commit is recorded below after commit.
