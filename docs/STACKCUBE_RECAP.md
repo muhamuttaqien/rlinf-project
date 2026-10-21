@@ -189,10 +189,13 @@ and 10,709 frames. No video decoding or Hugging Face Hub access is needed.
 
 The OpenPI SFT path now has a **read-only, StackCube-specific LeRobot v3
 adapter** in `rlinf/data/datasets/openpi/v3_stackcube_dataset.py`.
-It reads state/actions from Parquet shards, episode bounds and video offsets
-from `meta/episodes` Parquet, decodes only the real base camera from MP4,
-and clamps 10-step action windows at episode ends. It preserves the official
-OpenPI SFT transforms, quantile normalization, and wrist-camera masking.
+StackCube was collected with `dtype: image`, so both camera images are
+**embedded in Parquet**, not stored as standalone MP4 videos. The adapter
+delegates media decoding, episode metadata and clamped 10-step action-window
+lookup to the installed LeRobot v3 reader. It validates the returned 9D
+state, 8D action and real base-camera image, then masks the duplicated
+wrist camera for the policy. The official OpenPI SFT transforms,
+quantile normalization and action padding are unchanged.
 The existing v2.1 loader remains unchanged for other datasets.
 
 Before GPU training, **validate the adapter on the workstation**:
@@ -208,9 +211,9 @@ export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackc
 PYTHONPATH="$PWD" python scripts/check_stackcube_openpi_sft_dataloader.py
 ```
 
-The smoke script samples three real video frames and obtains one normalized
-batch from the official PyTorch OpenPI loader, without loading the model or
-running a training step. Do not begin SFT until these tests pass; the v3
+The smoke script samples three real Parquet-embedded camera frames and
+obtains one normalized batch from the official PyTorch OpenPI loader, without
+loading the model or running a training step. Do not begin SFT until these tests pass; the v3
 adapter has not yet been validated on the user's GPU workstation.
 Do **not** change the original `stackcube_sft_pilot100` data or spoof
 `codebase_version`.
