@@ -40,8 +40,8 @@ def load_task_descriptions(dataset_path: str | Path) -> dict[int, str]:
                 prompt = record["task"]
                 if not isinstance(prompt, str) or not prompt.strip():
                     raise ValueError(
-                    f"Invalid task description for index {index}: {prompt!r}"
-                )
+                        f"Invalid task description for index {index}: {prompt!r}"
+                    )
                 tasks[index] = prompt
         return tasks
 
@@ -81,7 +81,7 @@ def load_task_descriptions(dataset_path: str | Path) -> dict[int, str]:
         prompt = record[text_column]
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError(
-                    f"Invalid task description for index {index}: {prompt!r}"
-                )
+                f"Invalid task description for index {index}: {prompt!r}"
+            )
         tasks[index] = prompt
     return tasks
