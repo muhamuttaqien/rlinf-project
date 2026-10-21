@@ -119,24 +119,7 @@ def load_returns_sidecar(
 
 
 def load_task_descriptions(dataset_path: str | Path) -> dict[int, str]:
-    """Load task descriptions from ``meta/tasks.jsonl`` or ``meta/tasks.parquet``."""
-    meta = Path(dataset_path) / "meta"
-    jsonl = meta / "tasks.jsonl"
-    if jsonl.exists():
-        tasks = {}
-        with open(jsonl, "r") as f:
-            for line in f:
-                if line.strip():
-                    data = json.loads(line.strip())
-                    tasks[data.get("task_index", len(tasks))] = data.get("task", "")
-        return tasks
+    """Read LeRobot v2/v3 tasks, including v3's indexed Parquet descriptions."""
+    from rlinf.data.storage.lerobot.metadata import load_task_descriptions as read_tasks
 
-    parquet = meta / "tasks.parquet"
-    if parquet.exists():
-        import pandas as pd
-
-        df = pd.read_parquet(parquet)
-        if "task_index" in df.columns and "task" in df.columns:
-            return {int(r["task_index"]): str(r["task"]) for _, r in df.iterrows()}
-
-    return {}
+    return read_tasks(dataset_path)
