@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from pathlib import Path
+
 import numpy as np
 import openpi.models.model as _model
 import openpi.shared.normalize as normalize
@@ -72,6 +75,58 @@ def create_torch_dataloader(
     return data_loader, num_batches
 
 
+def compute_v3_lerobot_norm_stats(
+    dataset_root: Path,
+) -> dict[str, normalize.NormStats]:
+    """Stream numerical columns from a LeRobot v3 dataset without v2 metadata."""
+    import pyarrow.parquet as pq
+
+    info_path = dataset_root / "meta" / "info.json"
+    info = json.loads(info_path.read_text(encoding="utf-8"))
+    features = info.get("features", {})
+    dimensions = {}
+    for name in ("state", "actions"):
+        feature = features.get(name)
+        if not feature or len(feature.get("shape", [])) != 1:
+            raise ValueError(f"Expected a 1D {name} feature in {info_path}")
+        dimensions[name] = int(feature["shape"][0])
+
+    parquet_files = sorted((dataset_root / "data").rglob("*.parquet"))
+    if not parquet_files:
+        raise FileNotFoundError(f"No data Parquet files under {dataset_root / 'data'}")
+
+    stats = {key: normalize.RunningStats() for key in dimensions}
+    seen = 0
+    for file in tqdm.tqdm(parquet_files, desc="Computing LeRobot v3 stats"):
+        parquet = pq.ParquetFile(file)
+        missing = set(dimensions) - set(parquet.schema_arrow.names)
+        if missing:
+            raise ValueError(f"{file} missing columns {sorted(missing)}")
+        for batch in parquet.iter_batches(
+            batch_size=1024, columns=list(dimensions)
+        ):
+            for key, dim in dimensions.items():
+                values = np.asarray(batch.column(key).to_pylist(), dtype=np.float32)
+                if values.ndim != 2 or values.shape[1] != dim:
+                    raise ValueError(
+                        f"{file}: expected {key} shape [N, {dim}], got {values.shape}"
+                    )
+                if not np.isfinite(values).all():
+                    raise ValueError(f"{file}: {key} contains NaN or infinity")
+                stats[key].update(values)
+            seen += batch.num_rows
+
+    expected = info.get("total_frames")
+    if expected is not None and seen != int(expected):
+        raise ValueError(
+            f"LeRobot v3 frame count mismatch: info.json says {expected}, "
+            f"but data Parquet files contain {seen} rows"
+        )
+    if not seen:
+        raise ValueError(f"No frames found under {dataset_root / 'data'}")
+    return {key: value.get_statistics() for key, value in stats.items()}
+
+
 def create_rlds_dataloader(
     data_config: DataConfig,
     action_horizon: int,
@@ -119,6 +174,20 @@ def main(
         config_name,
         repo_id=repo_id,
     )
+
+    # OpenPI's pinned LeRobot loader expects v2 JSONL metadata. A v3 dataset
+    # stores multiple episodes per Parquet shard with task metadata in Parquet,
+    # so compute the same raw state/action statistics directly from its shards.
+    if (
+        (dataset_root / "meta" / "tasks.parquet").is_file()
+        and not (dataset_root / "meta" / "tasks.jsonl").is_file()
+    ):
+        norm_stats = compute_v3_lerobot_norm_stats(dataset_root)
+        output_path = config.assets_dirs / repo_id
+        print(f"Writing LeRobot v3 stats to: {output_path}")
+        normalize.save(output_path, norm_stats)
+        return
+
     data_config = config.data.create(config.assets_dirs, config.model)
 
     if data_config.rlds_data_dir is not None:
