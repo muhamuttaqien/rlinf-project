@@ -293,6 +293,9 @@ export CUDA_VISIBLE_DEVICES=0
 # Current .venv has Ray 2.59 / Python 3.11.15. Do NOT stop shared Ray.
 export RAY_ADDRESS=local
 export RAY_TMPDIR="$HOME/.cache/ray-stackcube"
+# Avoid Ray 2.59's MetricsHead dashboard startup failure in this local session.
+# This flag is ignored when RAY_ADDRESS is not "local".
+export RLINF_RAY_DISABLE_DASHBOARD=1
 mkdir -p "$RAY_TMPDIR"
 test -f "$PI05_MODEL_PATH/model.safetensors"
 test -f "$STACKCUBE_NORM_STATS"
