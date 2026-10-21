@@ -165,16 +165,16 @@ export STACKCUBE_NORM_STATS=/absolute/path/from/stats-script/norm_stats.json
 export PI05_MODEL_PATH=/absolute/path/to/pi05_base_pytorch
 
 # Check before launch
-test -f "$STACKCUBE_NORM_STATS" &&
-test -d "$PI05_MODEL_PATH" &&
-test -f "$PI05_MODEL_PATH/params.json" || echo "Verify your Pi0.5 checkpoint layout"
+test -f "$STACKCUBE_NORM_STATS" || { echo "Missing normalization stats"; exit 1; }
+test -d "$PI05_MODEL_PATH" || { echo "Missing Pi0.5 checkpoint directory"; exit 1; }
+ls -lh "$PI05_MODEL_PATH" | head
 
 bash examples/sft/run_vla_sft.sh maniskill_stackcube_panda_sft_openpi_pi05
 ```
 
-Use the actual checkpoint layout produced by your OpenPI PyTorch conversion;
-the example `params.json` check above is not definitive for RLinf's
-`full_weights.pt` checkpoints. Inspect the model's contents before running.
+Use a compatible OpenPI PyTorch checkpoint in the format expected by RLinf,
+and inspect its contents before running; the directory-existence check does
+not validate checkpoint weights.
 The YAML defaults to a 200-step **configuration smoke**, not an evaluated
 baseline model. Full-parameter π₀.₅ with `no_shard` may exceed a 16 GB GPU;
 the 96 GB GPU server is the safer place to try initial training.
