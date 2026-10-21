@@ -187,12 +187,33 @@ OpenPI-compatible `norm_stats.json` in the configured assets directory.
 For the StackCube pilot the expected vectors are state **9D**, action **8D**,
 and 10,709 frames. No video decoding or Hugging Face Hub access is needed.
 
-This fixes **normalization only**: the currently installed OpenPI SFT loader
-still uses LeRobot's v2.1 reader and cannot directly ingest multi-episode
-v3 shards. Prepare a verified v3-to-v2.1 training view or a v3-capable
-loader before attempting model training. Do **not** change the original
-`stackcube_sft_pilot100` data or spoof `codebase_version` merely to avoid
-an exception.
+The OpenPI SFT path now has a **read-only, StackCube-specific LeRobot v3
+adapter** in `rlinf/data/datasets/openpi/v3_stackcube_dataset.py`.
+It reads state/actions from Parquet shards, episode bounds and video offsets
+from `meta/episodes` Parquet, decodes only the real base camera from MP4,
+and clamps 10-step action windows at episode ends. It preserves the official
+OpenPI SFT transforms, quantile normalization, and wrist-camera masking.
+The existing v2.1 loader remains unchanged for other datasets.
+
+Before GPU training, **validate the adapter on the workstation**:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-chat
+
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_stackcube_openpi_sft_config.py \
+  tests/unit_tests/test_stackcube_v3_openpi_loader.py -v
+
+export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100/norm_stats.json"
+PYTHONPATH="$PWD" python scripts/check_stackcube_openpi_sft_dataloader.py
+```
+
+The smoke script samples three real video frames and obtains one normalized
+batch from the official PyTorch OpenPI loader, without loading the model or
+running a training step. Do not begin SFT until these tests pass; the v3
+adapter has not yet been validated on the user's GPU workstation.
+Do **not** change the original `stackcube_sft_pilot100` data or spoof
+`codebase_version`.
 
 The verified pilot run wrote its statistics to
 `assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100/norm_stats.json`
