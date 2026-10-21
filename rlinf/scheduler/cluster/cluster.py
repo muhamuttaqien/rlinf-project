@@ -115,6 +115,36 @@ class PathEnvMergeMode(str, Enum):
     OVERRIDE = "override"
 
 
+def _local_ray_gpu_options() -> dict[str, int]:
+    """Declare GPU resources only for an explicitly isolated local Ray session.
+
+    Ray's NVML-based enumeration can report zero NVIDIA GPUs on machines where
+    PyTorch CUDA works. The opt-in count must agree with CUDA_VISIBLE_DEVICES.
+    Never pass resource overrides while connecting to a shared Ray cluster.
+    """
+    if os.environ.get("RAY_ADDRESS", "").strip().lower() != "local":
+        return {}
+    count_text = os.environ.get("RLINF_RAY_LOCAL_NUM_GPUS", "").strip()
+    if not count_text:
+        return {}
+    try:
+        count = int(count_text)
+    except ValueError as exc:
+        raise ValueError(
+            "RLINF_RAY_LOCAL_NUM_GPUS must be a positive integer."
+        ) from exc
+    if count < 1:
+        raise ValueError("RLINF_RAY_LOCAL_NUM_GPUS must be a positive integer.")
+
+    visible = [item.strip() for item in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if item.strip()]
+    if len(visible) != count:
+        raise ValueError(
+            f"RLINF_RAY_LOCAL_NUM_GPUS={count} requires exactly {count} "
+            f"CUDA_VISIBLE_DEVICES entries; got {visible!r}."
+        )
+    return {"num_gpus": count}
+
+
 def _local_ray_dashboard_options() -> dict[str, bool]:
     """Opt out of the dashboard only for an explicitly isolated local Ray run.
 
@@ -352,6 +382,7 @@ class Cluster:
                 "namespace": Cluster.NAMESPACE,
             }
             ray_init_kwargs.update(_local_ray_dashboard_options())
+            ray_init_kwargs.update(_local_ray_gpu_options())
             if self._ray_code_sync_fragment is not None:
                 ray_init_kwargs["runtime_env"] = dict(self._ray_code_sync_fragment)
                 py_mods = ray_init_kwargs["runtime_env"].get("py_modules") or ()
@@ -369,6 +400,7 @@ class Cluster:
                 "namespace": Cluster.NAMESPACE,
             }
             ray_init_kwargs.update(_local_ray_dashboard_options())
+            ray_init_kwargs.update(_local_ray_gpu_options())
             if self._ray_code_sync_fragment is not None:
                 ray_init_kwargs["runtime_env"] = dict(self._ray_code_sync_fragment)
             self._start_local_ray(ray_init_kwargs)
@@ -477,16 +509,27 @@ class Cluster:
             if self._distributed_log_collector is not None:
                 self._distributed_log_collector.stop()
 
-            with without_http_proxies():
-                alive_actors = list_actors(
-                    filters=[
-                        ("STATE", "=", "ALIVE"),
-                        ("RAY_NAMESPACE", "=", Cluster.NAMESPACE),
-                    ]
-                )
-            for actor_state in alive_actors:
-                actor = ray.get_actor(actor_state.name)
-                ray.kill(actor, no_restart=True)
+            # The Ray State API requires the dashboard, which can be disabled
+            # for isolated local training. Use the core named-actor API for
+            # local cleanup, and keep shared-cluster handling unchanged.
+            if os.environ.get("RAY_ADDRESS", "").strip().lower() == "local":
+                actor_names = ray.util.list_named_actors()
+            else:
+                with without_http_proxies():
+                    alive_actors = list_actors(
+                        filters=[
+                            ("STATE", "=", "ALIVE"),
+                            ("RAY_NAMESPACE", "=", Cluster.NAMESPACE),
+                        ]
+                    )
+                actor_names = [actor_state.name for actor_state in alive_actors]
+            for name in actor_names:
+                try:
+                    actor = ray.get_actor(name)
+                    ray.kill(actor, no_restart=True)
+                except ValueError:
+                    # Actor already exited while another worker was failing.
+                    continue
 
             if ray.is_initialized():
                 # Mimic ray's sleep before shutdown to ensure log messages are flushed
