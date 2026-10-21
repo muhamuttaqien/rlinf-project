@@ -108,6 +108,40 @@ def get_episode_boundaries(episode_indices: np.ndarray) -> list[tuple[int, int, 
     return list(zip(ep_ids.tolist(), starts.tolist(), ends.tolist()))
 
 
+def _coerce_episode_success(value) -> bool:
+    """Unpack LeRobot's shape-(1,) Boolean episode-success feature."""
+    if isinstance(value, (list, tuple)):
+        if len(value) != 1:
+            raise ValueError(f"Expected one success label, got {value!r}")
+        value = value[0]
+    if not isinstance(value, (bool, np.bool_)):
+        raise ValueError(f"Expected a Boolean success label, got {value!r}")
+    return bool(value)
+
+
+def _load_dataset_tasks(dataset_path: Path) -> dict[int, str]:
+    """Read LeRobot v2 JSONL or v3 Parquet task metadata."""
+    meta = dataset_path / "meta"
+    tasks = {}
+    jsonl_path = meta / "tasks.jsonl"
+    if jsonl_path.exists():
+        with jsonl_path.open(encoding="utf-8") as file:
+            for line in file:
+                if line.strip():
+                    entry = json.loads(line)
+                    tasks[int(entry.get("task_index", len(tasks)))] = str(
+                        entry["task"]
+                    )
+        return tasks
+
+    parquet_path = meta / "tasks.parquet"
+    if parquet_path.exists():
+        table = pq.read_table(parquet_path, columns=["task_index", "task"])
+        for entry in table.to_pylist():
+            tasks[int(entry["task_index"])] = str(entry["task"])
+    return tasks
+
+
 def _process_single_parquet(
     pq_file: str,
     dataset_type: str,
@@ -164,7 +198,7 @@ def _process_single_parquet(
         if dataset_type == "sft":
             is_success = True
         else:
-            is_success = bool(is_success_col[ep_end - 1])
+            is_success = _coerce_episode_success(is_success_col[ep_end - 1])
 
         ep_returns, ep_rewards = compute_returns_for_episode(
             episode_length=ep_length,
@@ -243,15 +277,9 @@ def process_dataset(
     parquet_files = sorted(str(p) for p in data_dir.rglob("*.parquet"))
     logger.info(f"Found {len(parquet_files)} parquet files")
 
-    tasks: dict[int, str] = {}
-    tasks_path = output_path / "meta" / "tasks.jsonl"
-    if tasks_path.exists():
-        with open(tasks_path, "r") as f:
-            for line in f:
-                entry = json.loads(line.strip())
-                task_idx = entry.get("task_index", len(tasks))
-                task_desc = entry.get("task", "")
-                tasks[task_idx] = task_desc
+    tasks = _load_dataset_tasks(output_path)
+    if not tasks:
+        logger.warning("No task descriptions found in dataset metadata")
 
     # PyArrow releases GIL during I/O, so threads achieve true parallelism
     result_tables: list[pa.Table] = []
