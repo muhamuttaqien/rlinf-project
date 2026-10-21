@@ -34,7 +34,9 @@ def _load_script(name: str, relative_path: str):
     return module
 
 
-def _small_lerobot_dataset(tmp_path: Path) -> tuple[Path, Path]:
+def _small_lerobot_dataset(
+    tmp_path: Path, *, indexed_tasks: bool = False, all_successful: bool = False
+) -> tuple[Path, Path]:
     root = tmp_path / "stackcube"
     (root / "meta").mkdir(parents=True)
     data_dir = root / "data" / "chunk-000"
@@ -56,8 +58,9 @@ def _small_lerobot_dataset(tmp_path: Path) -> tuple[Path, Path]:
         ),
         encoding="utf-8",
     )
+    task_text_column = "__index_level_0__" if indexed_tasks else "task"
     pq.write_table(
-        pa.table({"task_index": [0], "task": [task]}),
+        pa.table({"task_index": [0], task_text_column: [task]}),
         root / "meta" / "tasks.parquet",
     )
     filepath = data_dir / "file-000.parquet"
@@ -70,7 +73,7 @@ def _small_lerobot_dataset(tmp_path: Path) -> tuple[Path, Path]:
                 "state": pa.array([[0.0] * 9] * 4, type=pa.list_(pa.float32(), 9)),
                 "actions": pa.array([[0.0] * 8] * 4, type=pa.list_(pa.float32(), 8)),
                 "is_success": pa.array(
-                    [[True], [True], [False], [False]],
+                    [[True], [True], [all_successful], [all_successful]],
                     type=pa.list_(pa.bool_(), 1),
                 ),
             }
@@ -141,3 +144,41 @@ def test_audit_detects_wrong_action_dimension():
             {0: [{"frame_index": 0, "state": [0.0] * 9,
                   "actions": [0.0] * 7, "is_success": [True]}]}
         )
+
+
+@pytest.mark.parametrize("indexed_tasks", [False, True])
+def test_task_metadata_layouts_validate_successful_episodes(tmp_path, indexed_tasks):
+    """Audit SFT episodes with both explicit task and pandas-indexed task text."""
+    audit = _load_script(
+        "stackcube_audit",
+        "toolkits/lerobot/validate_maniskill_stackcube_recap.py",
+    )
+    root, filename = _small_lerobot_dataset(
+        tmp_path, indexed_tasks=indexed_tasks, all_successful=True
+    )
+    assert "__index_level_0__" in pq.read_schema(filename.parent.parent.parent / "meta" / "tasks.parquet").names if indexed_tasks else True
+    report = audit.audit_dataset(root, expected_episodes=2)
+    assert report["successful_episodes"] == 2
+    assert report["frames"] == 4
+
+
+def test_recap_stage1_reads_pandas_indexed_v3_task_and_rewards(tmp_path):
+    """Regression for LeRobot 0.4 tasks.parquet with __index_level_0__."""
+    pytest.importorskip("hydra")
+    returns_module = _load_script(
+        "stackcube_returns",
+        "examples/offline_rl/advantage_labeling/recap/process/compute_returns.py",
+    )
+    root, filename = _small_lerobot_dataset(tmp_path, indexed_tasks=True)
+    tasks = returns_module._load_dataset_tasks(root)
+    assert tasks == {0: "stack the red cube on top of the green cube and release it"}
+
+    rows = returns_module._process_single_parquet(
+        str(filename),
+        dataset_type="rollout",
+        gamma=1.0,
+        failure_reward=-300.0,
+        tasks=tasks,
+    )
+    assert rows.column("prompt").to_pylist() == [tasks[0]] * 4
+    assert rows.column("reward").to_pylist() == [-1.0, 0.0, -1.0, -300.0]
