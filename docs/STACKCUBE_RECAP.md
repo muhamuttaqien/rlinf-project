@@ -48,6 +48,45 @@ The LeRobot dataset is saved under the configured HF LeRobot home directory
 (or the absolute `--repo-id` path). Do not check generated episodes or
 model checkpoints into Git.
 
+## Validate the working 10-episode dataset
+
+The initial collector succeeded with 10 episodes using `local/stackcube_sft_v2`.
+Run the pilot validator before proceeding:
+
+```bash
+PYTHONPATH="$PWD" python toolkits/lerobot/validate_maniskill_stackcube_recap.py \
+  --dataset-path "$HOME/.cache/huggingface/lerobot/local/stackcube_sft_v2" \
+  --expected-episodes 10 --decode-frames 3
+```
+
+The fast Parquet audit checks episode/frame indices, metadata counts, the
+9-dimensional finite state, 8-dimensional finite actions, task IDs, and
+per-episode success labels. The optional `--decode-frames` also requests
+sampled RGB observations using LeRobot's loader. It does not physically
+replay the trajectory or verify the stacking visually; that requires
+reviewing recorded images or videos.
+
+## Collect and audit 100 pilot episodes
+
+Keep pilot seeds separate from the initial smoke-test seeds (0–9); reserve
+a different, held-out seed range for final evaluation.
+
+```bash
+PYTHONPATH="$PWD" python toolkits/lerobot/collect_maniskill_stackcube_recap.py \
+  --repo-id local/stackcube_sft_pilot100 \
+  --num-episodes 100 --max-attempts 250 \
+  --seed 1000 --sim-backend physx_cpu
+
+PYTHONPATH="$PWD" python toolkits/lerobot/validate_maniskill_stackcube_recap.py \
+  --dataset-path "$HOME/.cache/huggingface/lerobot/local/stackcube_sft_pilot100" \
+  --expected-episodes 100 --decode-frames 3
+```
+
+This creates a new dataset and preserves the 10-episode smoke-test data.
+The pilot alone does not establish OpenPI learning performance. The collector
+only saves successful expert demonstrations and does not currently report
+all failed expert attempts as separate episodes.
+
 ## Run RECAP Stage 1 after inspecting saved episodes
 
 Find the dataset's absolute directory first, then run:
@@ -58,6 +97,9 @@ bash examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh
   'data.train_data_paths=[{dataset_path:/ABS/PATH/TO/stackcube_sft,type:sft}]' \
   data.gamma=1.0 data.tag=stackcube_sft data.num_workers=2
 ```
+
+For the 100-episode pilot, replace the placeholder with the absolute path to
+`stackcube_sft_pilot100` and set `data.tag=stackcube_pilot100`.
 
 Stage 1 should produce `meta/returns_stackcube_sft.parquet`. Confirm the
 number of episodes and successful end states before using it for training.
@@ -76,3 +118,9 @@ The official RECAP configs are under `examples/offline_rl/config/`. Their
 default `libero` robot mappings and 7-action policy outputs are **not**
 correct for this 8-action Panda joint-position dataset. They require
 integration and tests before launching the large-model stages.
+
+
+Stage 1 now handles LeRobot task descriptions from either `meta/tasks.jsonl`
+or `meta/tasks.parquet`. For future failed-policy rollout datasets, it also
+unpacks shape-(1,) Boolean success labels correctly, so `[False]` is a failed
+episode rather than being interpreted as a truthy list.
