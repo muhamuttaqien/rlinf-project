@@ -40,3 +40,61 @@ Reference: https://rlinf.readthedocs.io/en/latest/rst_source/examples/embodied/r
 - RECAP is **offline**. Simulator interactions happen during demonstration and rollout collection, not inside the four optimization stages.
 - The existing examples are LIBERO-oriented; Panda-specific LeRobot feature mappings and checkpoint compatibility require verification before training.
 - A successful smoke test is necessary but not sufficient proof that full RECAP works.
+
+## Phase 1 complete: LeRobot dataset validation
+
+Validated on `pca03395`: 10 successful StackCube demonstrations, 1,084 total
+frames, 18-dim Panda proprioception (qpos+qvel), 7-dim `pd_ee_delta_pose`
+actions, two 128×128 RGB videos. TorchCodec decoding, per-frame action
+alignment, and terminal success checks passed.
+
+## Phase 2 preflight: OpenPI π₀.₅ SFT
+
+The StackCube-specific adapter is registered as `pi05_stackcube_panda`.
+It maps LeRobot keys `observation.images.base_camera`,
+`observation.images.hand_camera`, `observation.state`, `action`, and
+`task` onto the existing RLinf ManiSkill policy transform. The official
+OpenPI loader constructs 10-step action windows from the singular
+`action` key and pads state/actions to 32 model dimensions. Actions are
+*already* delta-pose commands, so there is no second delta conversion.
+
+Run from the repository root with the embodied virtual environment:
+
+```bash
+git pull --ff-only origin branch-openpi-recap
+python -c "import openpi, lerobot; print('OpenPI and LeRobot import OK')"
+PYTHONPATH="$PWD" python scripts/check_stackcube_openpi_inputs.py
+PYTHONPATH="$PWD" python scripts/compute_stackcube_openpi_norm_stats.py
+PYTHONPATH="$PWD" python scripts/check_stackcube_openpi_loader.py
+```
+
+The stats are computed from the **same replayed dataset** using 10-step
+future action windows and stored at
+`outputs/stackcube_recap/openpi_norm/stackcube_panda/norm_stats.json`.
+Regenerate statistics if the training set changes. Do not train with stale
+normalization or silently reuse norms from LIBERO or another robot.
+
+A first short SFT experiment configuration is at:
+`examples/sft/config/stackcube_panda_sft_openpi_pi05.yaml`.
+It is **not yet a verified training recipe**. It requires a compatible
+pretrained PyTorch π₀.₅ checkpoint, sufficient GPU memory, and a successful
+full dataloader preflight. When those prerequisites are met, an operator
+can run:
+
+```bash
+bash examples/sft/run_vla_sft.sh stackcube_panda_sft_openpi_pi05 \
+  actor.model.model_path=/absolute/path/to/pi05_base_pytorch
+```
+
+However, the existing shell launcher may not forward extra CLI arguments;
+in that case invoke `examples/sft/train_vla_sft.py` with explicit Hydra
+overrides, or edit only the local YAML checkpoint path. Avoid launching
+training until the checkpoint path and resources are verified.
+
+**Resource caution:** A 16 GB GPU is not guaranteed to accommodate π₀.₅ SFT,
+even with a micro-batch of 1 and gradient checkpointing. CPU/loader checks
+are deliberately separated from GPU training.
+
+Future milestones: scale to 100–200 validated demonstrations; establish a
+π₀.₅ SFT baseline; collect autonomous successful *and failed* rollouts;
+apply RLinf's four RECAP offline stages; compare held-out success rates.
