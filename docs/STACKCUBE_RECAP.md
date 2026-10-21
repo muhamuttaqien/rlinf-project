@@ -179,6 +179,21 @@ PYTHONPATH="$PWD" python toolkits/lerobot/calculate_norm_stats.py \
   --repo-id local/stackcube_sft_pilot100
 ```
 
+The normalization script now detects v3 `meta/tasks.parquet` and streams
+the raw `state` and `actions` columns from the v3 Parquet shards, avoiding
+the installed OpenPI loader's v2-only `meta/tasks.jsonl` expectation.
+It validates dimensions, finite values and total frame count, then writes
+OpenPI-compatible `norm_stats.json` in the configured assets directory.
+For the StackCube pilot the expected vectors are state **9D**, action **8D**,
+and 10,709 frames. No video decoding or Hugging Face Hub access is needed.
+
+This fixes **normalization only**: the currently installed OpenPI SFT loader
+still uses LeRobot's v2.1 reader and cannot directly ingest multi-episode
+v3 shards. Prepare a verified v3-to-v2.1 training view or a v3-capable
+loader before attempting model training. Do **not** change the original
+`stackcube_sft_pilot100` data or spoof `codebase_version` merely to avoid
+an exception.
+
 The statistics script prints the exact output location. Inspect the generated
 `norm_stats.json` for finite values and reasonable action/state ranges.
 If the stats step fails, collect the traceback before starting GPU training.
