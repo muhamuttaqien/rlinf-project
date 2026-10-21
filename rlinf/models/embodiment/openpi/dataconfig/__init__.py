@@ -58,6 +58,9 @@ from rlinf.models.embodiment.openpi.dataconfig.maniskill_dataconfig import (
 from rlinf.models.embodiment.openpi.dataconfig.maniskill_rlt_dataconfig import (
     LeRobotRLTManiSkillJointDataConfig,
 )
+from rlinf.models.embodiment.openpi.dataconfig.stackcube_panda_dataconfig import (
+    LeRobotStackCubePandaDataConfig,
+)
 from rlinf.models.embodiment.openpi.dataconfig.metaworld_dataconfig import (
     LeRobotMetaworldDataConfig,
 )
@@ -168,6 +171,26 @@ _CONFIGS = [
         num_train_steps=5_000,
         log_interval=5,
         save_interval=250,
+    ),
+    TrainConfig(
+        name="pi05_stackcube_panda",
+        model=pi0_config.Pi0Config(
+            pi05=True, action_horizon=10, discrete_state_input=False
+        ),
+        data=LeRobotStackCubePandaDataConfig(
+            repo_id="local/stackcube-panda-recap",
+            base_config=DataConfig(prompt_from_task=False),
+            assets=AssetsConfig(
+                assets_dir="checkpoints/torch/pi05_stackcube_panda/assets"
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "checkpoints/jax/pi05_base"
+        ),
+        pytorch_weight_path="checkpoints/torch/pi05_base",
+        seed=42,
+        batch_size=4,
+        num_workers=0,
     ),
     TrainConfig(
         name="pi05_rlt_maniskill_joint",
