@@ -70,16 +70,19 @@ def _extract_observation(obs: dict[str, Any]) -> dict[str, np.ndarray]:
 
     return {
         "image": rgb("base_camera", "3rd_view_camera"),
-        "wrist_image": rgb("hand_camera", "wide_hand_camera"),
+        "wrist_image": rgb("hand_camera", "wide_hand_camera") if any(k in cameras for k in ("hand_camera", "wide_hand_camera")) else rgb("base_camera", "3rd_view_camera"),
         "state": qpos,
     }
 
 
 def _solver_succeeded(result: Any) -> bool:
     """Read the environment's actual success flag, never planner status alone."""
-    if not isinstance(result, tuple) or not result or not isinstance(result[-1], dict):
+    if isinstance(result, dict):
+        success = result.get("success", False)
+    elif isinstance(result, tuple) and result and isinstance(result[-1], dict):
+        success = result[-1].get("success", False)
+    else:
         return False
-    success = result[-1].get("success", False)
     return bool(_to_numpy(success).reshape(-1)[0])
 
 
@@ -224,7 +227,7 @@ def main() -> None:
 
     env = gym.make(
         "StackCube-v1",
-        robot_uids="panda_wristcam",
+        robot_uids="panda",
         num_envs=1,
         obs_mode="rgb",
         control_mode="pd_joint_pos",
