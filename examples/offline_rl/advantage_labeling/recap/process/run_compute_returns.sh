@@ -23,28 +23,29 @@ cd "$SCRIPT_DIR"
 
 CONFIG_NAME=${1:-"recap_compute_returns"}
 shift 1 2>/dev/null || true
-EXTRA_ARGS="$@"
 
-OVERRIDES=""
-if [ -n "$EXTRA_ARGS" ]; then
-    OVERRIDES="$EXTRA_ARGS"
-fi
+# Preserve each Hydra override as a single argument. Building a command
+# string and evaluating it causes Bash brace expansion to split dictionary
+# overrides such as 'data.train_data_paths=[{dataset_path:/tmp/x,type:sft}]'.
+CMD=(python compute_returns.py --config-path "$OFFLINE_RL_CONFIG" --config-name "$CONFIG_NAME")
+CMD+=("$@")
 
 echo "=========================================="
 echo "Return Computation for LeRobot Datasets"
 echo "=========================================="
 echo "  Config: $CONFIG_NAME"
-if [ -n "$EXTRA_ARGS" ]; then
-    echo "  Extra args: $EXTRA_ARGS"
+if [ "$#" -gt 0 ]; then
+    printf '  Extra args: '
+    printf '%q ' "$@"
+    printf '\n'
 fi
 echo ""
 
-CMD="python compute_returns.py --config-path ${OFFLINE_RL_CONFIG} --config-name $CONFIG_NAME $OVERRIDES"
+printf 'Command: '
+printf '%q ' "${CMD[@]}"
+printf '\n\n'
 
-echo "Command: $CMD"
-echo ""
-
-eval $CMD
+"${CMD[@]}"
 
 echo ""
 echo "=========================================="
