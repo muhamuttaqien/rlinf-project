@@ -296,6 +296,11 @@ export RAY_TMPDIR="$HOME/.cache/ray-stackcube"
 # Avoid Ray 2.59's MetricsHead dashboard startup failure in this local session.
 # This flag is ignored when RAY_ADDRESS is not "local".
 export RLINF_RAY_DISABLE_DASHBOARD=1
+# Ray's zero-GPU node-probe actor otherwise inherits CUDA_VISIBLE_DEVICES=""
+# and RLinf incorrectly reports zero accelerators despite nvidia-smi.
+# Keep the driver's selected GPU visible to the probe and let RLinf's
+# accelerator placement explicitly allocate the training GPU.
+export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
 mkdir -p "$RAY_TMPDIR"
 test -f "$PI05_MODEL_PATH/model.safetensors"
 test -f "$STACKCUBE_NORM_STATS"
