@@ -115,6 +115,20 @@ class PathEnvMergeMode(str, Enum):
     OVERRIDE = "override"
 
 
+def _local_ray_dashboard_options() -> dict[str, bool]:
+    """Opt out of the dashboard only for an explicitly isolated local Ray run.
+
+    Ray's dashboard can fail during startup on shared laboratory hosts even
+    when the core scheduler and workers are usable. Never apply this option
+    when connecting to a pre-existing Ray cluster.
+    """
+    local = os.environ.get("RAY_ADDRESS", "").strip().lower() == "local"
+    disabled = os.environ.get("RLINF_RAY_DISABLE_DASHBOARD", "").strip().lower()
+    if local and disabled in {"1", "true", "yes", "on"}:
+        return {"include_dashboard": False}
+    return {}
+
+
 class Cluster:
     """A singleton class that manages the cluster resources for Ray workers."""
 
@@ -337,6 +351,7 @@ class Cluster:
                 "logging_level": Cluster.LOGGING_LEVEL,
                 "namespace": Cluster.NAMESPACE,
             }
+            ray_init_kwargs.update(_local_ray_dashboard_options())
             if self._ray_code_sync_fragment is not None:
                 ray_init_kwargs["runtime_env"] = dict(self._ray_code_sync_fragment)
                 py_mods = ray_init_kwargs["runtime_env"].get("py_modules") or ()
@@ -353,6 +368,7 @@ class Cluster:
                 "logging_level": Cluster.LOGGING_LEVEL,
                 "namespace": Cluster.NAMESPACE,
             }
+            ray_init_kwargs.update(_local_ray_dashboard_options())
             if self._ray_code_sync_fragment is not None:
                 ray_init_kwargs["runtime_env"] = dict(self._ray_code_sync_fragment)
             self._start_local_ray(ray_init_kwargs)
