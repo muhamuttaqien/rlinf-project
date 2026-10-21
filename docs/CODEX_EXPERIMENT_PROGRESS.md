@@ -2,7 +2,7 @@
 
 Updated: 2026-10-21 (Asia/Tokyo)  
 Branch: `branch-openpi-recap`  
-Current milestone: Research Milestone 4 — **PASSED (1,084/1,084 steps; inference readiness passed)**
+Current milestone: Research Milestone 5.5 — **PASSED; replay reproduced, paired evaluation complete, no unseen-seed successes**
 
 ## State at start
 
@@ -377,5 +377,371 @@ StackCube success. Milestone 5 remains pending approval.
   write `.git/index` was blocked by read-only repository metadata. No
   permissions were changed and no commit was pushed.
 
-The next research milestone is baseline ManiSkill evaluation (Milestone 5),
-which is not started and requires separate approval.
+Milestone 5 was subsequently authorized and is recorded below.
+
+## Milestone 5 — ManiSkill StackCube baseline evaluation (2026-10-21)
+
+**Status: PASSED for execution of the paired evaluation.** Neither policy
+succeeded on the 10 tested seeds; that is the measured result, not a pipeline
+failure. No policy improvement in success rate was observed.
+
+- Confirmed branch `branch-openpi-recap`, HEAD `eeb5f39d`, and a clean starting
+  worktree. Read `AGENTS.md`, `docs/STACKCUBE_RECAP.md`, the M4 report, progress
+  log, SFT YAML, and relevant ManiSkill/OpenPI model code.
+- Verified the official base checkpoint at
+  `checkpoints/torch/pi05_stackcube_panda_base/model.safetensors` and final SFT
+  weights at `outputs/stackcube_recap/full_sft/results/stackcube_panda_pi05_full_sft/checkpoints/global_step_1084/actor/model_state_dict/full_weights.pt`.
+  M4 already verified final model loading through the RLinf OpenPI evaluation
+  factory.
+- Host preflight selected physical GPU 1: 97,235 MiB free of 97,887 MiB, 0%
+  utilization, and no listed compute processes. System memory had 473 GiB
+  available and disk had 114 GiB free. CUDA 13.0/PyTorch 2.11.0+cu130
+  initialized with `CUDA_VISIBLE_DEVICES=1` and the process-scoped M3.1 NVML
+  path `/tmp/rlinf_m31_nvml590:/opt/slurm/24.11.0/lib`. The sandbox cannot see
+  NVIDIA devices; both failed sandbox output and successful host preflight are
+  retained in `outputs/stackcube_recap/full_sft/logs/m5_preflight_sandbox.log`.
+- The generic RLinf ManiSkill eval wrapper does not directly produce the
+  training state (18D qpos+qvel) and two-camera input mapping. A task-specific
+  evaluator under `outputs/stackcube_recap/milestone5_eval/` uses RLinf's
+  existing OpenPI `get_model`/`Pi0Eval` and transforms with ManiSkill's native
+  `StackCube-v1`, `panda_wristcam`, `pd_ee_delta_pose`, and CPU PhysX. CPU
+  simulation matches the expert replay backend and keeps only model inference
+  on GPU 1. It reuses the exact M4 normalization file for both checkpoints.
+- This task has a native 50-step limit. The evaluator used matched seeds 42–51,
+  10-step policy chunks, and recorded success, termination, return, grasp/lift/
+  transport/placement stage flags, failure stage, and both RGB camera streams.
+  It completed 1,000 environment transitions and 100 policy calls.
+- The standalone evaluator's `--help` and `py_compile` checks passed after
+  setting the repository `PYTHONPATH`; the first help invocation omitted that
+  path and failed with `ModuleNotFoundError: rlinf` before running evaluation.
+- Outcome: pretrained and SFT were each 0/10 successes; all 20 episodes reached
+  the 50-step limit and were categorized `no_grasp`. Neither policy recorded a
+  lift, transport, or placement event. Mean episode return was 2.003 for
+  pretrained and 4.184 for SFT; this reward difference did not translate into
+  task success. The paired success-rate delta was 0/10.
+- Saved camera recordings are in
+  `outputs/stackcube_recap/milestone5_eval/videos/` (20 compressed NPZ files,
+  main and wrist streams). Reviewed sample frames show the SFT robot moved
+  toward the cubes on seed 50 but did not grasp; the pretrained seed-42 sample
+  also did not reach a grasp.
+- Policy peak CUDA allocated/reserved memory was 6,808.2/6,968.0 MiB for
+  pretrained and 6,809.4/6,958.0 MiB for SFT. Post-run GPU 1 had 97,235 MiB
+  free, 0% utilization, and no compute process. System memory had 473 GiB
+  available and disk had 114 GiB free.
+- Evaluation outputs are under `outputs/stackcube_recap/milestone5_eval/`;
+  the report is `docs/milestones/milestone_5_report.md`. No autonomous rollout
+  collection or RECAP work was started. Further work is paused for user review.
+
+## Milestone 5.1 — StackCube policy failure diagnosis (2026-10-21)
+
+**Status: PASSED for the requested audit.** No reproducible policy/evaluator
+implementation error justified a code change. The verified diagnosis is a
+large expert/evaluation horizon mismatch; the original M5 rule and all M5
+results remain unchanged.
+
+- Audited all 20 M5 episode records and contact sheets from every stored video
+  (base and wrist camera, steps 0/10/20/30/40/50). Both checkpoints remained
+  0/10 success, 0/10 grasp, and `no_grasp` on every episode. Each ended at
+  50 steps with `truncated=true`, `terminated=false`, matching ManiSkill's
+  registered `StackCube-v1` max episode length of 50.
+- The ten source expert trajectories contain 94–120 actions (mean 108.4),
+  all labeled terminal-success. ManiSkill replay from recorded initial
+  environment states replayed the first three successfully (3/3); the replay
+  continues after Gym's 50-step truncation. Therefore the dataset expert
+  trajectories exceed the task/evaluation horizon. This is a verified
+  comparison limitation, not evidence that increasing the horizon alone
+  would make either policy succeed.
+- Confirmed evaluator environment and robot: `StackCube-v1`,
+  `panda_wristcam`, RGB observations, `pd_ee_delta_pose`, one environment,
+  CPU PhysX. Termination, truncation, grasp, and task-success reporting agree
+  with the native task. The policy executes its 10-action chunk sequentially
+  and requeries after each ten actions, matching the trained horizon and
+  RLinf's action-chunk contract.
+- Raw HDF5 and LeRobot data checks passed. On five sampled rows, qpos+qvel
+  state and 7D actions matched exactly (maximum absolute difference 0); both
+  128×128 RGB features decoded under the expected base/hand keys. The adapter
+  maps base and wrist cameras to their intended model slots, preserves the
+  18D qpos-then-qvel state, and uses the same StackCube normalization for
+  training and inference.
+- Expert gripper targets include both normalized commands (`-1`: close,
+  `+1`: open); conversion copies the command unchanged and Panda controller
+  polarity matches. No gripper sign issue was found.
+- Inference-only comparison used the official pretrained and M4 SFT
+  checkpoints at expert states (episodes 0 and 1, frames 0/20/40). All 12
+  output chunks were finite `(1,10,7)` actions. Mean chunk MAE was 0.034 for
+  SFT and 0.274 for pretrained; this supports correct teacher-forced mapping
+  and unnormalization, but does not establish closed-loop performance.
+- Checks: `scripts/validate_stackcube_replay.py` passed 10/10;
+  `scripts/validate_stackcube_lerobot.py` passed 10 episodes / 1,084 frames
+  using its default TorchCodec decoder; expert replay passed 3/3; sampled
+  state/action equality passed. An explicit `--video-backend pyav` check
+  failed because this environment's `torchvision.io` lacks `VideoReader`; the
+  default TorchCodec decoder passed without dependency changes. A sandboxed
+  replay attempt failed at renderer initialization because sandbox device
+  access is unavailable; the bounded host-context replay succeeded.
+- GPU 1 preflight: 97,235 MiB free of 97,887 MiB, 0% utilization, no compute
+  process; 473 GiB available system RAM and 114 GiB free disk. Inference used
+  `CUDA_VISIBLE_DEVICES=1` and the process-scoped M3.1 NVML path. Peak memory
+  for this diagnostic was not recorded. Post-run GPU 1 was idle again with
+  97,235 MiB free. Resource and inference artifacts are under
+  `outputs/stackcube_recap/milestone5_eval/`.
+- No tracked code, checkpoint, normalization, or evaluation rule changed.
+  A longer policy horizon was not run because ManiSkill's native limit is
+  50; changing it only to improve success counts would alter the benchmark
+  rule. SFT action reproduction is strong at sampled expert states, while
+  closed-loop distribution shift, 10-step open-loop error accumulation, and
+  the ten-episode training set remain plausible, unisolated contributors.
+  The saved M5 artifacts lack predicted action traces and use different reset
+  seeds from the experts, so the exact first closed-loop divergence is unknown.
+- Report: `docs/milestones/milestone_5_1_report.md`. Starting commit was
+  `eeb5f39d`; no commit or push was made. No further rollout collection or
+  RECAP work was started.
+
+Recommended next decision: define whether future comparisons retain the
+official 50-step benchmark (requiring experts within 50 steps) or use a
+separately approved longer-horizon diagnostic. Any additional data collection,
+training, or evaluation protocol change needs approval.
+
+## Milestone 5.2 — Extended-horizon closed-loop evaluation (2026-10-21)
+
+**Status: PASSED for the evaluation and behavioral diagnosis.** The separate
+150-step diagnostic completed for the SFT pilot and all 20 paired seeds. Both
+policies had 0/20 native StackCube successes. This result does not indicate
+policy convergence or task competence.
+
+- Read the repository instructions and M4, M5, and M5.1 documentation. Kept
+  M5's 50-step configuration, results, and videos unchanged. Used the M4 final
+  checkpoint and the official pretrained checkpoint with the validated
+  normalization statistics.
+- Used ManiSkill's supported `max_episode_steps=150` wrapper override while
+  retaining `StackCubeEnv.evaluate()`, the task's termination logic, the
+  Panda wrist-camera robot, `pd_ee_delta_pose`, 18D qpos+qvel state, both RGB
+  streams, CPU PhysX, and 7D actions. Confirmed the live `TimeLimitWrapper`
+  exposes `_max_episode_steps=150`.
+- Policy observations and action predictions refresh at each 10-action chunk
+  boundary; simulator observations refresh at every step. All 150 action
+  values in each episode were passed unchanged to `env.step`; resulting Panda
+  arm/gripper controller targets were also logged. Native success, termination,
+  and truncation were checked after every transition.
+- Pilot: SFT on seeds 200–202, each 150 transitions. Outcomes were
+  `no_grasp`, `grasped_not_lifted`, `no_grasp` (0/3 task successes). Paired:
+  seeds 42–61, 150 transitions for each pretrained and SFT policy. All 20
+  pretrained initial-state signatures matched their SFT counterparts exactly.
+  Pretrained was 0/20, with `no_grasp` on every seed. SFT was 0/20, with
+  13 `no_grasp`, 3 `grasped_not_lifted`, 2 `lifted_not_transported`, and 2
+  `transported_not_stacked` episodes. Paired success-rate difference: 0/20.
+- SFT had verified simulator grasps on 7/20 episodes, lift events on 4/20,
+  and transport-stage events on 2/20. Two episodes reduced red-cube/target
+  XY distance to 3.3 cm and 3.9 cm but never reached native task success.
+  Pretrained never grasped; its closest TCP-to-red-cube distance across all
+  transitions was 11.8 cm, versus 0.5 cm for SFT. These stage and distance
+  measures describe behavior, not task completion.
+- In the Panda root-translation command frame, mean/median normalized
+  translation-command magnitude was 0.142/0.121 for pretrained and
+  0.084/0.062 for SFT. Command-to-cube direction cosine averaged -0.242 and
+  +0.178; cosine was positive on 33% and 61% of transitions, respectively.
+  This descriptive action comparison is consistent with SFT's closer
+  approaches but does not establish success.
+- Action/trace validation passed for 6,000 paired transitions: 150 sequential
+  steps per episode, correct chunk-refresh boundaries, one native truncation
+  at step 150 per episode, finite predicted actions, and equality of predicted
+  and submitted actions. SFT produced both open and close gripper commands;
+  physical gripper qpos ranged 0–0.04 m. Traces record pose, cube/target pose,
+  gripper command and qpos, actions, controller joint targets, refresh flags,
+  success, and termination/truncation at every step.
+- Saved per-step JSONL traces, episode metrics, initial-state signatures,
+  environment configs, pilot/paired logs, pre/postflight resource logs, and
+  dual-camera recordings under `outputs/stackcube_recap/milestone5_2_eval/`.
+  This includes 43 compressed NPZ episode recordings and four side-by-side
+  representative MP4s (pretrained seed 42; SFT seeds 53, 58, and 60). The
+  paired evaluation used physical GPU 1, process-scoped M3.1 NVML libraries,
+  `CUDA_VISIBLE_DEVICES=1`, and PyTorch 2.11.0+cu130. Peak allocated/reserved
+  memory was 6,808.2/6,968.0 MiB (pretrained) and 6,809.4/6,958.0 MiB (SFT).
+  Paired run config-to-summary time was 4m00s; mean simulator episode runtime
+  was 4.42s per policy. Postflight GPU 1 returned to 97,235 MiB free and 0%
+  utilization with no compute processes; disk had 114 GiB free.
+- `py_compile`, the evaluator's `--help` with repository `PYTHONPATH`, and
+  trace/video integrity checks passed. An initial `--help` check without
+  `PYTHONPATH` failed before evaluation with `ModuleNotFoundError: rlinf`; the
+  corrected command passed. No evaluator semantics or model code were changed.
+  Two setup guards also stopped before rollout because ManiSkill exposes the
+  effective horizon through its custom `TimeLimitWrapper`, not `env.spec` or
+  Gymnasium's generic wrapper type. The guard was updated to verify the live
+  wrapper's `_max_episode_steps == 150`; the successful pilot log records it.
+  The helper and generated data live under ignored `outputs/`; original
+  checkpoints, dataset, and M5 artifacts were preserved.
+- Report: `docs/milestones/milestone_5_2_report.md`. Git HEAD remains
+  `eeb5f39d`; existing uncommitted M5 documentation was preserved. No commit
+  or push was made. No retraining, rollout collection, or RECAP work started.
+
+The longer horizon resolves the duration confound for this diagnostic, but
+does not by itself explain all failures: pretrained remained far from the cube,
+while SFT sometimes grasped and lifted but failed to stack. Closed-loop
+distribution shift, grasp precision, and placement behavior remain plausible
+training limitations; no single cause was isolated. Recommended next step is
+to review these traces/videos and decide whether to authorize a narrowly scoped
+policy/data improvement study. Do not start rollout collection or RECAP until
+approved.
+
+## Milestone 5.3 — OpenPI π₀.₅ behavioral failure analysis (2026-10-21)
+
+**Status: PARTIAL.** Offline event reconstruction identifies concrete SFT
+behavioral failures, but does not isolate a single causal mechanism. The
+Milestone 5.2 result remains unchanged: paired pretrained and SFT policies
+both achieved 0/20 native task success; SFT had 7 native grasp episodes, 4
+episodes above the 2.5 cm lift marker, and 2 above the 3 cm transport marker.
+
+- Audited all 20 paired SFT traces (3,000 transitions) and 10 successful
+  expert HDF5 trajectories. Reconstructed per-episode grasp intervals, lift
+  and transport events, TCP/cube/target distances, placement-position errors,
+  gripper behavior, action chunk timing, and task flags. Generated CSV/JSON
+  reconstructions, plots, and dual-camera contact sheets under
+  `outputs/stackcube_recap/milestone5_3_diagnostics/` using
+  `analyze_m53.py`.
+- Three grasp episodes had only 3–7 total native contact steps and cube height
+  increases of 2.1–3.7 mm, so did not reach the 25 mm lift diagnostic. Seeds
+  53 and 59 maintained grasp after lifting but made only 7.2 mm and 18.4 mm
+  targetward XY progress, below the 30 mm marker. Seed 58 stayed grasped to
+  timeout and ended at 32.92 mm XY error but 10.61 mm vertical placement error.
+  Seed 60 opened at step 109 while still 41.8 mm from target in XY and 14.7 mm
+  off the target vertical offset; the cube returned to table height by step
+  113. No SFT episode met both positional tolerances or native stack success.
+- All 10 expert trajectories were successful, with 94–120 actions. Expert
+  event-aligned medians were 16 steps from first close command to 25 mm lift,
+  22 from lift to transport marker, and 16 from transport to success. These
+  are descriptive comparisons: expert close is an action proxy, and expert
+  reset states differ from SFT states. Three expert replays were already
+  verified successful in the M5.1 audit.
+- Trace checks found the expected 10-action chunk schedule, with a current
+  simulator state every step and a new policy observation/prediction at chunk
+  boundaries. The controller’s configured clipping is active; 1,968/3,000 SFT
+  gripper command values exceeded normalized magnitude 1 and were subject to
+  that expected clipping. This is a policy-command pattern, not a verified
+  controller defect. The seed 60 early release occurs on action 8 of a chunk,
+  making delayed correction plausible but untested. No evaluation, mapping,
+  denormalization, or simulator defect was identified.
+- Exact contact geometry, arm tracking error, cube static/velocity state, and
+  causal attribution remain unavailable from the saved traces. No extra
+  simulator/GPU experiment, source change, or checkpoint modification was
+  made. The analysis script completed successfully; no project tests were
+  applicable. Report: `docs/milestones/milestone_5_3_report.md`.
+- Git remains on `branch-openpi-recap` at `eeb5f39d`, ahead 7; pre-existing
+  dirty milestone documentation was preserved. No commit or push was made.
+  Recommended next step, pending approval: instrument contact, actual joint
+  state, and cube velocity/static data in a small fixed-checkpoint replay, then
+  compare 1-step and 10-step policy refresh on matched initial states. Do not
+  begin rollout collection, retraining, or RECAP without approval.
+
+## Milestone 5.4 — Controlled action chunking experiment (2026-10-21)
+
+**Status: PASSED for the controlled evaluation.** The 80 matched episodes
+completed; K=5 recorded one native success, and K=10, K=2, and K=1 recorded
+none. The single success is encouraging but statistically inconclusive.
+
+- Implemented the isolated M5.4 evaluator at
+  `outputs/stackcube_recap/milestone5_4_eval/evaluate_chunking.py`. It keeps
+  model output `(1,10,7)` and executes only the first K actions before fresh
+  inference. The M5.2 evaluator and outputs were not changed. Four regression
+  tests, Python compilation, trace validation, analysis, and `git diff --check`
+  passed.
+- The three-seed pilot (200–202) completed for K=10/5/2/1 with 0/3 task success
+  for every K. All pilot reset signatures matched across K and the prior pilot;
+  K=10 reproduced prior pilot stage outcomes. Inference calls per 150-step
+  episode were 15/30/75/150. Pilot mean runtimes were 4.59/7.27/14.78/28.31 s.
+- The full paired evaluation used seeds 42–61. K=10 reused the protocol-
+  compatible M5.2 SFT baseline after exact reset-signature validation. Results:
+  K=10: 0/20 success, 7 grasp, 4 lift, 2 transport; K=5: 1/20, 7 grasp, 4
+  lift, 2 transport; K=2: 0/20, 6 grasp, 3 lift, 3 transport; K=1: 0/20, 7
+  grasp, 4 lift, 3 transport. K=2 recorded one transient cube-on-cube flag but
+  no task success. K=5 seed 60 succeeded natively at step 129.
+- The original K=5 seed-60 run executed one queued action after termination.
+  The guard was moved inside the per-action loop; a same-seed replay matched
+  the first 129 actions and robot/cube states exactly and stopped on native
+  success/termination at step 129. The corrected trace is used in the final
+  analysis; the original trace is preserved. No other sweep episode had an
+  early success or termination.
+- Per-episode mean runtime was 4.41/7.13/14.58/29.09 s for K=10/5/2/1.
+  Measured mean inference latency was 180.4/170.9/181.4 ms for K=5/2/1; the
+  K=10 pilot measured 189.2 ms. Peak allocated/reserved CUDA memory was about
+  6,808–6,809/6,958–6,968 MiB. The host monitor sampled up to 8,014 MiB GPU
+  use and 41% utilization. Postflight GPU 1 had 97,235 MiB free, 0%
+  utilization, and no compute processes; disk had about 114 GiB free.
+- The paired success difference versus K=10 was one K=5-only success and no
+  K=10-only successes; exact two-sided paired p=1.0. Confidence intervals are
+  wide. Target distances and stage outcomes were otherwise mixed, and
+  inference-call counts grew from 15/episode at K=10 to 29.8, 75, and 150 at
+  K=5/2/1. These results do not establish K=5 as generally superior.
+- All configs, traces, videos, resource logs, analysis, paired metrics, and
+  validation results are under `outputs/stackcube_recap/milestone5_4_eval/`.
+  Report: `docs/milestones/milestone_5_4_report.md`. No training, autonomous
+  rollout collection, or RECAP was started.
+- Git remains on `branch-openpi-recap` at `eeb5f39d`, ahead 7. The M5.4
+  evaluator/tests are in ignored experiment outputs; no tracked source code
+  changed. Pre-existing progress and milestone documentation changes were
+  preserved. No commit or push was made.
+
+Recommended next step, pending approval: repeat K=5 on a larger, predeclared
+held-out seed set, with common inference-noise control if available. Do not
+start additional evaluation, training, rollout collection, or RECAP without
+approval.
+
+## Milestone 5.5 — reproducibility and generalization (complete)
+
+- Start state: branch `branch-openpi-recap`, HEAD `eeb5f39d`; pre-existing
+  progress edits and untracked M5 reports preserved. No source checkpoint or
+  dataset files changed.
+- Verified final SFT `full_weights.pt` SHA-256
+  `1db71780bcad741053517000652f01bb8f8383e43f1b2dacb4da5ab9f02c09c3` and
+  normalization SHA-256
+  `9740881e6e1ff87773a0247397826ace1d2935a79e668105ec3eee45170456c7`.
+- The corrected M5.4 seed-60 reference has native success/termination at step
+  129, 26 inference calls, K=5, and 150-step Gym TimeLimit. Physical GPU 1 was
+  idle with 97,235 MiB free and 0% utilization before evaluation; host CUDA
+  preflight passed. Sandbox CUDA access remains unavailable.
+- M5.5 copied the existing instrumented evaluator into its isolated output
+  directory, supporting exact-seed replay and 30-episode generalization runs.
+  The native success evaluator, policy preprocessing, controller, checkpoint,
+  and K=5/K=10 chunk semantics are unchanged. Seed manifest
+  `outputs/stackcube_recap/milestone5_5_eval/generalization_seed_manifest.json`
+  predeclared seeds 1000–1029 after finding no collisions in existing JSON
+  episode artifacts.
+- Five K=5 seed-60 replays have completed: all 5 succeeded natively at step
+  129, each with 26 inference calls. Replay outputs are under
+  `outputs/stackcube_recap/milestone5_5_eval/replays/`; mean episode runtime is
+  about 6.51 s and reported peak allocated memory is 6,808.2 MiB. All five
+  control traces exactly match the corrected M5.4 reference, excluding latency
+  fields.
+- K=5 generalization on seeds 1000–1029 completed 0/30 native successes;
+  heuristic stage categories were 26 no-grasp, 2 grasped-not-lifted, and 2
+  transported-not-stacked. Mean episode runtime was 6.99 s, peak allocated
+  memory 6,808.2 MiB. Outputs include per-step traces and videos.
+- K=10 completed on the exact same seeds. All 30 K=5/K=10 reset signatures
+  match. Both schedules achieved 0/30 native success; exact two-sided McNemar
+  had 0 discordant pairs and p=1.0 (uninformative for equivalence). Exact 95%
+  binomial intervals were 0.0–11.57% for both.
+- Diagnostic counters were K=5 contact/grasp 4, lift-height 2,
+  target-distance transport 3, cube-on-cube 0; K=10 6, 3, 5, and 1. These
+  markers can occur out of order and are not validated sequential subtasks.
+  K=10 seed 1000 had a transient cube-on-cube flag at step 131, opened at 130,
+  and did not reach native success. K=5 averaged 30 calls and 6.99 s/episode;
+  K=10 averaged 15 calls and 4.32 s/episode. Both reported 6,808.2 MiB peak
+  CUDA allocation.
+- Physical GPU 1 ended at 0% utilization with 16 MiB reported used and 97,235
+  MiB free; 113 GiB remained on disk. Paired traces contain 4,500 simulator
+  transitions per K, with videos and initial state signatures saved for all
+  episodes.
+- Offline analysis validated five reference-identical seed-60 replay traces
+  and all paired reset states. The evaluator and analysis scripts compiled,
+  the paired-state checks passed, and `git diff --check` passed. Full report:
+  `docs/milestones/milestone_5_5_report.md`.
+- All outputs are under `outputs/stackcube_recap/milestone5_5_eval/`. No
+  tracked source code changed, no commit or push was made, and no training or
+  RECAP was started. Git remains at `eeb5f39d`; pre-existing edits and reports
+  were preserved.
+- Recommended next step: review the transient K=10 placement and K-dependent
+  contact/transport traces before proposing a bounded policy or data
+  intervention. M5.5 is exploratory because K=5 was selected from the earlier
+  chunking sweep; the new data does not establish schedule superiority.
+- An initial replay command exited before model initialization because
+  `PYTHONPATH` was missing; the corrected retry sets `PYTHONPATH=$PWD`. No GPU
+  work or episode artifacts were produced by that failed attempt.
