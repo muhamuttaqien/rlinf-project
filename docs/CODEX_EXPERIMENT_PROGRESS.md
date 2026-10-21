@@ -320,4 +320,5 @@ verified and the loader may restart after resumption.
 No tracked source or configuration changes were needed. No tests were run
 because no implementation code changed. The run logs, per-second memory CSVs,
 checkpoint data, and TensorBoard events are ignored local experiment artifacts.
-The Milestone 3.2 documentation commit is recorded below after commit.
+The report and initial progress update were committed locally as
+`f46af797add1c3436458407fe0f44f902f42d7b2`; no commit was pushed.
