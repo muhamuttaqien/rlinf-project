@@ -164,3 +164,30 @@ def test_v3_factory_override_is_restored_after_loader_creation(tmp_path):
         == "data loader"
     )
     assert fake_module.create_torch_dataset is original_factory
+
+
+def test_stackcube_smoke_detects_v2_and_v3_task_metadata(tmp_path):
+    from scripts.check_stackcube_openpi_sft_dataloader import (
+        detect_lerobot_metadata_format,
+    )
+
+    root = tmp_path / "local" / "stackcube"
+    meta = root / "meta"
+    meta.mkdir(parents=True)
+    (meta / "info.json").write_text('{"codebase_version":"v2.1"}')
+
+    (meta / "tasks.jsonl").write_text('{"task_index":0,"task":"stack"}\\n')
+    assert detect_lerobot_metadata_format(root) == "v2"
+
+    (meta / "tasks.jsonl").unlink()
+    (meta / "tasks.parquet").write_bytes(b"placeholder for layout detection")
+    assert detect_lerobot_metadata_format(root) == "v3"
+
+    (meta / "tasks.jsonl").write_text('{"task_index":0,"task":"stack"}\\n')
+    with pytest.raises(ValueError, match="Unrecognized/incomplete"):
+        detect_lerobot_metadata_format(root)
+
+    (meta / "tasks.parquet").unlink()
+    (meta / "tasks.jsonl").unlink()
+    with pytest.raises(ValueError, match="tasks.parquet=False, tasks.jsonl=False"):
+        detect_lerobot_metadata_format(root)
