@@ -17,15 +17,58 @@
 from __future__ import annotations
 
 import dataclasses
+import threading
 from typing import Any
 
 from omegaconf import OmegaConf
 
-from rlinf.data.storage.lerobot import resolve_lerobot_repo_id
+from rlinf.data.storage.lerobot import (
+    resolve_lerobot_dataset_root,
+    resolve_lerobot_repo_id,
+)
+from rlinf.data.datasets.openpi.v3_stackcube_dataset import (
+    V3StackCubeDataset,
+    is_lerobot_v3_dataset,
+)
 from rlinf.models.embodiment.openpi.transforms.pipeline import (
     norm_stats_path_from_data_kwargs,
     select_openpi_norm_stats,
 )
+
+
+_V3_DATASET_FACTORY_LOCK = threading.RLock()
+
+
+def _create_openpi_v3_data_loader(openpi_data_loader, config, root, *, shuffle):
+    """Keep OpenPI's standard transforms/normalization while swapping its v2 reader.
+
+    The forked loader resolves create_torch_dataset at construction time. A
+    scoped factory override is the smallest adapter and does not touch the
+    installed OpenPI/LeRobot source. The actual Torch DataLoader workers start
+    after construction, when the factory has already been restored.
+    """
+    original = openpi_data_loader.create_torch_dataset
+
+    def v3_dataset_factory(data_config, action_horizon, model_config):
+        del model_config
+        if tuple(data_config.action_sequence_keys) != ("actions",):
+            raise ValueError(
+                "StackCube v3 adapter only supports the 'actions' sequence key"
+            )
+        if data_config.prompt_from_task:
+            raise ValueError(
+                "StackCube v3 adapter uses the fixed prompt in ManiSkillInputs"
+            )
+        return V3StackCubeDataset(root, action_horizon=action_horizon)
+
+    with _V3_DATASET_FACTORY_LOCK:
+        openpi_data_loader.create_torch_dataset = v3_dataset_factory
+        try:
+            return openpi_data_loader.create_data_loader(
+                config, framework="pytorch", shuffle=shuffle
+            )
+        finally:
+            openpi_data_loader.create_torch_dataset = original
 
 
 def build_official_openpi_sft_dataloader(
@@ -75,9 +118,23 @@ def build_official_openpi_sft_dataloader(
     )
     _validate_openpi_model_shape(model_cfg, config)
 
-    data_loader = openpi_data_loader.create_data_loader(
-        config, framework="pytorch", shuffle=not eval_dataset
-    )
+    dataset_root = resolve_lerobot_dataset_root(repo_id)
+    if is_lerobot_v3_dataset(dataset_root):
+        if model_cfg.openpi.config_name != "pi05_stackcube_panda_joint":
+            raise ValueError(
+                "LeRobot v3 video/Parquet adapter is validated only for "
+                "pi05_stackcube_panda_joint; refusing other model configurations"
+            )
+        data_loader = _create_openpi_v3_data_loader(
+            openpi_data_loader,
+            config,
+            dataset_root,
+            shuffle=not eval_dataset,
+        )
+    else:
+        data_loader = openpi_data_loader.create_data_loader(
+            config, framework="pytorch", shuffle=not eval_dataset
+        )
     return data_loader, data_loader.data_config()
 
 
