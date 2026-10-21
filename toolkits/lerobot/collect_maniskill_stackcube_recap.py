@@ -150,6 +150,37 @@ def _dataset_path(repo_id: str) -> Path:
     return path if path.is_absolute() else Path(HF_LEROBOT_HOME) / repo_id
 
 
+def _dataset_features(first_frame: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Declare LeRobot's vector and shape-(1,) scalar features."""
+    return {
+        "image": {
+            "dtype": "image",
+            "shape": first_frame["image"].shape,
+            "names": ["height", "width", "channel"],
+        },
+        "wrist_image": {
+            "dtype": "image",
+            "shape": first_frame["wrist_image"].shape,
+            "names": ["height", "width", "channel"],
+        },
+        "state": {
+            "dtype": "float32",
+            "shape": (STATE_DIM,),
+            "names": ["state"],
+        },
+        "actions": {
+            "dtype": "float32",
+            "shape": (ACTION_DIM,),
+            "names": ["actions"],
+        },
+        "is_success": {
+            "dtype": "bool",
+            "shape": (1,),
+            "names": ["is_success"],
+        },
+    }
+
+
 def _create_dataset(repo_id: str, first_frame: dict[str, Any], fps: int):
     try:
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -160,33 +191,7 @@ def _create_dataset(repo_id: str, first_frame: dict[str, Any], fps: int):
         repo_id=repo_id,
         robot_type="panda",
         fps=fps,
-        features={
-            "image": {
-                "dtype": "image",
-                "shape": first_frame["image"].shape,
-                "names": ["height", "width", "channel"],
-            },
-            "wrist_image": {
-                "dtype": "image",
-                "shape": first_frame["wrist_image"].shape,
-                "names": ["height", "width", "channel"],
-            },
-            "state": {
-                "dtype": "float32",
-                "shape": (STATE_DIM,),
-                "names": ["state"],
-            },
-            "actions": {
-                "dtype": "float32",
-                "shape": (ACTION_DIM,),
-                "names": ["actions"],
-            },
-            "is_success": {
-                "dtype": "bool",
-                "shape": (1,),
-                "names": ["is_success"],
-            },
-        },
+        features=_dataset_features(first_frame),
         image_writer_threads=2,
         image_writer_processes=0,
     )
