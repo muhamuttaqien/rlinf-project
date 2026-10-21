@@ -138,7 +138,10 @@ def build_stackcube_wandb_media(
                 video,
                 fps=fps,
                 format="mp4",
-                caption=f"StackCube successful expert demonstration {int(episode_id)} (sampled)",
+                caption=(
+                    f"StackCube successful expert demonstration "
+                    f"{int(episode_id)} (sampled)"
+                ),
             )
         except Exception as exc:
             logger.warning(
@@ -152,7 +155,10 @@ def build_stackcube_wandb_media(
                     video,
                     fps=fps,
                     format="gif",
-                    caption=f"StackCube successful expert demonstration {int(episode_id)} (sampled)",
+                    caption=(
+                        f"StackCube successful expert demonstration "
+                        f"{int(episode_id)} (sampled)"
+                    ),
                 )
             except Exception as fallback_exc:
                 logger.warning(
