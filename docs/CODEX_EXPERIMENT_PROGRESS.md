@@ -195,3 +195,81 @@ Current milestone: Research Milestone 3 — **PASSED**
 - The next research milestone should first establish a repeatable FSDP launcher
   run after the host's NVML/NCCL compatibility is resolved, then evaluate an
   SFT baseline. No full training or Milestone 4 work was started.
+
+## Milestone 3.1 — Ray/FSDP and NCCL readiness (2026-10-21)
+
+**Status: PASSED.** The root cause was a host NVML library/driver mismatch.
+Kernel driver and `nvidia-smi` reported 590.48.01, while the active
+`libnvidia-ml.so.1` resolved to 610.43.02 (`libnvidia-compute-610` package
+610.43.02-0ubuntu0.24.04.1). A matching `libnvidia-ml.so.590.48.01` file was
+already present. CUDA worked without adjustment; NVML failed in the host
+process and Ray workers, so this was not a sandbox device restriction. The
+inherited `LD_LIBRARY_PATH=/opt/slurm/24.11.0/lib` did not contain NVML; the
+loader selected the 610 library from the system linker cache. No system
+configuration, package, driver, or symlink was changed.
+
+A process-scoped workaround made a private `/tmp/rlinf_m31_nvml590/libnvidia-ml.so.1`
+symlink to the existing 590.48.01 library and prepended that directory to
+`LD_LIBRARY_PATH`. Under that environment, Ray worker NVML reported driver
+590.48.01 and NVML 13.590.48.01. The Ray worker saw
+`CUDA_VISIBLE_DEVICES=1`, one CUDA device named RTX PRO 6000 Blackwell Max-Q,
+initialized NCCL, and all-reduced `[3.0]` to `3.0`. NCCL diagnostics reported
+runtime 2.32.3+cuda12.9; `torch.cuda.nccl.version()` returned `(2, 28, 9)`.
+The log also reported unavailable optional IB/GDRCopy plugins, but selected
+Socket and completed the collective. GPU 1 was idle after the test.
+
+With the same scoped library path, the standard `examples/sft/train_vla_sft.py`
+launcher initialized Ray and FSDP on hardware rank 1 (physical GPU 1), loaded
+the 3.35B pretrained Pi0.5 model and existing StackCube normalization, and
+completed exactly one step from the existing dataset. TensorBoard recorded
+loss `0.046070437878370285`, grad norm `0.805865466594696`, learning rate
+`1.249999968422344e-05`, and step time 34.70 s. The runner wrote
+`outputs/stackcube_recap/milestone3/results/stackcube_panda_pi05_sft/checkpoints/global_step_1/`;
+the saved full weights are 6,946,527,306 bytes and the distributed checkpoint
+data file is 20,843,201,397 bytes. No further training ran. Post-run GPU 1 was
+0% utilized, had 97,235 MiB free, and had no compute process.
+
+### Milestone 3.1 commands and validation
+
+- Host diagnostic output is in
+  `outputs/stackcube_recap/milestone3/logs/m31_host_nvml_cuda_preflight.log`.
+  It recorded driver 590.48.01, CUDA 13.0 available, and NVML mismatch against
+  active library 610.43.02.
+- Matching-library probe used:
+  `LD_LIBRARY_PATH=/tmp/rlinf_m31_nvml590:/opt/slurm/24.11.0/lib
+  CUDA_VISIBLE_DEVICES=1 .venv/bin/python -c "import torch,
+  ray._private.thirdparty.pynvml as p; print(torch.cuda.is_available(),
+  torch.cuda.get_device_name(0)); p.nvmlInit(); print(p.nvmlSystemGetDriverVersion(),
+  p.nvmlSystemGetNVMLVersion()); p.nvmlShutdown()"`. It passed and reported
+  NVML 13.590.48.01.
+- Bounded Ray/NCCL test:
+  `LD_LIBRARY_PATH=/tmp/rlinf_m31_nvml590:/opt/slurm/24.11.0/lib
+  CUDA_VISIBLE_DEVICES=1 NCCL_DEBUG=INFO timeout 300s .venv/bin/python
+  outputs/stackcube_recap/milestone3/run_m31_ray_nccl_probe.py`.
+  It passed in a fresh local Ray instance, which was shut down afterward.
+  Logs: `m31_ray_worker_nccl_probe.log` and
+  `m31_ray_worker_nccl_probe_retry.log`.
+- Standard launcher command (one actor on rank 1, one batch, one step):
+
+  ```bash
+  set -o pipefail && env LD_LIBRARY_PATH=/tmp/rlinf_m31_nvml590:/opt/slurm/24.11.0/lib REPO_PATH="$PWD" EMBODIED_PATH="$PWD/examples/sft" RAY_ADDRESS=local CUDA_VISIBLE_DEVICES=0,1,2,3 NCCL_DEBUG=WARN PYTHONUNBUFFERED=1 HF_DATASETS_CACHE=/tmp/rlinf-hf-datasets PYTHONPATH="$PWD:${PYTHONPATH:-}" timeout 900s .venv/bin/python examples/sft/train_vla_sft.py --config-path "$PWD/outputs/stackcube_recap/milestone3/config" --config-name stackcube_panda_sft_openpi_pi05 actor.model.model_path="$PWD/checkpoints/torch/pi05_stackcube_panda_base" actor.global_batch_size=1 runner.max_steps=1 runner.save_interval=1 runner.logger.log_path="$PWD/outputs/stackcube_recap/milestone3/results" 2>&1 | tee outputs/stackcube_recap/milestone3/logs/m31_sft_standard_launcher_one_step.log
+  ```
+
+- Launcher result: exit code 0, global step 1/1, finite loss and gradient norm,
+  checkpoint saved. Focused tests:
+  `HF_DATASETS_CACHE=/tmp/rlinf-hf-datasets PYTHONPATH="$PWD"
+  .venv/bin/pytest -q tests/unit_tests/test_real_env.py -k
+  'nvidia_device_count_falls_back or nvidia_model_falls_back'` — 2 passed,
+  234 deselected in 2.58 s.
+- Post-run GPU inventory is in `m31_gpu_postrun.log`; GPU 1 was idle and its
+  compute-process list was empty.
+- No source files changed in Milestone 3.1. The project-local fallback and its
+  tests remain in commit `b140d271a6d58f9f31894f857f4ac5e568f7bc25`. The
+  Milestone 3 reports are in `a4faddf1`; environment-report commit is
+  `6a526f47`. No commit was pushed.
+
+The workaround is limited to the process tree launched with the private
+library path. The system-wide NVML package/link mismatch remains and requires
+an administrator-managed correction for a persistent host fix. The regular
+one-step FSDP path is verified with the scoped workaround. No full SFT,
+rollout, RECAP, or Milestone 4 work was started.
