@@ -48,7 +48,10 @@ def main():
     try:
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
     except ImportError as error:
-        raise SystemExit("LeRobot not installed in this environment.") from error
+        raise SystemExit(
+            f"Unable to import LeRobotDataset: {type(error).__name__}: {error}. "
+            "LeRobot may be installed, but its dataset dependencies or API may differ."
+        ) from error
 
     camera_paths = {
         "observation.images.base_camera": "obs/sensor_data/base_camera/rgb",
