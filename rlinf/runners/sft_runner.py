@@ -59,6 +59,46 @@ class SFTRunner:
         self.timer = ScopedTimer(reduction="max", sync_cuda=False)
 
         self.metric_logger = MetricLogger(cfg)
+        self._log_initial_training_media()
+
+    def _log_initial_training_media(self) -> None:
+        """Send a bounded preview of StackCube expert demonstrations to W&B.
+
+        This is distinct from evaluation: no trained-policy rollouts are
+        available in the supervised training loop.
+        """
+        media_cfg = self.cfg.runner.logger.get("sft_media", None)
+        if (
+            not media_cfg
+            or not bool(media_cfg.get("enabled", False))
+            or "wandb" not in self.metric_logger.logger
+        ):
+            return
+        if str(self.cfg.actor.model.get("model_type", "")).lower() != "openpi":
+            return
+        if str(self.cfg.actor.model.openpi.get("config_name", "")) != "pi05_stackcube_panda_joint":
+            return
+
+        try:
+            from rlinf.utils.stackcube_wandb_media import build_stackcube_wandb_media
+
+            media = build_stackcube_wandb_media(
+                repo_id=self.cfg.data.train_data_paths,
+                wandb=self.metric_logger.logger["wandb"],
+                max_episodes=int(media_cfg.get("max_episodes", 2)),
+                frames_per_video=int(media_cfg.get("frames_per_video", 32)),
+            )
+            if media:
+                self.metric_logger.log(media, step=self.global_step, backend=["wandb"])
+                logger.info(
+                    "Logged %s StackCube demonstration image/video panels to W&B",
+                    len(media),
+                )
+            else:
+                logger.warning("W&B StackCube demonstration preview produced no media.")
+        except Exception as exc:
+            # Observability must never interrupt a multi-billion-parameter run.
+            logger.warning("Failed to log StackCube W&B training media: %s", exc)
 
     def init_workers(self) -> None:
         # create worker in order to decrease the maximum memory usage
