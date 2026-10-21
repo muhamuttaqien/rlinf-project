@@ -25,6 +25,9 @@ PKG-INFO
 .claude/settings.json
 
 # Local environments
+data/
+demos/
+external/
 .venv/
 .env
 .env.*

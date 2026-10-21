@@ -1,0 +1,67 @@
+defaults:
+  - model/pi0_5@actor.model
+  - hybrid_engines/fsdp@actor.fsdp_config
+  - override hydra/job_logging: stdout
+  - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    actor,env,rollout: 0-0
+
+runner:
+  task_type: sft
+  max_epochs: -1
+  max_steps: 1
+  val_check_interval: -1
+  save_interval: 1
+  logger:
+    log_path: outputs/stackcube_recap/sft_smoke
+    project_name: rlinf
+    experiment_name: stackcube_pi05_smoke
+    logger_backends: [tensorboard]
+
+data:
+  train_data_paths: outputs/stackcube_recap/lerobot_stackcube_v1
+  num_workers: 0
+
+actor:
+  group_name: ActorGroup
+  training_backend: fsdp
+  micro_batch_size: 1
+  global_batch_size: 1
+  seed: 0
+  model:
+    model_path: checkpoints/torch/pi05_base_rlinf
+    num_action_chunks: 10
+    action_dim: 7
+    openpi:
+      task: sft
+      train_expert_only: True
+      config_name: pi05_stackcube
+      discrete_state_input: True
+      action_horizon: 10
+      max_token_len: 200
+      torch_compile: False
+    openpi_data:
+      norm_stats_path: outputs/stackcube_recap/pipeline_v1/norm_stats.json
+  optim:
+    lr: 7.91e-6
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-08
+    weight_decay: 0.01
+    clip_grad: 1.0
+  fsdp_config:
+    strategy: fsdp
+    sharding_strategy: no_shard
+    use_orig_params: True
+    gradient_checkpointing: True
+    gradient_checkpointing_use_reentrant: False

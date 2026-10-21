@@ -155,6 +155,16 @@ class ManiskillEnv(gym.Env):
             assert infos is not None
             return infos["extracted_obs"]
 
+        if wrap_obs_mode == "proprio":
+            agent = raw_obs["agent"]
+            cameras = raw_obs["sensor_data"]
+            return {
+                "main_images": cameras["base_camera"]["rgb"],
+                "wrist_images": cameras["hand_camera"]["rgb"],
+                "states": torch.cat((agent["qpos"], agent["qvel"]), dim=-1),
+                "task_descriptions": [self.cfg.task_description] * self.num_envs,
+            }
+
         if wrap_obs_mode == "simple":
             if self.env.unwrapped.obs_mode == "state":
                 return {"states": raw_obs}
@@ -245,9 +255,20 @@ class ManiskillEnv(gym.Env):
         # Diagnostic flags are tracked for the entire episode, independently of
         # the reward and success condition. Only the custom three-cube task
         # exposes these fields.
-        for name in ("red_grasp_once", "red_lift_once", "wrong_grasp_once", "red_drop_once"):
-            setattr(self, name, torch.zeros(self.num_envs, device=self.device, dtype=torch.bool))
-        self._prev_red_grasp = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        for name in (
+            "red_grasp_once",
+            "red_lift_once",
+            "wrong_grasp_once",
+            "red_drop_once",
+        ):
+            setattr(
+                self,
+                name,
+                torch.zeros(self.num_envs, device=self.device, dtype=torch.bool),
+            )
+        self._prev_red_grasp = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.bool
+        )
 
     def _reset_metrics(self, env_idx=None):
         if env_idx is not None:
@@ -258,7 +279,13 @@ class ManiskillEnv(gym.Env):
                 self.success_once[mask] = False
                 self.fail_once[mask] = False
                 self.returns[mask] = 0
-                for name in ("red_grasp_once", "red_lift_once", "wrong_grasp_once", "red_drop_once", "_prev_red_grasp"):
+                for name in (
+                    "red_grasp_once",
+                    "red_lift_once",
+                    "wrong_grasp_once",
+                    "red_drop_once",
+                    "_prev_red_grasp",
+                ):
                     getattr(self, name)[mask] = False
         else:
             self.prev_step_reward[:] = 0
@@ -266,7 +293,13 @@ class ManiskillEnv(gym.Env):
                 self.success_once[:] = False
                 self.fail_once[:] = False
                 self.returns[:] = 0.0
-                for name in ("red_grasp_once", "red_lift_once", "wrong_grasp_once", "red_drop_once", "_prev_red_grasp"):
+                for name in (
+                    "red_grasp_once",
+                    "red_lift_once",
+                    "wrong_grasp_once",
+                    "red_drop_once",
+                    "_prev_red_grasp",
+                ):
                     getattr(self, name)[:] = False
 
     def _record_metrics(self, step_reward, infos):
@@ -295,18 +328,20 @@ class ManiskillEnv(gym.Env):
             drop_fail = ~final_success & ~wrong_fail & self.red_drop_once
             lift_fail = ~final_success & ~wrong_fail & ~drop_fail & self.red_grasp_once
             miss_fail = ~final_success & ~wrong_fail & ~drop_fail & ~lift_fail
-            episode_info.update({
-                "failure_wrong_cube": wrong_fail.clone(),
-                "failure_red_dropped": drop_fail.clone(),
-                "failure_failed_lift": lift_fail.clone(),
-                "failure_missed_red_grasp": miss_fail.clone(),
-                "ever_wrong_grasp": self.wrong_grasp_once.clone(),
-                "ever_red_grasp": self.red_grasp_once.clone(),
-                "ever_red_lift": self.red_lift_once.clone(),
-                "ever_red_drop": self.red_drop_once.clone(),
-                "red_grasp_at_end": grasp.clone(),
-                "red_lift_at_end": lifted.clone(),
-            })
+            episode_info.update(
+                {
+                    "failure_wrong_cube": wrong_fail.clone(),
+                    "failure_red_dropped": drop_fail.clone(),
+                    "failure_failed_lift": lift_fail.clone(),
+                    "failure_missed_red_grasp": miss_fail.clone(),
+                    "ever_wrong_grasp": self.wrong_grasp_once.clone(),
+                    "ever_red_grasp": self.red_grasp_once.clone(),
+                    "ever_red_lift": self.red_lift_once.clone(),
+                    "ever_red_drop": self.red_drop_once.clone(),
+                    "red_grasp_at_end": grasp.clone(),
+                    "red_lift_at_end": lifted.clone(),
+                }
+            )
         episode_info["return"] = self.returns.clone()
         episode_info["episode_len"] = self.elapsed_steps.clone()
         episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]

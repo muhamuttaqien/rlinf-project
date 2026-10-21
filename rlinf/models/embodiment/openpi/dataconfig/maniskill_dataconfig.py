@@ -31,6 +31,10 @@ class LeRobotManiSkillDataConfig(DataConfigFactory):
     """
 
     extra_delta_transform: bool = False
+    base_image_key: str = "observation.images.top"
+    wrist_image_key: str | None = None
+    action_key: str = "actions"
+    prompt_key: str = "prompt"
 
     @override
     def create(
@@ -44,17 +48,16 @@ class LeRobotManiSkillDataConfig(DataConfigFactory):
         # For your own dataset, first figure out what keys your environment passes to the policy server
         # and then modify the mappings below so your dataset's keys get matched to those target keys.
         # The repack transform simply remaps key names here.
+        mapping = {
+            "observation/image": self.base_image_key,
+            "observation/state": "observation.state",
+            "actions": self.action_key,
+            "prompt": self.prompt_key,
+        }
+        if self.wrist_image_key is not None:
+            mapping["observation/wrist_image"] = self.wrist_image_key
         repack_transform = _transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "observation/image": "observation.images.top",
-                        "observation/state": "observation.state",
-                        "actions": "actions",
-                        "prompt": "prompt",  # 'task_descriptions'
-                    }
-                )
-            ]
+            inputs=[_transforms.RepackTransform(mapping)]
         )
 
         # The data transforms are applied to the data coming from the dataset *and* during inference.
@@ -65,7 +68,10 @@ class LeRobotManiSkillDataConfig(DataConfigFactory):
         # replace the transforms below with your own.
         data_transforms = _transforms.Group(
             inputs=[
-                maniskill_policy.ManiSkillInputs(model_type=model_config.model_type)
+                maniskill_policy.ManiSkillInputs(
+                    model_type=model_config.model_type,
+                    use_wrist_image=self.wrist_image_key is not None,
+                )
             ],
             outputs=[maniskill_policy.ManiSkillOutputs()],
         )

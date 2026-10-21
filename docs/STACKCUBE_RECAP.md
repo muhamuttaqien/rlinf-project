@@ -175,3 +175,15 @@ PYTHONPATH="$PWD:${PYTHONPATH:-}" python examples/sft/train_vla_sft.py \
 Record whether it reaches an optimizer step, checkpoint write, and the
 peak GPU memory usage. The complete RLinf training run is not yet
 validated; RECAP can begin only after SFT baseline and rollout collection.
+
+## 16 GB Smoke-Test Result
+
+On 2026-10-21, the local RLinf-format π₀.₅ checkpoint loaded on an RTX 4070
+Ti SUPER. The worker loaded the StackCube LeRobot batch and normalization
+statistics, then reached backward propagation with expert-only training and
+gradient checkpointing enabled. Backward failed with CUDA out of memory:
+PyTorch reported 12.65 GiB allocated, 188 MiB free, and a failed 128 MiB
+allocation. No optimizer step or training checkpoint was completed. Treat
+this configuration as a pipeline validation only, not a successful SFT
+smoke test; retry on hardware with more memory or after validating a more
+memory-efficient training path.
