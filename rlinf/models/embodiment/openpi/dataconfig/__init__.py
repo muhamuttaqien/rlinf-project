@@ -179,7 +179,12 @@ _CONFIGS = [
         ),
         data=LeRobotStackCubePandaDataConfig(
             repo_id="local/stackcube-panda-recap",
-            base_config=DataConfig(prompt_from_task=False),
+            # The converted LeRobot dataset uses the singular key "action".
+            # OpenPI must construct its 10-step temporal windows from that key.
+            base_config=DataConfig(
+                prompt_from_task=False,
+                action_sequence_keys=("action",),
+            ),
             assets=AssetsConfig(
                 assets_dir="checkpoints/torch/pi05_stackcube_panda/assets"
             ),
