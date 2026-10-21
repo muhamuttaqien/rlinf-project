@@ -137,34 +137,30 @@ The configuration explicitly uses:
   actions); no RLT, no value head.
 - Native OpenPI SFT loader and existing FSDP training infrastructure.
 
-### Install the RLinf OpenPI runtime in a separate environment
+### Existing Python environment (single `.venv`)
 
-The ManiSkill data-collection venv does not necessarily contain OpenPI.
-Use a dedicated environment, leaving the working collector `.venv` intact:
+Use the project's existing `.venv`. The verified workstation environment
+has `torch==2.7.1+cu128`, `torchvision==0.22.1+cu128`,
+`torchcodec==0.5+cu128`, `transformers==4.53.2`, and the RLinf OpenPI
+fork `rlinf-openpi==0.1.1`, with OpenPI's Transformers patches applied.
+`uv pip check` reported no dependency incompatibilities.
 
 ```bash
-# From the repository root
-bash requirements/install.sh embodied --model openpi --env maniskill_libero \
-  --venv .venv-openpi --no-flash-attn --no-root
-source .venv-openpi/bin/activate
-
-python -c "import openpi, openpi.training.data_loader; print(openpi.__file__)"
-uv pip show rlinf-openpi
+source .venv/bin/activate
+python -c "import torch, openpi.training.data_loader, mani_skill, lerobot; print(torch.__version__, torch.cuda.is_available())"
+uv pip check --python .venv/bin/python
 ```
 
-The installer pins `rlinf-openpi==0.1.1`, its compatible transformer
-package, JAX/Orbax versions, and tokenizer assets. Do not simply install
-a generic `openpi` package into the simulator venv.
+Do **not** rerun the repository's broad installer or `uv sync` without first
+reconciling the `pyproject.toml` PyTorch override (`torch==2.11.0`),
+because that can restore incompatibilities with `rlinf-openpi==0.1.1`
+and the installed LeRobot version. A second virtual environment is not
+required.
 
-Native NVIDIA hosts usually provide the ICD at
-`/usr/share/vulkan/icd.d/nvidia_icd.json`; the installer now selects
-that path when present, otherwise retaining the Docker fallback
-`/etc/vulkan/icd.d/nvidia_icd.json`. Verify with `vulkaninfo --summary`
-if the OpenPI environment is also used for RGB rendering.
-
-The `--no-flash-attn` flag skips an optional CUDA-kernel installation for
-initial import/statistics tests. Training may require additional GPU
-libraries; verify that separately on the intended training device.
+Native NVIDIA hosts usually provide Vulkan's ICD at
+`/usr/share/vulkan/icd.d/nvidia_icd.json`; the installer supports that
+path and retains a fallback for Docker. Check with `vulkaninfo --summary`
+only if Vulkan rendering is needed.
 
 ### Inspect configuration tests and compute normalization statistics
 
