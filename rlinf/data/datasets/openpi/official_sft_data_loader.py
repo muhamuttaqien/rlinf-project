@@ -43,9 +43,9 @@ def _create_openpi_v3_data_loader(openpi_data_loader, config, root, *, shuffle):
     """Keep OpenPI's standard transforms/normalization while swapping its v2 reader.
 
     The forked loader resolves create_torch_dataset at construction time. A
-    scoped factory override is the smallest adapter and does not touch the
-    installed OpenPI/LeRobot source. The actual Torch DataLoader workers start
-    after construction, when the factory has already been restored.
+    scoped factory override swaps in the installed LeRobot v3 reader without
+    modifying OpenPI or LeRobot source. PyTorch workers begin only after the
+    normal factory has been restored. This adapter is StackCube-specific.
     """
     original = openpi_data_loader.create_torch_dataset
 
@@ -59,7 +59,9 @@ def _create_openpi_v3_data_loader(openpi_data_loader, config, root, *, shuffle):
             raise ValueError(
                 "StackCube v3 adapter uses the fixed prompt in ManiSkillInputs"
             )
-        return V3StackCubeDataset(root, action_horizon=action_horizon)
+        return V3StackCubeDataset(
+            root, action_horizon=action_horizon, repo_id=data_config.repo_id
+        )
 
     with _V3_DATASET_FACTORY_LOCK:
         openpi_data_loader.create_torch_dataset = v3_dataset_factory
