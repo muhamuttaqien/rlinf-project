@@ -247,31 +247,68 @@ test -f "$STACKCUBE_NORM_STATS"
 Inspect the statistics for reasonable action/state ranges before starting
 training. If normalization fails, collect the traceback before GPU training.
 
-### Run a short training smoke test (after norm stats and checkpoint setup)
+### Validate pretrained Pi0.5 checkpoint architecture
 
-The model requires a compatible **PyTorch π₀.₅** checkpoint. Set paths via
-environment variables (no hard-coded workstation usernames):
+A candidate checkpoint was located at
+`checkpoints/torch/pi05_base_rlinf/model.safetensors`. Its header contains
+`llm.*` and `img.*` keys in the newer RLinf format; that is not enough to
+prove it matches the model's tensor names/shapes.
+
+The lightweight preflight constructs the StackCube 32D Pi0.5 architecture
+on the PyTorch **meta** device and compares expected tensor names/shapes
+against the safetensors header, without allocating checkpoint weights or
+CUDA memory:
 
 ```bash
-export STACKCUBE_DATASET=local/stackcube_sft_pilot100
-export STACKCUBE_NORM_STATS=/absolute/path/from/stats-script/norm_stats.json
-export PI05_MODEL_PATH=/absolute/path/to/pi05_base_pytorch
-
-# Check before launch
-test -f "$STACKCUBE_NORM_STATS" || { echo "Missing normalization stats"; exit 1; }
-test -d "$PI05_MODEL_PATH" || { echo "Missing Pi0.5 checkpoint directory"; exit 1; }
-ls -lh "$PI05_MODEL_PATH" | head
-
-bash examples/sft/run_vla_sft.sh maniskill_stackcube_panda_sft_openpi_pi05
+PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_checkpoint.py \
+  --checkpoint checkpoints/torch/pi05_base_rlinf/model.safetensors
 ```
 
-Use a compatible OpenPI PyTorch checkpoint in the format expected by RLinf,
-and inspect its contents before running; the directory-existence check does
-not validate checkpoint weights.
-The YAML defaults to a 200-step **configuration smoke**, not an evaluated
-baseline model. Full-parameter π₀.₅ with `no_shard` may exceed a 16 GB GPU;
-the 96 GB GPU server is the safer place to try initial training.
-Do not launch on a production device without confirming memory.
+A pass establishes architectural tensor-shape compatibility, **not** actual
+weight values, SFT numerical stability, or GPU training readiness. The
+on-workstation result is still pending.
+
+### Run one SFT optimizer step on a GPU with sufficient VRAM
+
+Full-parameter Pi0.5 using `no_shard` is not expected to be practical on
+the desktop RTX 4070 Ti SUPER (16 GiB). Use the available 96 GiB GPU server,
+after ensuring that this branch, the **same compatible Python environment**,
+the read-only StackCube data, the normalization stats and the checkpoint are
+accessible there. Do not reuse desktop absolute paths across machines.
+
+From the server's repository root:
+
+```bash
+source .venv/bin/activate
+export PI05_MODEL_PATH="$PWD/checkpoints/torch/pi05_base_rlinf"
+export STACKCUBE_DATASET=local/stackcube_sft_pilot100
+export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100/norm_stats.json"
+export EMBODIED_PATH="$PWD/examples/sft"
+export CUDA_VISIBLE_DEVICES=0
+test -f "$PI05_MODEL_PATH/model.safetensors"
+test -f "$STACKCUBE_NORM_STATS"
+test -f "$HOME/.cache/huggingface/lerobot/$STACKCUBE_DATASET/meta/info.json"
+
+PYTHONPATH="$PWD" python examples/sft/train_vla_sft.py \
+  --config-path "$PWD/examples/sft/config" \
+  --config-name maniskill_stackcube_panda_sft_openpi_pi05 \
+  runner.max_steps=1 \
+  runner.save_interval=-1 \
+  actor.global_batch_size=1 \
+  actor.micro_batch_size=1 \
+  data.num_workers=0 \
+  +actor.model.openpi.torch_compile=false
+```
+
+Here `runner.max_steps=1` requests **one optimizer step**, not the default
+200. The override `runner.save_interval=-1` disables checkpoint writes
+(including the final step), `data.num_workers=0` simplifies debugging,
+and disabling `torch.compile` avoids compilation in the first smoke test.
+Use the main Python entry point because the existing shell wrapper does not
+forward Hydra overrides. Inspect a finite `train/loss` and successful
+optimizer/learning-rate logging before increasing training steps.
+A successful step is not evidence that the learned policy can stack cubes.
+
 
 After validating training and action-representation consistency, increase
 successful training demonstrations toward 1,000, keeping evaluation seeds
