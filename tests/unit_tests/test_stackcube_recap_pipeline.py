@@ -153,10 +153,12 @@ def test_task_metadata_layouts_validate_successful_episodes(tmp_path, indexed_ta
         "stackcube_audit",
         "toolkits/lerobot/validate_maniskill_stackcube_recap.py",
     )
-    root, filename = _small_lerobot_dataset(
+    root, _ = _small_lerobot_dataset(
         tmp_path, indexed_tasks=indexed_tasks, all_successful=True
     )
-    assert "__index_level_0__" in pq.read_schema(filename.parent.parent.parent / "meta" / "tasks.parquet").names if indexed_tasks else True
+    task_columns = pq.read_schema(root / "meta" / "tasks.parquet").names
+    expected_column = "__index_level_0__" if indexed_tasks else "task"
+    assert expected_column in task_columns
     report = audit.audit_dataset(root, expected_episodes=2)
     assert report["successful_episodes"] == 2
     assert report["frames"] == 4
