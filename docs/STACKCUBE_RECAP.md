@@ -110,6 +110,81 @@ Stage 1 should produce `meta/returns_stackcube_sft.parquet`. Confirm the
 number of episodes and successful end states before using it for training.
 No performance or end-to-end training claim is implied by generating returns.
 
+## Pi0.5 Panda joint baseline SFT configuration
+
+The 100-episode pilot was collected and structurally validated on
+2026-10-22: 100/100 recorded successes, 10,709 frames, mean 107.09 frames per
+episode. RLinf's RECAP Stage 1 processed the copy
+`local/stackcube_sft_pilot100_recap`, producing
+`meta/returns_stackcube_pilot100.parquet` (10,709 rows, min -177, max 0).
+This is *return preparation*, not model training or RECAP policy improvement.
+
+Use the original **`local/stackcube_sft_pilot100`** for baseline SFT.
+Do not point SFT at the copy whose manifest has been modified by Stage 1.
+
+A dedicated OpenPI model config
+`pi05_stackcube_panda_joint` is registered in
+`rlinf/models/embodiment/openpi/dataconfig/__init__.py`. The recipe is
+`examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05.yaml`.
+The configuration explicitly uses:
+
+- Panda `pd_joint_pos` 8D **absolute** target actions (no delta conversion).
+- 9D joint `qpos` state, continuous input (`discrete_state_input=false`).
+- A single real `base_camera` observation (`num_images_in_input=1`).
+- The duplicated `wrist_image` storage field is **masked**, not a
+  fictitious second camera.
+- Network horizon 10; OpenPI action dimension 32 (8 unpadded environment
+  actions); no RLT, no value head.
+- Native OpenPI SFT loader and existing FSDP training infrastructure.
+
+### Inspect configuration tests and compute normalization statistics
+
+Run:
+
+```bash
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_stackcube_openpi_sft_config.py -v
+
+PYTHONPATH="$PWD" python toolkits/lerobot/calculate_norm_stats.py \
+  --config-name pi05_stackcube_panda_joint \
+  --repo-id local/stackcube_sft_pilot100
+```
+
+The statistics script prints the exact output location. Inspect the generated
+`norm_stats.json` for finite values and reasonable action/state ranges.
+If the stats step fails, collect the traceback before starting GPU training.
+
+### Run a short training smoke test (after norm stats and checkpoint setup)
+
+The model requires a compatible **PyTorch π₀.₅** checkpoint. Set paths via
+environment variables (no hard-coded workstation usernames):
+
+```bash
+export STACKCUBE_DATASET=local/stackcube_sft_pilot100
+export STACKCUBE_NORM_STATS=/absolute/path/from/stats-script/norm_stats.json
+export PI05_MODEL_PATH=/absolute/path/to/pi05_base_pytorch
+
+# Check before launch
+test -f "$STACKCUBE_NORM_STATS" &&
+test -d "$PI05_MODEL_PATH" &&
+test -f "$PI05_MODEL_PATH/params.json" || echo "Verify your Pi0.5 checkpoint layout"
+
+bash examples/sft/run_vla_sft.sh maniskill_stackcube_panda_sft_openpi_pi05
+```
+
+Use the actual checkpoint layout produced by your OpenPI PyTorch conversion;
+the example `params.json` check above is not definitive for RLinf's
+`full_weights.pt` checkpoints. Inspect the model's contents before running.
+The YAML defaults to a 200-step **configuration smoke**, not an evaluated
+baseline model. Full-parameter π₀.₅ with `no_shard` may exceed a 16 GB GPU;
+the 96 GB GPU server is the safer place to try initial training.
+Do not launch on a production device without confirming memory.
+
+After validating training and action-representation consistency, increase
+successful training demonstrations toward 1,000, keeping evaluation seeds
+held out. Subsequent RECAP stages still require actual policy rollouts
+(including failures), value-model checkpoints, advantage inference and CFG.
+
 ## Next milestones
 
 1. Train/evaluate an OpenPI π₀.₅ baseline using a matching `pd_joint_pos`
