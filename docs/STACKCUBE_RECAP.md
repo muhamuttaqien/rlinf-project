@@ -1,0 +1,72 @@
+# StackCube-v1: Panda demonstrations for RECAP
+
+This experiment starts with ManiSkill's built-in StackCube-v1 motion-planning
+expert, *not* a trained OpenPI policy. The first milestone is a valid LeRobot
+SFT dataset that RLinf's existing RECAP return computation can read.
+
+## Controller and observations
+
+- Environment: `StackCube-v1`, native Franka Panda, `physx_cpu`.
+- Expert controller: `pd_joint_pos`, 8 actions (7 arm targets + gripper).
+- State: 9 Panda joint positions (7 arm + 2 finger).
+- Image: 224×224 `base_camera` RGB (or `3rd_view_camera` if present).
+- `wrist_image`: actual hand-camera RGB if available; otherwise duplicates the
+  base-camera image **as a placeholder, not an independent wrist observation**.
+- Instruction: `stack the red cube on top of the green cube and release it`.
+- Success: native `info["success"]` returned by ManiSkill's planner.
+- Only successful episodes are accepted into the SFT dataset.
+
+This collector purposely does **not** change the controller to
+`pd_ee_delta_pose`: the values and dimensions are not interchangeable.
+Future policy inference must use exactly the same action semantics.
+It also does not yet provide unsuccessful policy rollouts: those need their own
+collector, with actual episode-level `is_success` labels.
+
+## Run on the RLinf host
+
+From the repository root, using an environment with ManiSkill and LeRobot:
+
+```bash
+git fetch origin
+git switch branch-openpi-recap-chat
+python tests/e2e_tests/embodied/check_stackcube_panda.py --sim-backend cpu
+PYTHONPATH="$PWD" python toolkits/lerobot/collect_maniskill_stackcube_recap.py \
+  --repo-id local/stackcube_sft --num-episodes 10 --max-attempts 100
+```
+
+The solver runs in `pd_joint_pos` and the existing environment smoke test
+runs in `pd_ee_delta_pose`. The smoke test verifies simulator availability,
+not action compatibility with this dataset.
+
+The LeRobot dataset is saved under the configured HF LeRobot home directory
+(or the absolute `--repo-id` path). Do not check generated episodes or
+model checkpoints into Git.
+
+## Run RECAP Stage 1 after inspecting saved episodes
+
+Find the dataset's absolute directory first, then run:
+
+```bash
+bash examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh \
+  recap_compute_returns \
+  'data.train_data_paths=[{dataset_path:/ABS/PATH/TO/stackcube_sft,type:sft}]' \
+  data.gamma=1.0 data.tag=stackcube_sft data.num_workers=2
+```
+
+Stage 1 should produce `meta/returns_stackcube_sft.parquet`. Confirm the
+number of episodes and successful end states before using it for training.
+No performance or end-to-end training claim is implied by generating returns.
+
+## Next milestones
+
+1. Train/evaluate an OpenPI π₀.₅ baseline using a matching `pd_joint_pos`
+   input/action adapter and action normalizations.
+2. Collect **real** baseline rollouts, preserving failures and native success.
+3. Validate RECAP's value-model dataset mapping and train the value model.
+4. Compute advantages and use RLinf's native CFG policy training.
+5. Evaluate baseline versus CFG policy on held-out StackCube seeds.
+
+The official RECAP configs are under `examples/offline_rl/config/`. Their
+default `libero` robot mappings and 7-action policy outputs are **not**
+correct for this 8-action Panda joint-position dataset. They require
+integration and tests before launching the large-model stages.
