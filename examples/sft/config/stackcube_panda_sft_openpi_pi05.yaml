@@ -53,6 +53,7 @@ actor:
     openpi:
       task: sft
       config_name: "pi05_stackcube_panda"
+      torch_compile: False  # Keep first-step diagnostics simple; opt in later.
       num_images_in_input: 2
       action_chunk: ${actor.model.num_action_chunks}
       action_env_dim: ${actor.model.action_dim}
