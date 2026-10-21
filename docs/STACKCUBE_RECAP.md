@@ -194,9 +194,35 @@ loader before attempting model training. Do **not** change the original
 `stackcube_sft_pilot100` data or spoof `codebase_version` merely to avoid
 an exception.
 
-The statistics script prints the exact output location. Inspect the generated
-`norm_stats.json` for finite values and reasonable action/state ranges.
-If the stats step fails, collect the traceback before starting GPU training.
+The verified pilot run wrote its statistics to
+`assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100/norm_stats.json`
+relative to the repository root (not `checkpoints/torch/`).
+Validate the output using OpenPI's loader:
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import numpy as np
+from openpi.shared import normalize
+
+root = Path("assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100")
+stats = normalize.load(root)
+for key, dimension in (("state", 9), ("actions", 8)):
+    item = stats[key]
+    assert item.mean.shape == (dimension,)
+    assert item.std.shape == (dimension,)
+    assert np.isfinite(item.mean).all()
+    assert np.isfinite(item.std).all()
+    print(key, "mean", item.mean, "std", item.std)
+print("StackCube normalization passed")
+PY
+
+export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100/norm_stats.json"
+test -f "$STACKCUBE_NORM_STATS"
+```
+
+Inspect the statistics for reasonable action/state ranges before starting
+training. If normalization fails, collect the traceback before GPU training.
 
 ### Run a short training smoke test (after norm stats and checkpoint setup)
 
