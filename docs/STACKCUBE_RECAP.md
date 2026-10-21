@@ -189,14 +189,16 @@ and 10,709 frames. No video decoding or Hugging Face Hub access is needed.
 
 The OpenPI SFT path now has a **read-only, StackCube-specific LeRobot v3
 adapter** in `rlinf/data/datasets/openpi/v3_stackcube_dataset.py`.
-StackCube was collected with `dtype: image`, so both camera images are
-**embedded in Parquet**, not stored as standalone MP4 videos. The adapter
-delegates media decoding, episode metadata and clamped 10-step action-window
-lookup to the installed LeRobot v3 reader. It validates the returned 9D
-state, 8D action and real base-camera image, then masks the duplicated
-wrist camera for the policy. The official OpenPI SFT transforms,
-quantile normalization and action padding are unchanged.
-The existing v2.1 loader remains unchanged for other datasets.
+StackCube was collected with `dtype: image`: camera images are embedded
+in Parquet, not MP4. In this environment the installed LeRobot reader is
+**v2.1-only**, requiring `meta/tasks.jsonl`. Therefore the adapter reads
+v3 numeric rows, episode boundaries and embedded base-camera bytes directly
+from Parquet. Images are decoded lazily (one cached Parquet row group), and
+10-step action windows clamp to the current episode's final frame.
+The duplicate wrist view is replaced by zeros and remains masked. The
+official OpenPI SFT transforms, quantile normalization and padding remain
+unchanged. No dataset conversion, LeRobot upgrade, Hub lookup or mutation
+of the original 100 episodes is needed. Other dataset loaders are unchanged.
 
 Before GPU training, **validate the adapter on the workstation**:
 
@@ -212,9 +214,10 @@ PYTHONPATH="$PWD" python scripts/check_stackcube_openpi_sft_dataloader.py
 ```
 
 The smoke script samples three real Parquet-embedded camera frames and
-obtains one normalized batch from the official PyTorch OpenPI loader, without
-loading the model or running a training step. Do not begin SFT until these tests pass; the v3
-adapter has not yet been validated on the user's GPU workstation.
+obtains one normalized batch from the official PyTorch OpenPI loader without
+loading model weights or running an optimization step. It must pass on the
+workstation before GPU training. The synthetic tests also check an episode
+crossing Parquet shards and pickle-safe worker initialization.
 Do **not** change the original `stackcube_sft_pilot100` data or spoof
 `codebase_version`.
 
