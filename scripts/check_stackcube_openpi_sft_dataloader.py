@@ -63,9 +63,12 @@ def main() -> None:
         sample = raw[idx]
         assert sample["state"].shape == (9,)
         assert sample["actions"].shape == (10, 8)
-        assert sample["image"].shape == (224, 224, 3)
+        assert sample["image"].shape in (
+            (3, 224, 224),
+            (224, 224, 3),
+        )
         assert not sample["wrist_image"].any()
-    print("Three raw v3 samples: OK")
+    print("Three raw v3 embedded-image samples: OK")
 
     config = get_openpi_config(
         "pi05_stackcube_panda_joint",
