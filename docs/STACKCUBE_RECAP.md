@@ -209,11 +209,15 @@ export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackc
 PYTHONPATH="$PWD" python scripts/check_stackcube_openpi_sft_dataloader.py
 ```
 
-The smoke script samples three real Parquet-embedded camera frames and
-obtains one normalized batch from the official PyTorch OpenPI loader without
-loading model weights or running an optimization step. It must pass on the
-workstation before GPU training. The synthetic tests also check an episode
-crossing Parquet shards and pickle-safe worker initialization.
+The smoke script now detects the actual local LeRobot task-metadata
+format: `meta/tasks.jsonl` (v2.x) uses the installed OpenPI/LeRobot
+loader; `meta/tasks.parquet` (v3.x) uses the read-only Parquet adapter.
+It checks three camera frames and one normalized batch, without model
+weights or training. If neither task file exists, it prints a clear
+incomplete-dataset error instead of triggering an accidental Hub lookup.
+Both formats retain the original 9D Panda state and 8D action semantics.
+The synthetic v3 tests also check an episode spanning Parquet shards
+and pickle-safe worker initialization.
 Do **not** change the original `stackcube_sft_pilot100` data or spoof
 `codebase_version`.
 
