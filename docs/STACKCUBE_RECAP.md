@@ -34,6 +34,12 @@ PYTHONPATH="$PWD" python toolkits/lerobot/collect_maniskill_stackcube_recap.py \
   --repo-id local/stackcube_sft --num-episodes 10 --max-attempts 100
 ```
 
+If a previous LeRobot `create()` call failed, its output directory may already
+exist. To retry without deleting a possibly useful dataset, select a fresh
+repo ID such as `local/stackcube_sft_v2` and use that same dataset when
+computing RECAP returns. A LeRobot scalar `is_success` label is declared with
+`shape: (1,)` and written as a one-element NumPy Boolean array.
+
 The solver runs in `pd_joint_pos` and the existing environment smoke test
 runs in `pd_ee_delta_pose`. The smoke test verifies simulator availability,
 not action compatibility with this dataset.
