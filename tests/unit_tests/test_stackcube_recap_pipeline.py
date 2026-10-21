@@ -184,3 +184,48 @@ def test_recap_stage1_reads_pandas_indexed_v3_task_and_rewards(tmp_path):
     )
     assert rows.column("prompt").to_pylist() == [tasks[0]] * 4
     assert rows.column("reward").to_pylist() == [-1.0, 0.0, -1.0, -300.0]
+
+
+def test_returns_launcher_preserves_hydra_dictionary_override(tmp_path):
+    """Bash must forward a dictionary override without brace expansion."""
+    import os
+    import subprocess
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    args_file = tmp_path / "received_args.txt"
+
+    python_shim = bin_dir / "python"
+    python_shim.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$RECAP_TEST_ARGS"\n',
+        encoding="utf-8",
+    )
+    python_shim.chmod(0o755)
+
+    # Prevent the real switch_env script from activating another environment.
+    (bin_dir / "switch_env").write_text("# no-op for launcher test\n")
+
+    override = (
+        "data.train_data_paths=[{dataset_path:"
+        "/tmp/stackcube_sft_v2_returns_test,type:sft}]"
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "RECAP_TEST_ARGS": str(args_file),
+    }
+    launcher = (
+        REPO_ROOT
+        / "examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh"
+    )
+    subprocess.run(
+        ["bash", str(launcher), "recap_compute_returns", override],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    received = args_file.read_text(encoding="utf-8").splitlines()
+    assert received[0] == "compute_returns.py"
+    assert received[-1] == override
+    assert len(received) == 6
