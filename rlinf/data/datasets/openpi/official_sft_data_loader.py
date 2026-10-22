@@ -60,8 +60,19 @@ def _create_openpi_v3_data_loader(openpi_data_loader, config, root, *, shuffle):
             raise ValueError(
                 "StackCube v3 adapter uses the fixed prompt in ManiSkillInputs"
             )
+        # Match the camera count used by the selected upstream OpenPI transforms.
+        # The old StackCube config continues to load base RGB only.
+        from rlinf.models.embodiment.openpi.policies.maniskill_policy import (
+            ManiSkillInputs,
+        )
+
+        wrist_enabled = any(
+            isinstance(transform, ManiSkillInputs) and transform.use_wrist_image
+            for transform in data_config.data_transforms.inputs
+        )
         return V3StackCubeDataset(
-            root, action_horizon=action_horizon, repo_id=data_config.repo_id
+            root, action_horizon=action_horizon, repo_id=data_config.repo_id,
+            use_wrist_image=wrist_enabled,
         )
 
     with _V3_DATASET_FACTORY_LOCK:
