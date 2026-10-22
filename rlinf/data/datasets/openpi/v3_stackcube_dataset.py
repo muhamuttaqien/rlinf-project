@@ -49,7 +49,7 @@ class V3StackCubeDataset:
 
     def __init__(
         self, root: str | Path, *, action_horizon: int, repo_id: str | None = None,
-        use_wrist_image: bool = False
+        use_wrist_image: bool = False, state_dim: int = 9, action_dim: int = 8
     ):
         import pyarrow.parquet as pq
 
@@ -64,9 +64,13 @@ class V3StackCubeDataset:
             raise ValueError("action_horizon must be positive")
         self.action_horizon = action_horizon
         self.use_wrist_image = bool(use_wrist_image)
+        if (state_dim, action_dim) not in {(9, 8), (8, 7)}:
+            raise ValueError("Only joint 9D/8D or EE delta 8D/7D StackCube is supported")
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
         features = self.info["features"]
-        for key, shape in (("state", [9]), ("actions", [8])):
+        for key, shape in (("state", [self.state_dim]), ("actions", [self.action_dim])):
             if list(features.get(key, {}).get("shape", [])) != shape:
                 raise ValueError(
                     f"Expected StackCube {key} {shape}, got {features.get(key)}"
@@ -246,7 +250,7 @@ class V3StackCubeDataset:
             dtype=np.float32,
         )
         state = np.asarray(frame["state"], dtype=np.float32)
-        if state.shape != (9,) or actions.shape != (self.action_horizon, 8):
+        if state.shape != (self.state_dim,) or actions.shape != (self.action_horizon, self.action_dim):
             raise ValueError(
                 f"Invalid sample {idx}: state {state.shape}, actions {actions.shape}"
             )
