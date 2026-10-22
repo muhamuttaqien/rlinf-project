@@ -138,8 +138,15 @@ def evaluate_episode(
     max_steps: int,
     record_video: bool,
     video_stride: int = 2,
+    action_chunk: int = 10,
 ) -> tuple[dict[str, Any], list[np.ndarray]]:
-    """Roll out one held-out seed; compute success exclusively from ManiSkill."""
+    """Roll out one held-out seed; compute success exclusively from ManiSkill.
+
+    action_chunk=1 replans after each executed action; 10 is the original
+    behavior. The model still predicts the same 10-action horizon.
+    """
+    if not 1 <= action_chunk <= 10:
+        raise ValueError("action_chunk must be between 1 and 10")
     obs, _ = env.reset(seed=seed)
     frames: list[np.ndarray] = []
     success = False
@@ -152,8 +159,8 @@ def evaluate_episode(
             frames.append(camera.copy())
 
         predicted, _ = model.predict_action_batch(model_obs, mode="eval")
-        action_chunk = actions_to_numpy(predicted)
-        for action in action_chunk:
+        actions = actions_to_numpy(predicted, chunk=action_chunk)
+        for action in actions:
             if steps >= max_steps:
                 break
             # The simulator was created with num_envs=1. Supply one 8D target.
@@ -205,6 +212,8 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("--episodes and --max-steps must be positive")
     if args.max_videos < 0 or args.video_stride <= 0:
         raise ValueError("--max-videos must be nonnegative and --video-stride positive")
+    if not 1 <= args.action_chunk <= 10:
+        raise ValueError("--action-chunk must be between 1 and 10")
 
     model_cfg, config = make_model_config(
         args.config, args.model_config, checkpoint, stats
@@ -267,7 +276,7 @@ def run(args: argparse.Namespace) -> None:
                     "seed_start": args.seed_start,
                     "max_steps": args.max_steps,
                     "action_dim": 8,
-                    "action_chunk": 10,
+                    "action_chunk": args.action_chunk,
                     "obs_image_size": 224,
                     "video_stride": args.video_stride,
                     "policy_type": "openpi_pi05",
@@ -285,6 +294,7 @@ def run(args: argparse.Namespace) -> None:
                     max_steps=args.max_steps,
                     record_video=record,
                     video_stride=args.video_stride,
+                    action_chunk=args.action_chunk,
                 )
                 results.append(metrics)
                 LOGGER.info(
@@ -330,6 +340,7 @@ def run(args: argparse.Namespace) -> None:
         summary = {
             "label": args.label,
             "checkpoint": str(checkpoint),
+            "action_chunk": args.action_chunk,
             "episodes": len(results),
             "successes": successes,
             "success_rate": successes / len(results),
@@ -375,6 +386,14 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=300)
     parser.add_argument("--max-videos", type=int, default=3)
     parser.add_argument("--video-stride", type=int, default=2)
+    parser.add_argument(
+        "--action-chunk", type=int, choices=range(1, 11), default=10,
+        metavar="{1..10}",
+        help=(
+            "Predicted actions to execute before observing/replanning. "
+            "1 = closed-loop every step; 10 = original baseline (default)."
+        ),
+    )
     parser.add_argument("--wandb-entity", default=None)
     parser.add_argument("--no-wandb", action="store_true")
     args = parser.parse_args()
