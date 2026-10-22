@@ -56,10 +56,19 @@ def verify_clean_config() -> None:
         and cfg.runner.max_steps == 600
     ):
         raise AssertionError("Clean experiment SFT config is inconsistent")
-    # The old dataset/weights must never appear in the new experiment's data
-    # or logger identity. The pretrained checkpoint is resolved separately.
-    if "stackcube_pi05_clean_v1" not in str(cfg.data.train_data_paths):
-        raise AssertionError("SFT data path points away from clean-v1 dataset")
+    # OmegaConf resolves STACKCUBE_DATASET from the current shell, so a
+    # leftover variable from a previous experiment can silently select
+    # the old demonstrations. Require the exact fresh-data identity.
+    expected_dataset = "local/stackcube_pi05_clean_v1"
+    dataset = str(cfg.data.train_data_paths)
+    if dataset != expected_dataset:
+        raise AssertionError(
+            f"Clean V1 dataset mismatch: resolved {dataset!r}; expected "
+            f"{expected_dataset!r}. Set "
+            "'export STACKCUBE_DATASET=local/stackcube_pi05_clean_v1' "
+            "before running this preflight or training."
+        )
+    print(f"SFT CONFIG PASSED dataset={dataset}")
 
 
 def verify_environment() -> None:
