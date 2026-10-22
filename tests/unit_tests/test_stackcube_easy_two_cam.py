@@ -63,6 +63,8 @@ def test_v3_adapter_uses_real_wrist_only_when_enabled(monkeypatch):
                        "episode_index": 0, "frame_index": 0}]
     adapter._last_index = np.array([0], dtype=np.int64)
     adapter.action_horizon = 10
+    adapter.state_dim = 9
+    adapter.action_dim = 8
 
     def fake_image(frame, *, image_key="image"):
         return np.full(
