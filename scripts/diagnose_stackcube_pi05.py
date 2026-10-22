@@ -53,6 +53,7 @@ def trace_action(
     before: Any,
     after: Any,
     success: bool,
+    task_status: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Keep commanded gripper and measured finger qpos in separate units."""
     action = np.asarray(target, dtype=np.float32).reshape(-1)
@@ -68,7 +69,7 @@ def trace_action(
     ):
         raise ValueError("Invalid or non-finite 8D action / 9D Panda qpos")
 
-    return {
+    row = {
         "seed": int(seed),
         "step": int(step),
         "success": bool(success),
@@ -83,6 +84,33 @@ def trace_action(
         "finger_qpos_after": qafter[7:].tolist(),
         "finger_qpos_sum": float(np.sum(qafter[7:])),
     }
+    if task_status:
+        row.update(task_status)
+    return row
+
+
+def stackcube_task_status(info: dict[str, Any], env: Any) -> dict[str, Any]:
+    """Observe task progress without changing actions or environment state."""
+    status = {}
+    for key in ("is_cubeA_grasped", "is_cubeA_on_cubeB", "is_cubeA_static"):
+        if key in info:
+            status[key] = evaluator.scalar_bool(info[key])
+
+    base = getattr(env, "unwrapped", env)
+    try:
+        tcp = evaluator.as_numpy(base.agent.tcp.pose.p).reshape(-1, 3)[0]
+        cube_a = evaluator.as_numpy(base.cubeA.pose.p).reshape(-1, 3)[0]
+        cube_b = evaluator.as_numpy(base.cubeB.pose.p).reshape(-1, 3)[0]
+        if all(np.isfinite(arr).all() for arr in (tcp, cube_a, cube_b)):
+            status["tcp_to_cubeA_m"] = float(np.linalg.norm(tcp - cube_a))
+            status["cubeA_to_cubeB_xy_m"] = float(
+                np.linalg.norm(cube_a[:2] - cube_b[:2])
+            )
+            status["cubeA_height_m"] = float(cube_a[2])
+    except (AttributeError, KeyError, TypeError, ValueError):
+        # Fake/test environments and wrappers need not expose task actors.
+        pass
+    return status
 
 
 class TracedEnv:
@@ -117,6 +145,7 @@ class TracedEnv:
                 before=before,
                 after=after,
                 success=evaluator.success_from_info(info),
+                task_status=stackcube_task_status(info, self.env),
             )
         )
         self.obs = new_obs
@@ -227,7 +256,7 @@ def summarize_diagnostics(
     def average(rows, key):
         return float(np.mean([row[key] for row in rows])) if rows else None
 
-    return {
+    stats = {
         "paired_expert_samples": len(expert_rows),
         "paired_arm_action_mae": average(expert_rows, "arm_action_mae"),
         "paired_gripper_action_abs_error": average(
@@ -241,6 +270,18 @@ def summarize_diagnostics(
         "mean_gripper_command": average(rollout_rows, "gripper_command"),
         "mean_finger_qpos_sum": average(rollout_rows, "finger_qpos_sum"),
     }
+    for key in ("is_cubeA_grasped", "is_cubeA_on_cubeB", "is_cubeA_static"):
+        available = [row for row in rollout_rows if key in row]
+        if available:
+            stats[f"{key}_steps"] = sum(bool(row[key]) for row in available)
+            stats[f"{key}_first_step"] = next(
+                (int(row["step"]) for row in available if row[key]), None
+            )
+    for key in ("tcp_to_cubeA_m", "cubeA_to_cubeB_xy_m"):
+        values = [float(row[key]) for row in rollout_rows if key in row]
+        if values:
+            stats[f"min_{key}"] = min(values)
+    return stats
 
 
 def save_action_csv(rows: list[dict[str, Any]], path: Path) -> None:
@@ -250,6 +291,8 @@ def save_action_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "arm_target_mae_before", "arm_target_mae_after", "arm_motion_l2",
         "arm_target", "arm_qpos_before", "arm_qpos_after",
         "finger_qpos_before", "finger_qpos_after",
+        "is_cubeA_grasped", "is_cubeA_on_cubeB", "is_cubeA_static",
+        "tcp_to_cubeA_m", "cubeA_to_cubeB_xy_m", "cubeA_height_m",
     )
     with path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=columns)
@@ -442,6 +485,13 @@ def run(args: argparse.Namespace) -> None:
             f"DIAGNOSTICS: paired_arm_mae={summary['paired_arm_action_mae']}, "
             f"paired_gripper_error={summary['paired_gripper_action_abs_error']}, "
             f"rollout_successes={summary['rollout_successes']}/{args.episodes}"
+        )
+        print(
+            "TASK STAGES: "
+            f"grasped_steps={summary.get('is_cubeA_grasped_steps', 'unknown')} "
+            f"stacked_steps={summary.get('is_cubeA_on_cubeB_steps', 'unknown')} "
+            f"first_grasp_step={summary.get('is_cubeA_grasped_first_step', 'never')} "
+            f"min_tcp_cube_distance_m={summary.get('min_tcp_to_cubeA_m', 'unknown')}"
         )
         print(f"Saved: {output / 'diagnostics.json'}")
         print(f"Saved: {output / 'rollout_actions.csv'}")
