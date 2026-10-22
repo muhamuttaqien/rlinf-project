@@ -76,9 +76,9 @@ class SFTRunner:
             return
         if str(self.cfg.actor.model.get("model_type", "")).lower() != "openpi":
             return
-        if (
-            str(self.cfg.actor.model.openpi.get("config_name", ""))
-            != "pi05_stackcube_panda_joint"
+        if str(self.cfg.actor.model.openpi.get("config_name", "")) not in (
+            "pi05_stackcube_panda_joint",
+            "pi05_stackcube_panda_joint_state",
         ):
             return
 
