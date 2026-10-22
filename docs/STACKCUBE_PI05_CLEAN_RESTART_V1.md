@@ -92,11 +92,21 @@ PYTHONPATH="$PWD" python toolkits/lerobot/calculate_norm_stats.py \
 
 PYTHONPATH="$PWD" python scripts/audit_stackcube_pi05_clean_data.py \
   --repo-id "$STACKCUBE_DATASET" --episodes 100
+
+# Last gate before SFT: inspect one actual normalized OpenPI sample and
+# decode its padded 32D target back to the original 7D controller action.
+PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_transforms.py \
+  --repo-id "$STACKCUBE_DATASET" \
+  --norm-stats "$STACKCUBE_NORM_STATS" \
+  --model-path "$PI05_MODEL_PATH"
 ~~~
 
 Acceptance: 100 success-verified episodes, valid 8D states and 7D actions,
 two independent 224×224 RGB cameras, verified sample alignment and finite
-normalization stats. Do not train if these checks fail.
+normalization stats. The OpenPI transform parity check must also pass,
+comparing the same saved frame's images/state/tokens at SFT and inference
+and verifying a 7D -> normalized 32D -> decoded 7D action round-trip.
+Do not train if any of these checks fail.
 
 ## Gate 3: train from original π₀.₅ checkpoint
 
