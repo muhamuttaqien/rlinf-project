@@ -140,6 +140,8 @@ def run(args: argparse.Namespace):
     import torch
     from rlinf.models.embodiment.openpi import get_model
 
+    if args.action_chunk not in (1, 10):
+        raise ValueError('--action-chunk must be 1 or 10')
     if args.episodes < 1 or args.max_steps < 1:
         raise ValueError("--episodes and --max-steps must be positive")
     ckpt = args.checkpoint.expanduser().resolve()
@@ -164,7 +166,8 @@ def run(args: argparse.Namespace):
             for i in range(args.episodes):
                 seed = args.seed_start + i
                 result, frames = evaluate_one(
-                    env, model, seed, max_steps=args.max_steps, record_video=(i == 0)
+                    env, model, seed, max_steps=args.max_steps,
+                    record_video=(i == 0), action_chunk=args.action_chunk,
                 )
                 results.append(result)
                 if frames:
@@ -173,8 +176,9 @@ def run(args: argparse.Namespace):
                     )
                 print(
                     f"EPISODE seed={seed} success={int(result['success'])} "
-                    f"grasped={int(result['ever_grasped'])} "
-                    f"min_tcp_m={result['min_tcp_to_red_cube_m']:.3f}"
+                    f"grasped={result['ever_grasped']} "
+                    f"min_tcp_m={result['min_tcp_to_red_cube_m']:.3f} "
+                    f"first_action={np.round(result['first_ee_action'], 3)}"
                 )
     finally:
         env.close()
@@ -185,7 +189,7 @@ def run(args: argparse.Namespace):
         "config": str(args.config),
         "checkpoint": str(ckpt),
         "action_dim": 7, "state_dim": 8, "cameras": 2,
-        "action_chunk_executed": 1,
+        "action_chunk_executed": args.action_chunk,
         "episodes": len(results), "successes": successes,
         "success_rate": successes / len(results), "per_episode": results,
     }
@@ -194,7 +198,7 @@ def run(args: argparse.Namespace):
     )
     print(
         f"RESULT: {successes}/{len(results)} successful; "
-        f"grasped={sum(r['ever_grasped'] for r in results)}/{len(results)}; "
+        f"grasped={sum(r['ever_grasped'] is True for r in results)}/{len(results)}; "
         f"saved {out / 'results.json'}"
     )
 
@@ -208,6 +212,10 @@ def main():
         default=Path(os.getenv("STACKCUBE_NORM_STATS", DEFAULT_STATS)),
     )
     parser.add_argument("--episodes", type=int, default=3)
+    parser.add_argument(
+        "--action-chunk", type=int, choices=(1, 10), default=10,
+        help="Execute 10 actions per prediction, or 1 to replan each step",
+    )
     parser.add_argument("--seed-start", type=int, default=10000)
     parser.add_argument("--max-steps", type=int, default=300)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
