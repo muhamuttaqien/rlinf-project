@@ -64,6 +64,7 @@ actor:
       num_images_in_input: 2  # Actual base camera and robot-mounted wrist camera
       discrete_state_input: True  # Tokenize 8D TCP pose and gripper width into the Pi0.5 prompt
       train_image_augmentation: False  # Clean baseline: same image geometry at SFT and inference
+      report_env_action_loss: True  # Log task-action MSE without altering the 32D objective
       train_expert_only: False
       use_rlt: False
       detach_critic_input: True
