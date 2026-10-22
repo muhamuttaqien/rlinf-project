@@ -73,6 +73,23 @@ def check_dataset(repo_id: str, expected_episodes: int) -> dict:
             [r["frame_index"] for r in records], dtype=np.int64,
         )
         dataset_format = "v3"
+        import pyarrow.parquet as pq
+
+        indexed_outcomes = []
+        for data_file in sorted((root / "data").rglob("*.parquet")):
+            schema = set(pq.read_schema(data_file).names)
+            if "is_success" not in schema:
+                raise ValueError(f"Missing per-step success label: {data_file}")
+            for item in pq.read_table(
+                data_file, columns=["index", "is_success"]
+            ).to_pylist():
+                indexed_outcomes.append(
+                    (int(item["index"]), bool(np.asarray(item["is_success"]).item()))
+                )
+        indexed_outcomes.sort()
+        if [index for index, _ in indexed_outcomes] != list(range(len(dataset))):
+            raise ValueError("Per-step success labels are not aligned to frame indices")
+        outcomes = np.asarray([flag for _, flag in indexed_outcomes], dtype=np.bool_)
     else:
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
@@ -82,8 +99,11 @@ def check_dataset(repo_id: str, expected_episodes: int) -> dict:
         actions = np.asarray(records["actions"], dtype=np.float32)
         episode_ids = np.asarray(records["episode_index"], dtype=np.int64)
         frame_ids = np.asarray(records["frame_index"], dtype=np.int64)
+        outcomes = np.asarray(records["is_success"], dtype=np.bool_).reshape(-1)
         dataset_format = "native-lerobot"
 
+    if outcomes.shape != (len(dataset),):
+        raise ValueError(f"Invalid per-frame success labels: {outcomes.shape}")
     if states.shape != (len(dataset), 8):
         raise ValueError(f"Unexpected 8D states: {states.shape}")
     if actions.shape != (len(dataset), 7):
@@ -108,6 +128,12 @@ def check_dataset(repo_id: str, expected_episodes: int) -> dict:
             )
         if not np.array_equal(frame_ids[mask], np.arange(steps)):
             raise ValueError(f"Episode {expected_id}: invalid frame indices")
+        per_step_success = outcomes[mask]
+        if not bool(per_step_success[-1]) or bool(per_step_success[:-1].any()):
+            raise ValueError(
+                f"Episode {expected_id}: success must be false before the "
+                "terminal successful step"
+            )
         total_steps += steps
 
     if total_steps != len(dataset):
