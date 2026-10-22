@@ -162,3 +162,10 @@ silently read an optional info field, which may be missing; the new
 version queries Panda `agent.is_grasping(cubeA)` and reports `None` if
 unknown. Confirm chunk-10 performance on the existing step-600 checkpoint
 **before any further training**.
+
+Diagnostic CLI: `--compare-expert` runs an independent expert on the first
+seed **after** the policy rollout, displaying the expert's first 7D command
+and its mean absolute difference from the policy's first command. An
+expert outcome is never counted as a policy success. This is a focused
+comparison on the same requested seed, not proof that all subsequent
+states or object positions are identical.
