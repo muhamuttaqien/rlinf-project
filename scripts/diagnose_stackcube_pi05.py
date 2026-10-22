@@ -383,6 +383,7 @@ def run(args: argparse.Namespace) -> None:
         all_traces = []
         metrics = []
         with torch.inference_mode():
+            torch.manual_seed(0)  # Fixed noise seed for offline expert comparisons.
             expert_rows = compare_expert_predictions(
                 model, repo_id,
                 max_episodes=args.expert_episodes,
