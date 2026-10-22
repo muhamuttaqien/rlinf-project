@@ -866,3 +866,63 @@ sensitivity, **not** that a robot trajectory moves toward the cube or that
 the network responds specifically to red cube position; the green cube,
 robot rendering and background may also differ between resets. Match
 training and rollout camera settings before changing dataset/training code.
+
+
+## Milestone 9.13 — Controlled red-cube relocation and closed-loop approach
+
+Milestone 9.12 (eight scene resets) produced eight distinct red cube positions,
+0.270 m X span and 0.332 m Y span, averaging 0.198 m pairwise red-cube
+separation. With *fixed model proprioception and seeded sampling*, first
+10-step arm action chunks differed by only 0.00463 rad MAE, and gripper
+commands by 0.00769. Repeated identical inputs differed by 0.0.
+The descriptive correlation between pairwise cube distance and action
+difference was -0.0042. However the actual initial robot state varied by
+up to 0.107 L2 across resets, while the green cube position also varied.
+This is evidence of weak scene sensitivity but cannot isolate red-cube
+conditioning or guarantee the first 10 actions should immediately differ.
+
+`scripts/diagnose_stackcube_pi05_controlled_cube.py` improves this with
+an **isolated red-cube intervention** and short policy rollouts. It gathers
+valid red cube targets from seeded resets, but for *every* trial resets
+the **same** base seed 0, then changes only cube A's pose. The robot,
+camera, green cube, cube orientation and model task remain fixed; the
+script checks robot 9D state, green cube and TCP coordinates are identical.
+It re-renders the camera without stepping physics. It predicts the
+initial 10 actions using fixed random flow noise, then rolls out 120
+policy-controlled steps with real feedback from ManiSkill. Valid targets
+must avoid overlap with the fixed green cube and initial TCP.
+No training, dataset, controller or checkpoint files are changed.
+
+From the lab repository root:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-chat
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_stackcube_pi05_controlled_cube.py -q
+
+PYTHONPATH="$PWD" python scripts/diagnose_stackcube_pi05_controlled_cube.py \
+  --checkpoint /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/checkpoints/global_step_200/actor \
+  --base-seed 0 --max-scenes 6 --max-steps 120 --save-images
+```
+
+The default candidate seeds are `0 1 2 3 4 5 10000 10001 10002 10003
+10004 10005`. The script uses the first six distinct collision-free red
+cube positions relative to the common base scene. It prints four short
+lines: `CONTROLLED CUBE`, `POLICY`, `OUTCOME`, and `Saved`.
+
+Report:
+`/data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/evaluation/step_200/controlled_cube/controlled_cube.json`.
+
+The report includes each cube pose, actual initial/best/final TCP distance,
+first closure distance and step, grasp status, image change relative to the
+baseline, full first/last predicted action vectors in the initial chunk and
+aggregate initial action differences.
+
+This is a targeted *causal* scene perturbation because only the target red
+cube pose varies before each rollout, unlike full seeded resets. It tests
+approach and grasp outcomes, **not** complete StackCube success or
+generalization to the whole training/held-out distribution. Similar actions
+and failures across these controlled changes would support inadequate
+object-conditioned closed-loop control. If the controlled results show
+strong adaptation, investigate more complex scene differences and long
+horizon rollout dynamics before collecting more data.
