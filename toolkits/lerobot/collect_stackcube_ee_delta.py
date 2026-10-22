@@ -100,6 +100,10 @@ def collect_episode(env: Any, seed: int, *, max_steps: int = 300):
             action = normalized_ee_action(
                 p, q, target_p, target_q, gripper_command
             )
+            # Keep expert motions gentle near small 4cm cubes: ~2.5cm
+            # translation and <=0.04rad rotation target per controller step.
+            action[:3] = np.clip(action[:3], -0.25, 0.25)
+            action[3:6] = np.clip(action[3:6], -0.40, 0.40)
             if not apply(action):
                 return False
         return False
