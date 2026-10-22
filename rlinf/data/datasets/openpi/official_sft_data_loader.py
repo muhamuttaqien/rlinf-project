@@ -66,13 +66,27 @@ def _create_openpi_v3_data_loader(openpi_data_loader, config, root, *, shuffle):
             ManiSkillInputs,
         )
 
+        from rlinf.models.embodiment.openpi.policies.maniskill_policy import (
+            ManiSkillOutputs,
+        )
+
         wrist_enabled = any(
             isinstance(transform, ManiSkillInputs) and transform.use_wrist_image
             for transform in data_config.data_transforms.inputs
         )
+        action_dims = [
+            int(transform.output_action_dim)
+            for transform in data_config.data_transforms.outputs
+            if isinstance(transform, ManiSkillOutputs)
+        ]
+        if len(action_dims) != 1 or action_dims[0] not in (7, 8):
+            raise ValueError(f"Unsupported StackCube output_action_dim: {action_dims}")
+        output_dim = action_dims[0]
         return V3StackCubeDataset(
             root, action_horizon=action_horizon, repo_id=data_config.repo_id,
             use_wrist_image=wrist_enabled,
+            state_dim=8 if output_dim == 7 else 9,
+            action_dim=output_dim,
         )
 
     with _V3_DATASET_FACTORY_LOCK:
@@ -138,6 +152,7 @@ def build_official_openpi_sft_dataloader(
             "pi05_stackcube_panda_joint",
             "pi05_stackcube_panda_joint_state",
             "pi05_stackcube_panda_easy_two_cam_state",
+            "pi05_stackcube_panda_easy_ee_delta_two_cam_state",
         ):
             raise ValueError(
                 "LeRobot v3 Parquet adapter is limited to the original and "
