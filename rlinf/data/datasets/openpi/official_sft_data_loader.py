@@ -137,6 +137,7 @@ def build_official_openpi_sft_dataloader(
         if model_cfg.openpi.config_name not in (
             "pi05_stackcube_panda_joint",
             "pi05_stackcube_panda_joint_state",
+            "pi05_stackcube_panda_easy_two_cam_state",
         ):
             raise ValueError(
                 "LeRobot v3 Parquet adapter is limited to the original and "
