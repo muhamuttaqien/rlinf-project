@@ -71,14 +71,18 @@ def collect_episode(env: Any, seed: int, *, max_steps: int = 300):
         if not np.isfinite(action).all():
             raise ValueError("Nonfinite delta EE expert command")
         next_obs, _reward, terminated, truncated, info = env.step(action[None])
+        # is_success is a timestep outcome, not a retrospective label
+        # copied to every frame of an eventually successful episode.
+        # Whole unsuccessful episodes are still discarded below.
+        step_success = bool(_as_numpy(info["success"]).reshape(-1)[0])
         rows.append({
             **parsed,
             "actions": action,
-            "is_success": np.array([True], dtype=np.bool_),
+            "is_success": np.array([step_success], dtype=np.bool_),
             "task": TASK,
         })
         obs = next_obs
-        last_success = bool(_as_numpy(info["success"]).reshape(-1)[0])
+        last_success = step_success
         done = last_success or bool(_as_numpy(terminated).reshape(-1)[0]) or bool(
             _as_numpy(truncated).reshape(-1)[0]
         )
