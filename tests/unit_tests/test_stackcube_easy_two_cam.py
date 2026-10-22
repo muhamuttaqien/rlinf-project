@@ -119,3 +119,34 @@ def test_easy_spawn_region_narrow_and_collision_free():
         assert torch.all(error <= XY_HALF_WIDTH_M + 1e-7)
     distance = torch.linalg.norm(pos[0, :, :2] - pos[1, :, :2], dim=-1)
     assert float(distance.min()) > 0.10
+
+
+
+def test_registered_openpi_two_camera_config_enables_real_wrist_transform():
+    pytest.importorskip("openpi")
+    from rlinf.models.embodiment.openpi.dataconfig import get_openpi_config
+    from rlinf.models.embodiment.openpi.policies.maniskill_policy import ManiSkillInputs
+
+    config = get_openpi_config("pi05_stackcube_panda_easy_two_cam_state")
+    assert config.model.discrete_state_input is True
+    assert config.model.action_horizon == 10
+    assert config.data.use_wrist_image is True
+    data = config.data.create(config.assets_dirs, config.model)
+    inputs = [
+        transform for transform in data.data_transforms.inputs
+        if isinstance(transform, ManiSkillInputs)
+    ]
+    assert len(inputs) == 1 and inputs[0].use_wrist_image is True
+    observation = {
+        "observation/image": np.full((224, 224, 3), 10, dtype=np.uint8),
+        "observation/wrist_image": np.full((224, 224, 3), 210, dtype=np.uint8),
+        "observation/state": np.zeros(9, dtype=np.float32),
+    }
+    transformed = inputs[0](observation)
+    assert bool(transformed["image_mask"]["base_0_rgb"])
+    assert bool(transformed["image_mask"]["left_wrist_0_rgb"])
+    assert not bool(transformed["image_mask"]["right_wrist_0_rgb"])
+    assert not np.array_equal(
+        transformed["image"]["base_0_rgb"],
+        transformed["image"]["left_wrist_0_rgb"],
+    )
