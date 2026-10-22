@@ -22,7 +22,9 @@ import pytest
 from omegaconf import OmegaConf
 
 from scripts import evaluate_stackcube_pi05 as baseline
-from scripts.evaluate_stackcube_pi05_ee_delta import decode_first_action
+from scripts.evaluate_stackcube_pi05_ee_delta import (
+    decode_action_chunk, decode_first_action, evaluate_one,
+)
 from toolkits.lerobot.stackcube_ee_delta import (
     ee_state, extract_ee_observation, normalized_ee_action, policy_input
 )
@@ -162,3 +164,77 @@ def test_dataset_adapter_8d_state_7d_actions(monkeypatch):
     assert sample["actions"].shape == (10, 7)
     assert sample["wrist_image"].shape == (224, 224, 3)
     assert not np.array_equal(sample["image"], sample["wrist_image"])
+
+
+
+def test_training_aligned_action_chunk_and_replan_mode():
+    chunk = np.zeros((1, 10, 7), dtype=np.float32)
+    chunk[0, :, 0] = np.arange(10, dtype=np.float32) / 10
+    aligned = decode_action_chunk(chunk)
+    assert aligned.shape == (10, 7)
+    np.testing.assert_allclose(aligned[:, 0], np.arange(10) / 10)
+    assert decode_action_chunk(chunk, action_chunk=1).shape == (1, 7)
+    with pytest.raises(ValueError, match="action_chunk"):
+        decode_action_chunk(chunk, action_chunk=2)
+
+
+def test_rollout_executes_predicted_chunk_in_order(monkeypatch):
+    """10 predicted EE actions must be executed before resampling the policy."""
+    from scripts import evaluate_stackcube_pi05_ee_delta as evaluate
+
+    monkeypatch.setattr(
+        evaluate, "extract_ee_observation",
+        lambda env, obs: {"image": np.zeros((2, 2, 3), dtype=np.uint8)},
+    )
+    monkeypatch.setattr(
+        evaluate, "policy_input", lambda record: {"dummy": True},
+    )
+
+    class StubEnv:
+        def __init__(self):
+            self.actions = []
+            self.unwrapped = SimpleNamespace(
+                agent=SimpleNamespace(
+                    tcp=SimpleNamespace(
+                        pose=SimpleNamespace(p=np.array([[0., 0., .2]]))
+                    ),
+                    is_grasping=lambda cube: np.array([len(self.actions) >= 3]),
+                ),
+                cubeA=SimpleNamespace(pose=SimpleNamespace(p=np.array([[0., 0., 0.]]))),
+            )
+
+        def reset(self, seed):
+            self.actions = []
+            return {}, {}
+
+        def step(self, action):
+            self.actions.append(np.asarray(action).reshape(7).copy())
+            done = len(self.actions) == 10
+            return {}, 0.0, np.array([done]), np.array([False]), {
+                "success": np.array([False])
+            }
+
+    class StubPolicy:
+        def __init__(self):
+            self.calls = 0
+
+        def predict_action_batch(self, obs, mode):
+            self.calls += 1
+            predicted = np.zeros((1, 10, 7), dtype=np.float32)
+            predicted[0, :, 0] = np.arange(10, dtype=np.float32) / 10
+            return predicted, {}
+
+    env = StubEnv()
+    policy = StubPolicy()
+    result, frames = evaluate_one(
+        env, policy, seed=123, max_steps=10,
+        record_video=False, action_chunk=10,
+    )
+    assert policy.calls == 1
+    assert len(env.actions) == 10
+    np.testing.assert_allclose(
+        np.asarray(env.actions)[:, 0], np.arange(10) / 10
+    )
+    assert result["ever_grasped"] is True
+    assert result["action_chunk_executed"] == 10
+    assert frames == []
