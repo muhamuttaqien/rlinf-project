@@ -48,7 +48,7 @@ DEFAULT_OUTPUT = Path(
 )
 
 
-def decode_action_chunk(predicted, *, action_chunk: int = 1) -> np.ndarray:
+def decode_action_chunk(predicted, *, action_chunk: int = 10) -> np.ndarray:
     """Return environment-space 7D EE actions, preserving order and time."""
     if action_chunk not in (1, 10):
         raise ValueError("action_chunk must be 1 or 10")
@@ -108,7 +108,7 @@ def predict_policy_actions(model, parsed, *, legacy_training_view=False, rng=Non
 
 def evaluate_one(
     env, model, seed: int, *, max_steps: int, record_video: bool,
-    action_chunk: int = 1, legacy_training_view: bool = False,
+    action_chunk: int = 10, legacy_training_view: bool = False,
     policy_rng=None,
 ):
     """Evaluate executable chunks and report initial command for investigation."""
