@@ -161,6 +161,7 @@ def create_rlds_dataloader(
 def main(
     config_name: str,
     repo_id: str,
+    output_root: str | None = None,
 ):
     dataset_root = resolve_lerobot_dataset_root(repo_id)
     if not (dataset_root / "meta" / "info.json").is_file():
@@ -183,7 +184,10 @@ def main(
         and not (dataset_root / "meta" / "tasks.jsonl").is_file()
     ):
         norm_stats = compute_v3_lerobot_norm_stats(dataset_root)
-        output_path = config.assets_dirs / repo_id
+        output_path = (
+            Path(output_root).expanduser() / repo_id
+            if output_root else config.assets_dirs / repo_id
+        )
         print(f"Writing LeRobot v3 stats to: {output_path}")
         normalize.save(output_path, norm_stats)
         return
@@ -212,7 +216,10 @@ def main(
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    output_path = config.assets_dirs / data_config.repo_id
+    output_path = (
+        Path(output_root).expanduser() / data_config.repo_id
+        if output_root else config.assets_dirs / data_config.repo_id
+    )
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
 
