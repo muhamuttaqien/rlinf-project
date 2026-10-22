@@ -148,7 +148,14 @@ def evaluate_episode(
             steps += 1
             success |= success_from_info(info)
             finished = scalar_bool(terminated) or scalar_bool(truncated)
-            if record_video and (steps % video_stride == 0 or finished):
+            # Always include the terminal frame, even when success or the
+            # step budget occurs between two regularly sampled video frames.
+            if record_video and (
+                steps % video_stride == 0
+                or finished
+                or success
+                or steps >= max_steps
+            ):
                 _, camera = extract_stackcube_obs(obs)
                 frames.append(camera.copy())
             if finished or success:
