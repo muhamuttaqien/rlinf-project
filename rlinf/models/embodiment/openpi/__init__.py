@@ -248,6 +248,9 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
         model.train_image_augmentation = bool(
             OmegaConf.select(model_cfg, "train_image_augmentation", default=True)
         )
+        model.report_env_action_loss = bool(
+            OmegaConf.select(model_cfg, "report_env_action_loss", default=False)
+        )
 
     if full_weights_path is not None:
         load_full_weights(
