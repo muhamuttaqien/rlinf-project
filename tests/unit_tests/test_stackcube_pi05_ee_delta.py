@@ -170,7 +170,7 @@ def test_dataset_adapter_8d_state_7d_actions(monkeypatch):
 def test_training_aligned_action_chunk_and_replan_mode():
     chunk = np.zeros((1, 10, 7), dtype=np.float32)
     chunk[0, :, 0] = np.arange(10, dtype=np.float32) / 10
-    aligned = decode_action_chunk(chunk)
+    aligned = decode_action_chunk(chunk, action_chunk=10)
     assert aligned.shape == (10, 7)
     np.testing.assert_allclose(aligned[:, 0], np.arange(10) / 10)
     assert decode_action_chunk(chunk, action_chunk=1).shape == (1, 7)
