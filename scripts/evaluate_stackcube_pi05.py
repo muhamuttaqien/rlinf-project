@@ -93,6 +93,7 @@ def make_model_config(
         "pi05_stackcube_panda_joint": False,
         "pi05_stackcube_panda_joint_state": True,
         "pi05_stackcube_panda_easy_two_cam_state": True,
+        "pi05_stackcube_panda_easy_ee_delta_two_cam_state": True,
     }
     if config_name not in state_by_config:
         raise ValueError(
@@ -104,10 +105,22 @@ def make_model_config(
             f"State conditioning mismatch for {config_name}: expected "
             f"discrete_state_input={state_by_config[config_name]}."
         )
-    if int(model_cfg.action_dim) != 8 or int(model_cfg.openpi.action_horizon) != 10:
-        raise ValueError("Expected 8D absolute actions and horizon 10")
+    expected_action_dim = (
+        7 if config_name == "pi05_stackcube_panda_easy_ee_delta_two_cam_state"
+        else 8
+    )
+    if (
+        int(model_cfg.action_dim) != expected_action_dim
+        or int(model_cfg.openpi.action_horizon) != 10
+    ):
+        raise ValueError(
+            f"Expected {expected_action_dim}D StackCube controller action and horizon 10"
+        )
     expected_cameras = (
-        2 if config_name == "pi05_stackcube_panda_easy_two_cam_state" else 1
+        2 if config_name in (
+            "pi05_stackcube_panda_easy_two_cam_state",
+            "pi05_stackcube_panda_easy_ee_delta_two_cam_state",
+        ) else 1
     )
     if int(model_cfg.openpi.num_images_in_input) != expected_cameras:
         raise ValueError(
