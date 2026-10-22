@@ -20,7 +20,7 @@ or +/-2.5cm StackCube runs.
 | Pretrained model | original pi05_base checkpoint, NOT old 8D joint-policy checkpoint |
 | Planned demos | 100 *successful* end-effector-controller demonstrations |
 | Planned SFT | 600 optimizer steps, new output directory |
-| Evaluation | first action from each 10-step prediction, re-observe and replan every step |
+| Evaluation | 10 predicted EE actions per inference by default, with optional `--action-chunk 1` replanning |
 
 **EE orientation encoding:** the observation is quaternion WXYZ (4D).
 The action Δorientation has 3 normalized Euler-XYZ components; the
@@ -136,7 +136,9 @@ PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05_ee_delta.py \
 
 The evaluator uses the *exact same* easy environment, 2 cameras, 8D
 state, normalized 7D action control and the new dataset's stats.
-It executes one action and re-observes for every control step.
+By default it executes the full 10-step predicted action chunk before
+resampling the model, matching the training action horizon. Pass
+`--action-chunk 1` only to deliberately compare one-action replanning.
 The output gives per-seed grasp and StackCube success, a rollout
 video for the first seed, and \`results.json\`.
 
@@ -146,3 +148,17 @@ Keep one short success gate and the resulting success rate as the main
 signals. Additional demonstrations or SFT steps may help if there are
 valid expert trajectories, but a stronger backbone cannot repair a
 wrong controller/action representation or unsuccessful training labels.
+
+## Investigation of step-600 policy failure (2026-10-22)
+
+The initial evaluator only executed **one** action from each predicted
+10-action trajectory, then injected fresh random diffusion noise on the
+next simulator step. This was an unplanned mismatch to the policy's
+10-action training horizon. It is not proof of an OpenPI training bug,
+but it means the original 0/3 result was **only** for one-action
+replanning. The updated evaluator defaults to chunk 10 and prints the
+initial 7D EE command for each seed. The previous grasp metric also
+silently read an optional info field, which may be missing; the new
+version queries Panda `agent.is_grasping(cubeA)` and reports `None` if
+unknown. Confirm chunk-10 performance on the existing step-600 checkpoint
+**before any further training**.
