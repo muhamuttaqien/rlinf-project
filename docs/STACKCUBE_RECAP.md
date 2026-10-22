@@ -813,3 +813,56 @@ appropriateness and generalization still require evaluation. Replacing
 one sensor modality while holding the other fixed produces an artificial
 observation pairing, so do not interpret the size of the difference
 as task performance.
+
+
+## Milestone 9.12 — Object-position generalization at fixed policy state
+
+The step-200 state-conditioned model improved action imitation, but all 20
+held-out StackCube rollouts failed. On seed 0, closing began at 0.187 m from
+red cube A (step 61), and the closest approach was 0.074 m at step 110.
+On seed 10000 the closest approach was 0.288 m. A two-scene
+visual sensitivity experiment found deterministic repeats and arm MAE
+0.00777 rad for an image swap versus 0.03238 rad for a state swap.
+These do not yet show that the policy uses the target cube's location.
+
+The new `scripts/diagnose_stackcube_pi05_object_generalization.py` measures
+initial-action sensitivity over eight deterministic reset seeds:
+`0 1 2 3 10000 10001 10002 10003`. It reads both cube world poses and
+the robot TCP pose, captures each scene's base camera, and asks the model
+for 10-step actions using the **first scene's identical 9D qpos**,
+unchanged task prompt, and seeded sampling noise. No actions are executed,
+no object/robot state is changed, and no checkpoint is modified.
+
+From the repository root after restoring the previously working CUDA
+environment:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-chat
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_stackcube_pi05_object_generalization.py -q
+
+PYTHONPATH="$PWD" python scripts/diagnose_stackcube_pi05_object_generalization.py \
+  --checkpoint /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/checkpoints/global_step_200/actor \
+  --seeds 0 1 2 3 10000 10001 10002 10003 \
+  --save-images
+```
+
+Output:
+`/data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/evaluation/step_200/object_generalization/object_generalization.json`
+and optional per-seed PNGs. The CLI prints only three concise summary lines
+(`OBJECT GENERALIZATION`, `POLICY RESPONSE`, `LIMITS`).
+
+The JSON contains red/green cube world positions, initial TCP-to-cube
+distance, the robot's *actual* qpos deviation (for image confounds),
+every seed's first/last 8D action, and all pairwise cube separation,
+image difference and action MAE values. The pairwise Pearson coefficient
+is **descriptive only**, since pairs are not independent and eight scenes
+cannot establish statistical significance.
+
+Interpretation: if the red cube moves significantly while the 10-step
+arm actions change little beyond repeat noise, suspect poor sensitivity to
+object location. A nonzero correlation or change demonstrates scene
+sensitivity, **not** that a robot trajectory moves toward the cube or that
+the network responds specifically to red cube position; the green cube,
+robot rendering and background may also differ between resets. Match
+training and rollout camera settings before changing dataset/training code.
