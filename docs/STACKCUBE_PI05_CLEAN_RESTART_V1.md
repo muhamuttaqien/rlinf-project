@@ -52,9 +52,13 @@ test -f "$PI05_MODEL_PATH/model.safetensors"
 PYTHONPATH="$PWD" python toolkits/lerobot/collect_stackcube_ee_delta.py \
   --repo-id local/stackcube_pi05_clean_v1_acceptance \
   --num-episodes 1 --max-attempts 25 --seed 0
+
+PYTHONPATH="$PWD" python scripts/audit_stackcube_pi05_clean_data.py \
+  --repo-id local/stackcube_pi05_clean_v1_acceptance --episodes 1
 ~~~
 
-Accept only if it prints COLLECTION PASSED and stores LeRobot metadata and
+Accept only if collection prints COLLECTION PASSED and the audit prints
+DATASET AUDIT PASSED. and stores LeRobot metadata and
 collection_manifest.json with an actual successful environment seed. The
 collector neither overwrites existing data nor saves failed rollouts.
 
@@ -73,6 +77,9 @@ PYTHONPATH="$PWD" python toolkits/lerobot/calculate_norm_stats.py \
   --config-name pi05_stackcube_panda_easy_ee_delta_two_cam_state \
   --repo-id "$STACKCUBE_DATASET" \
   --output-root /data1/Muttaqien/rlinf_data/pi05_stackcube_clean_v1_assets
+
+PYTHONPATH="$PWD" python scripts/audit_stackcube_pi05_clean_data.py \
+  --repo-id "$STACKCUBE_DATASET" --episodes 100
 ~~~
 
 Acceptance: 100 success-verified episodes, valid 8D states and 7D actions,
