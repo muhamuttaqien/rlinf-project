@@ -693,7 +693,7 @@ export RAY_TMPDIR=/data1/Muttaqien/rlinf_data/ray
 export RLINF_RAY_DISABLE_DASHBOARD=1
 export RLINF_RAY_LOCAL_NUM_GPUS=1
 export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
-export LD_LIBRARY_PATH="$HOME/.cache/rlinf-nvidia-590:\${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$HOME/.cache/rlinf-nvidia-590:${LD_LIBRARY_PATH:-}"
 mkdir -p "$RAY_TMPDIR" /data1/Muttaqien/rlinf_data/results
 
 # Ensure the source checkpoint exists and there is sufficient space.
