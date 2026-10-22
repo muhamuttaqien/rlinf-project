@@ -14,7 +14,7 @@
 
 """Evaluate real-two-camera Pi0.5 on native 7D EE delta StackCube.
 
-Executes 10 actions per prediction by default (optional --action-chunk 1).
+Executes 1 action per prediction by default (optional --action-chunk 10).
 Policy rollouts never use expert actions or privileged cube state as inputs.
 Optional --compare-expert runs an independent expert afterward. Success comes
 only from ManiSkill.
@@ -48,7 +48,7 @@ DEFAULT_OUTPUT = Path(
 )
 
 
-def decode_action_chunk(predicted, *, action_chunk: int = 10) -> np.ndarray:
+def decode_action_chunk(predicted, *, action_chunk: int = 1) -> np.ndarray:
     """Return environment-space 7D EE actions, preserving order and time."""
     if action_chunk not in (1, 10):
         raise ValueError("action_chunk must be 1 or 10")
@@ -82,7 +82,7 @@ def _robot_grasped(env, info) -> bool | None:
 
 def evaluate_one(
     env, model, seed: int, *, max_steps: int, record_video: bool,
-    action_chunk: int = 10,
+    action_chunk: int = 1,
 ):
     """Evaluate executable chunks and report initial command for investigation."""
     if action_chunk not in (1, 10):
@@ -238,8 +238,8 @@ def main():
     )
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument(
-        "--action-chunk", type=int, choices=(1, 10), default=10,
-        help="Execute 10 actions per prediction, or 1 to replan each step",
+        "--action-chunk", type=int, choices=(1, 10), default=1,
+        help="Default 1 action with feedback each step; 10 = open-loop chunk",
     )
     parser.add_argument(
         "--compare-expert", action="store_true",
