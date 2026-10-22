@@ -664,3 +664,65 @@ incompatible tensors, **do not invent or copy missing weights**. The safe
 fallback is to resume 100–200 updates from the intact step-100 checkpoint,
 after checking that its DCP `.metadata` exists. Write the resumed checkpoint
 to a distinct experiment directory rather than overwriting this run.
+
+
+### Actual lab recovery outcome and step-100 resume
+
+October 22, 2026: three DCP recovery tests passed. Inspection of the actual
+step-200 checkpoint reported 667 model tensors, a required final tensor byte
+offset of 18,736,609,059 (using step-100 layout), but just 6,162,284,544
+bytes in the step-200 shard. Step-200 `.metadata` was also absent. **Model-only
+recovery is blocked; preserve the incomplete files for forensic analysis.**
+
+RLinf's `SFTRunner.init_workers()` supports `runner.resume_dir`: it parses
+`global_step_100`, restores the FSDP training state and continues up to
+`runner.max_steps=200`. Use the original state-conditioned model config,
+optimizer schedule and batch settings; write new results to a separate name.
+
+From the repository root on the lab workstation, after migration to /data1:
+
+```bash
+source .venv/bin/activate
+export PI05_MODEL_PATH="$PWD/checkpoints/torch/pi05_base_rlinf"
+export STACKCUBE_DATASET="local/stackcube_sft_pilot100_lab"
+export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100_lab/norm_stats.json"
+export EMBODIED_PATH="$PWD/examples/sft"
+export CUDA_VISIBLE_DEVICES=0
+export RAY_ADDRESS=local
+export RAY_TMPDIR=/data1/Muttaqien/rlinf_data/ray
+export RLINF_RAY_DISABLE_DASHBOARD=1
+export RLINF_RAY_LOCAL_NUM_GPUS=1
+export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
+export LD_LIBRARY_PATH="$HOME/.cache/rlinf-nvidia-590:\${LD_LIBRARY_PATH:-}"
+mkdir -p "$RAY_TMPDIR" /data1/Muttaqien/rlinf_data/results
+
+# Ensure the source checkpoint exists and there is sufficient space.
+test -s ../results/maniskill_stackcube_panda_pi05_state_sft/checkpoints/global_step_100/actor/dcp_checkpoint/.metadata
+test -s ../results/maniskill_stackcube_panda_pi05_state_sft/checkpoints/global_step_100/actor/model_state_dict/full_weights.pt
+df -h /data1/Muttaqien /home
+
+PYTHONPATH="$PWD" python examples/sft/train_vla_sft.py \
+  --config-path "$PWD/examples/sft/config" \
+  --config-name maniskill_stackcube_panda_sft_openpi_pi05_state \
+  +runner.resume_dir="$PWD/../results/maniskill_stackcube_panda_pi05_state_sft/checkpoints/global_step_100" \
+  runner.logger.log_path=/data1/Muttaqien/rlinf_data/results \
+  runner.logger.experiment_name=maniskill_stackcube_panda_pi05_state_sft_resume100 \
+  runner.max_steps=200 runner.save_interval=100 \
+  actor.global_batch_size=16 actor.micro_batch_size=1 \
+  data.num_workers=0 \
+  +actor.model.openpi.torch_compile=false
+```
+
+Expected new export:
+
+`/data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/checkpoints/global_step_200/actor/model_state_dict/full_weights.pt`
+
+Do **not** change the scheduler total horizon from 200 steps when loading a
+checkpoint containing the original step-100 scheduler state. This resumes
+optimizer/model state from step 100. If the OpenPI loader is not a
+`StatefulDataLoader`, the exact minibatch order may not be restored, so the
+new step 200 may not exactly match the failed run.
+
+Evaluate with `--config ...pi05_state.yaml`, `--checkpoint` pointing to
+the *new* `global_step_200/actor`, and a distinct output directory. Even if
+the new model has low SFT loss, do not infer task success without rollouts.
