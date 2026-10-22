@@ -600,3 +600,67 @@ policy on seeds 10000–10019 and the same `pd_joint_pos` controller.
 The diagnostic summarizes expert action/gripper errors on 40 matching
 expert observations, and both experiments have separate W&B runs.
 Performance improvement is a **hypothesis**, not an asserted result.
+
+
+## Milestone 9.4 — Recover incomplete step-200 DCP after disk exhaustion
+
+The state-conditioned SFT run completed 200 updates and logged final loss
+0.01935, but the original /home filesystem filled completely while saving.
+Only the step-200 DCP shard `actor/dcp_checkpoint/__0_0.distcp` was
+reported (6,162,284,544 bytes); `full_weights.pt` was missing. Step 100
+has a working full checkpoint and evaluated at 0/20 successes.
+
+After moving data to `/data1/Muttaqien/rlinf_data`, **preserve both original
+checkpoints**. From the repository root:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-chat
+
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_recover_stackcube_step200.py -q
+
+PYTHONPATH="$PWD" python scripts/recover_stackcube_step200.py \
+  --results-root ../results/maniskill_stackcube_panda_pi05_state_sft
+```
+
+Inspection checks whether step-100 and step-200 DCP metadata exist, whether
+all model tensor byte ranges fit inside the step-200 shard, and whether three
+probed tensors have the expected shape/dtype. No source files are changed.
+
+If inspection passes and step-200 `.metadata` is missing, the experimental,
+explicitly opted-in recovery is:
+
+```bash
+PYTHONPATH="$PWD" python scripts/recover_stackcube_step200.py \
+  --results-root ../results/maniskill_stackcube_panda_pi05_state_sft \
+  --recover --use-step100-layout
+```
+
+If step-200 metadata is present, use `--recover` without the template flag.
+Recovery checks **every tensor** against the step-100 model's keys, shapes,
+and dtypes, and writes the candidate to
+`/data1/Muttaqien/rlinf_data/recovery/state_step200/actor/model_state_dict/full_weights.pt`.
+It never overwrites the original `global_step_200` or `global_step_100`.
+
+**Caution:** With no original step-200 metadata, using step-100 byte offsets
+is provisional. Structural validation cannot prove the byte-to-key mapping
+when multiple tensors have identical shapes and dtypes. Keep the result
+clearly labeled as recovered/provisional.
+
+If a full model is successfully recovered, inspect its predictions and
+evaluate on the original 20 seeds using the **state-conditioned** config:
+
+```bash
+PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05.py \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml \
+  --checkpoint /data1/Muttaqien/rlinf_data/recovery/state_step200/actor \
+  --label state_step200_recovered \
+  --episodes 20 --seed-start 10000 --max-videos 3 \
+  --output ../results/maniskill_stackcube_panda_pi05_state_sft/evaluation/step_200_recovered
+```
+
+If the inspection reports missing metadata, truncated model bytes, or
+incompatible tensors, **do not invent or copy missing weights**. The safe
+fallback is to resume 100–200 updates from the intact step-100 checkpoint,
+after checking that its DCP `.metadata` exists. Write the resumed checkpoint
+to a distinct experiment directory rather than overwriting this run.
