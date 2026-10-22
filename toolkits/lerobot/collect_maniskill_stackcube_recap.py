@@ -120,7 +120,9 @@ def _collect_episode(
             raise ValueError(f"Expected finite pd_joint_pos action [{ACTION_DIM}], got {parsed.shape}")
         output = original_step(action, *args, **kwargs)
         actions.append(parsed)
-        observations.append(_extract_observation(output[0]))
+        observations.append(_extract_observation(
+            output[0], require_wrist_camera=require_wrist_camera
+        ))
         return output
 
     env.reset = reset_hook
