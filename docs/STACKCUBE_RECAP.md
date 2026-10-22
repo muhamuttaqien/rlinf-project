@@ -926,3 +926,40 @@ and failures across these controlled changes would support inadequate
 object-conditioned closed-loop control. If the controlled results show
 strong adaptation, investigate more complex scene differences and long
 horizon rollout dynamics before collecting more data.
+
+
+## Milestone 9.14 — Minimal SFT baseline: one-action closed-loop replanning
+
+Do not retrain or run more scene-sensitivity diagnostics until checking the
+inference/replanning cadence. The existing
+`scripts/evaluate_stackcube_pi05.py` now accepts `--action-chunk 1`:
+it still predicts 10 actions using exactly the same step-200 model,
+but executes only the *first* action, reobserves RGB and 9D qpos,
+then repredicts. The default `--action-chunk 10` preserves existing
+evaluation behavior and comparability. The executed chunk is included
+in W&B config and `results.json`.
+
+Run once on seed 0 (same seed as the previous 300-step unsuccessful
+task-stage experiment) before a longer multi-seed comparison:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-chat
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_evaluate_stackcube_pi05.py -q
+
+PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05.py \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml \
+  --checkpoint /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/checkpoints/global_step_200/actor \
+  --label state_step200_replan1_seed0 \
+  --action-chunk 1 --episodes 1 --seed-start 0 \
+  --max-steps 300 --max-videos 1 \
+  --output /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/evaluation/replan1_seed0
+```
+
+This uses up to **300 inference calls** for one 300-step episode versus
+about **30 inference calls** with the original 10-action execution chunk.
+It does not change the policy action-horizon architecture or weights.
+If seed 0 succeeds (or visibly progresses), repeat on held-out seeds
+10000–10019; if it still fails, focus the next decision on whether expert
+action replay from saved seeds works and whether more SFT is justified.
+All runtime results are placed under `/data1/Muttaqien/`.
