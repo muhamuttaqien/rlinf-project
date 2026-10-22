@@ -726,3 +726,46 @@ new step 200 may not exactly match the failed run.
 Evaluate with `--config ...pi05_state.yaml`, `--checkpoint` pointing to
 the *new* `global_step_200/actor`, and a distinct output directory. Even if
 the new model has low SFT loss, do not infer task success without rollouts.
+
+
+## Milestone 9.7 — State step-200 evaluation and task-stage diagnostics
+
+The resumed state-conditioned step-200 model evaluated at **0/20** successes
+on held-out seeds 10000–10019. Its 40 paired expert-observation predictions
+(from two *training* demonstrations) improved dramatically over the vision-only
+baseline: arm target MAE **0.02829 vs 0.17909** and gripper action absolute
+error **0.05714 vs 0.71383**. Gripper direction agreed with the expert in
+40/40 paired samples. This shows training-data imitation, **not** held-out
+success or generalized closed-loop control.
+
+The seed-10000 autonomous rollout ran 300 steps without success. The gripper
+finger qpos sum reached zero at step 81 and stayed closed for the final 220
+steps. No positive gripper commands appeared after step 70. Arm position
+target MAE after control was 0.00523 radians on average, so joint-level
+tracking is working. ManiSkill's StackCube-v1 success requires cube A to be
+stacked on cube B, stable and no longer grasped. The earlier diagnostic
+could not tell whether any grasp or stack happened.
+
+The existing `scripts/diagnose_stackcube_pi05.py` now records the simulator's
+`is_cubeA_grasped`, `is_cubeA_on_cubeB`, and `is_cubeA_static` fields and
+TCP-to-cube-A distance (meters) when exposed by the environment. It reports
+first grasp step, grasp/stack step counts and minimum grasp approach distance.
+This is an observability-only change, not a policy/controller modification.
+
+From the repository root, using the previously working CUDA environment:
+
+```bash
+PYTHONPATH="$PWD" python -m pytest tests/unit_tests/test_diagnose_stackcube_pi05.py -q
+PYTHONPATH="$PWD" python scripts/diagnose_stackcube_pi05.py \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml \
+  --checkpoint /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/checkpoints/global_step_200/actor \
+  --label state_step200_task_stages --episodes 1 --expert-episodes 1 \
+  --expert-samples 1 --seed-start 10000 \
+  --output /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/evaluation/step_200/task_stages
+```
+
+Read the terminal `TASK STAGES` summary and the corresponding
+`diagnostics.json`. Do not draw grasp conclusions from finger closure alone;
+inspect `is_cubeA_grasped` and `is_cubeA_on_cubeB` first. If grasping
+never happens, inspect gripper-to-cube approach and the recorded video before
+extending the training schedule.
