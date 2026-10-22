@@ -46,6 +46,18 @@ export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.590.48.01
 test -f "$PI05_MODEL_PATH/model.safetensors"
 ~~~
 
+## Gate 0: inspect the actual installed simulator controller
+
+~~~bash
+PYTHONPATH="$PWD" python scripts/preflight_stackcube_pi05_clean.py
+~~~
+
+This checks the active Panda EE controller's actual translation/rotation
+bounds, normalized action/frame settings, two camera observations, 8D state,
+7D action space, and repeated-seed cube positions. It does not write data or
+load the 3.35B model. **Stop** if any check fails; do not override the
+installed controller to make the check pass.
+
 ## Gate 1: collect one successful expert demonstration
 
 ~~~bash
@@ -91,6 +103,11 @@ normalization stats. Do not train if these checks fail.
 Only after Gate 2 passes:
 
 ~~~bash
+# Never silently reuse the previous SFT checkpoint.
+: "${PI05_MODEL_PATH:?Set PI05_MODEL_PATH to the ORIGINAL pi05_base directory}"
+test -f "$PI05_MODEL_PATH/model.safetensors" || exit 1
+test -f "$STACKCUBE_NORM_STATS" || exit 1
+
 export RAY_ADDRESS=local
 export RAY_TMPDIR=/data1/Muttaqien/rlinf_data/ray_stackcube_pi05_clean_v1
 export RLINF_RAY_DISABLE_DASHBOARD=1
@@ -114,6 +131,18 @@ First perform offline teacher-forced comparison on saved expert observations,
 including grasp and orientation phases. Then evaluate held-out simulator seeds
 with an explicitly selected 10-action chunk. Report actual task success,
 sustained grasp/lift and pose discrepancies, not only training loss.
+
+~~~bash
+RUN_ROOT="$STACKCUBE_RESULTS_ROOT/maniskill_stackcube_pi05_clean_v1"
+PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05_ee_delta.py \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_clean_v1.yaml \
+  --checkpoint "$RUN_ROOT/checkpoints/global_step_600/actor" \
+  --norm-stats "$STACKCUBE_NORM_STATS" \
+  --episodes 10 --seed-start 10000 --action-chunk 10 \
+  --policy-noise-seed 1234 \
+  --output "$RUN_ROOT/evaluation/step_600"
+~~~
+
 
 The flow-matching loss is averaged across the 32-dimensional padded model
 action representation. It must not be confused with accuracy on the seven
