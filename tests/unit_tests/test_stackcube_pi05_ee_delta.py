@@ -240,11 +240,11 @@ def test_rollout_executes_predicted_chunk_in_order(monkeypatch):
     assert frames == []
 
 
-def test_ee_eval_defaults_to_closed_loop_replanning():
+def test_ee_eval_defaults_to_ten_step_chunk():
     import inspect
     from scripts.evaluate_stackcube_pi05_ee_delta import (
         evaluate_one, decode_action_chunk,
     )
 
-    assert inspect.signature(evaluate_one).parameters["action_chunk"].default == 1
-    assert inspect.signature(decode_action_chunk).parameters["action_chunk"].default == 1
+    assert inspect.signature(evaluate_one).parameters["action_chunk"].default == 10
+    assert inspect.signature(decode_action_chunk).parameters["action_chunk"].default == 10
