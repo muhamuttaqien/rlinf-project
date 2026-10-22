@@ -119,11 +119,14 @@ test -f "$PI05_MODEL_PATH/model.safetensors" || exit 1
 test -f "$STACKCUBE_NORM_STATS" || exit 1
 
 export RAY_ADDRESS=local
-export RAY_TMPDIR=/data1/Muttaqien/rlinf_data/ray_stackcube_pi05_clean_v1
+export RAY_TMPDIR=/data1/Muttaqien/rt
 export RLINF_RAY_DISABLE_DASHBOARD=1
 export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
 export RLINF_RAY_LOCAL_NUM_GPUS=1
 mkdir -p "$RAY_TMPDIR"
+# Keep Ray's AF_UNIX socket paths short: it appends /ray/session.../sockets/.
+# A nested path such as .../rlinf_data/ray_stackcube_pi05_clean_v1 fails
+# Linux's 107-byte Unix-domain socket path limit before SFT begins.
 
 PYTHONPATH="$PWD" python examples/sft/train_vla_sft.py \
   --config-path "$PWD/examples/sft/config" \
