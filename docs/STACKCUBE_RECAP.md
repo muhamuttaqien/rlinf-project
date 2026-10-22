@@ -501,3 +501,102 @@ execution errors or weak feedback correction. Look at the gripper command
 trajectory *alongside* actual finger qpos to distinguish targets from
 physical actuation. This diagnostic does not alter saved datasets,
 checkpoints, Ray processes, controllers, or NVIDIA driver configuration.
+
+
+## Milestone 9 — State-conditioned Pi0.5 SFT (controlled comparison)
+
+The initial vision-only 200-step SFT experiment reported `0/20`
+successes. Dense expert-observation diagnostics (40 samples) showed
+arm MAE `0.17909` and gripper command absolute error `0.71383`,
+with an opening-direction prediction accuracy of 10/20 and
+closing-direction accuracy of 17/20. These indicate poor expert action
+imitation but do not identify a single causal mechanism.
+
+A key hypothesis is that the initial Pi0.5 config used
+`discrete_state_input=False`. In OpenPI Pi0.5, proprioceptive state is
+normally discretized into the prompt by `TokenizePrompt` when this
+flag is True; with it disabled, there is no separate Pi0 continuous-state
+projection in Pi0.5. This experiment adds state-conditioned prompt
+tokens without changing the dataset, 8D absolute `pd_joint_pos`
+action targets, image cameras, controller, model weights used to
+initialize training, optimizer, training length, or norm stats.
+
+### Separate files and result namespaces
+
+- Vision-only baseline **unchanged**:
+  `examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05.yaml`
+  with OpenPI `pi05_stackcube_panda_joint`,
+  run `maniskill_stackcube_panda_pi05_sft`.
+- State-conditioned experiment **new**:
+  `examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml`
+  with OpenPI `pi05_stackcube_panda_joint_state`,
+  run `maniskill_stackcube_panda_pi05_state_sft`.
+
+Both are in W&B project `rlinf-openpi-recap`. The state-conditioned
+experiment writes to a separate checkpoint/result directory. Do **not**
+use the previous 200-step checkpoint as the initial `PI05_MODEL_PATH`;
+use the **same pretrained Pi0.5 base** for a fair comparison.
+
+### Run on laboratory GPU 0
+
+From the RLinf repository root after `git pull`, using the same
+working NVML user-level override and Ray-local settings as the
+successful 200-step run:
+
+```bash
+export PI05_MODEL_PATH="$PWD/checkpoints/torch/pi05_base_rlinf"
+export STACKCUBE_DATASET="local/stackcube_sft_pilot100_lab"
+export STACKCUBE_NORM_STATS="$PWD/assets/pi05_stackcube_panda_joint/local/stackcube_sft_pilot100_lab/norm_stats.json"
+export EMBODIED_PATH="$PWD/examples/sft"
+export CUDA_VISIBLE_DEVICES=0
+export RAY_ADDRESS=local
+export RAY_TMPDIR="$HOME/.cache/ray-stackcube"
+export RLINF_RAY_DISABLE_DASHBOARD=1
+export RLINF_RAY_LOCAL_NUM_GPUS=1
+export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
+export LD_LIBRARY_PATH="$HOME/.cache/rlinf-nvidia-590:${LD_LIBRARY_PATH:-}"
+
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_stackcube_pi05_state_sft.py -q
+
+PYTHONPATH="$PWD" python examples/sft/train_vla_sft.py \
+  --config-path "$PWD/examples/sft/config" \
+  --config-name maniskill_stackcube_panda_sft_openpi_pi05_state \
+  runner.max_steps=200 runner.save_interval=100 \
+  actor.global_batch_size=16 actor.micro_batch_size=1 \
+  data.num_workers=0 \
+  +actor.model.openpi.torch_compile=false
+```
+
+Do not run concurrently with other GPU-heavy jobs on GPU 0. Checkpoint
+should be at:
+`../results/maniskill_stackcube_panda_pi05_state_sft/checkpoints/global_step_200/actor/model_state_dict/full_weights.pt`.
+
+### Comparable evaluation and diagnostics
+
+On completion, use the registered state-conditioned transforms at
+inference time; otherwise the policy may silently receive the wrong
+prompt format. The existing evaluator and diagnostics script both
+accept the new `--config` option:
+
+```bash
+PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05.py \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml \
+  --checkpoint ../results/maniskill_stackcube_panda_pi05_state_sft/checkpoints/global_step_200/actor \
+  --label state_step200 \
+  --episodes 20 --seed-start 10000 --max-videos 3 \
+  --output ../results/maniskill_stackcube_panda_pi05_state_sft/evaluation/step_200
+
+PYTHONPATH="$PWD" python scripts/diagnose_stackcube_pi05.py \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml \
+  --checkpoint ../results/maniskill_stackcube_panda_pi05_state_sft/checkpoints/global_step_200/actor \
+  --label state_step200 --episodes 1 \
+  --expert-episodes 2 --expert-samples 20 \
+  --output ../results/maniskill_stackcube_panda_pi05_state_sft/evaluation/step_200/diagnostics
+```
+
+Compare the original vision-only 0/20 result with the state-conditioned
+policy on seeds 10000–10019 and the same `pd_joint_pos` controller.
+The diagnostic summarizes expert action/gripper errors on 40 matching
+expert observations, and both experiments have separate W&B runs.
+Performance improvement is a **hypothesis**, not an asserted result.
