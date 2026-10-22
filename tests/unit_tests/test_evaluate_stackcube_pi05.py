@@ -110,3 +110,75 @@ def test_rollout_stops_at_truncation(monkeypatch):
     )
     assert result == {"seed": 10_001, "success": False, "steps": 2}
     assert frames == []
+
+
+
+@pytest.mark.parametrize(
+    ("action_chunk", "expected_calls", "expected_arm_targets"),
+    [
+        (10, 1, [1.0, 2.0, 3.0]),
+        (1, 3, [1.0, 101.0, 201.0]),
+    ],
+)
+def test_replanning_interval_executes_only_requested_actions(
+    monkeypatch, action_chunk, expected_calls, expected_arm_targets
+):
+    """One-action mode must reobserve at every step, not replay a cached chunk."""
+    class FakeModel:
+        calls = 0
+
+        def predict_action_batch(self, obs, mode):
+            assert mode == "eval"
+            self.calls += 1
+            observed_step = int(obs["states"][0, 0])
+            values = np.arange(1, 11, dtype=np.float32) + observed_step * 100
+            return np.broadcast_to(values[None, :, None], (1, 10, 8)).copy(), {}
+
+    class FakeEnv:
+        steps = 0
+
+        def __init__(self):
+            self.commands = []
+
+        def reset(self, *, seed):
+            assert seed == 10_000
+            return {"frame": 0}, {}
+
+        def step(self, action):
+            assert action.shape == (1, 8)
+            self.commands.append(float(action[0, 0]))
+            self.steps += 1
+            return (
+                {"frame": self.steps},
+                0.0,
+                False,
+                False,
+                {"success": np.array([False])},
+            )
+
+    def fake_extract(obs):
+        step = obs["frame"]
+        return {
+            "states": np.full((1, 9), step, dtype=np.float32),
+            "main_images": np.zeros((1, 8, 8, 3), dtype=np.uint8),
+        }, np.zeros((8, 8, 3), dtype=np.uint8)
+
+    monkeypatch.setattr(evaluator, "extract_stackcube_obs", fake_extract)
+    env, model = FakeEnv(), FakeModel()
+    metrics, frames = evaluator.evaluate_episode(
+        env, model, seed=10_000, max_steps=3,
+        record_video=False, action_chunk=action_chunk,
+    )
+    assert metrics == {"seed": 10_000, "success": False, "steps": 3}
+    assert model.calls == expected_calls
+    assert env.commands == expected_arm_targets
+    assert frames == []
+
+
+@pytest.mark.parametrize("chunk", [0, 11])
+def test_invalid_replanning_interval_rejected_before_reset(chunk):
+    with pytest.raises(ValueError, match="action_chunk"):
+        evaluator.evaluate_episode(
+            None, None, seed=0, max_steps=1,
+            record_video=False, action_chunk=chunk,
+        )
