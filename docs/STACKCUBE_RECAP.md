@@ -450,3 +450,54 @@ Before making success-rate claims, inspect results and policy rollout videos.
 If the evaluator reports an OpenPI transform error or ManiSkill mismatch,
 fix the interface rather than changing action semantics or padding qpos.
 The tests use fakes; they do not establish actual simulator performance.
+
+
+## Milestone 8.4 — Diagnose action predictions and gripper control
+
+The first 20 held-out rollouts for the 200-step SFT policy reported 0/20
+StackCube successes (every episode reached 300 simulator steps). A low SFT
+loss by itself does not demonstrate closed-loop task performance. Before any
+more training, use the focused diagnostic to distinguish poor expert action
+imitation from joint/gripper control failures.
+
+From the lab repository root, with the working CUDA/NVML environment retained:
+
+```bash
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_diagnose_stackcube_pi05.py -q
+
+PYTHONPATH="$PWD" python scripts/diagnose_stackcube_pi05.py \
+  --episodes 2 --seed-start 10000 \
+  --expert-episodes 2 --expert-samples 3
+```
+
+The diagnostic loads the step-200 checkpoint (no retraining), applies
+the same image/state transforms and training normalization, and runs
+two complementary checks:
+
+1. **Paired expert comparison:** six saved observation/action pairs from
+   two training demonstrations. Predict 8D joint-position actions from
+   each exact saved RGB image + 9D state, then compare the *first* predicted
+   action against the corresponding expert target (7 arm joints, 1 gripper).
+   These are stochastic flow-model predictions, so error is diagnostic,
+   not a substitute for closed-loop success.
+2. **Actual environment control:** two 300-step ManiSkill rollouts,
+   recording every commanded 8D action, the observed 7 arm-joint
+   positions, and both observed finger joint positions before/after
+   execution. Controller gripper commands and measured finger qpos are
+   **not directly the same units**, so they are charted separately.
+
+The outputs are saved under
+`../results/maniskill_stackcube_panda_pi05_sft/evaluation/step_200/diagnostics/`:
+`diagnostics.json`, `rollout_actions.csv`, and a sampled policy video.
+The W&B run `maniskill_stackcube_panda_pi05_step200_diagnostics` in
+`rlinf-openpi-recap` contains paired-action tables, a gripper scatter
+chart, gripper command/finger-joint traces, and target-tracking traces.
+
+Interpretation: large paired expert discrepancies suggest problems with
+learned actions, checkpoint/input alignment, or insufficient SFT. Small
+paired discrepancies but poor closed-loop performance suggest accumulated
+execution errors or weak feedback correction. Look at the gripper command
+trajectory *alongside* actual finger qpos to distinguish targets from
+physical actuation. This diagnostic does not alter saved datasets,
+checkpoints, Ray processes, controllers, or NVIDIA driver configuration.
