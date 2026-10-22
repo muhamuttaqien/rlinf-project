@@ -123,10 +123,13 @@ def build_official_openpi_sft_dataloader(
 
     dataset_root = resolve_lerobot_dataset_root(repo_id)
     if is_lerobot_v3_dataset(dataset_root):
-        if model_cfg.openpi.config_name != "pi05_stackcube_panda_joint":
+        if model_cfg.openpi.config_name not in (
+            "pi05_stackcube_panda_joint",
+            "pi05_stackcube_panda_joint_state",
+        ):
             raise ValueError(
-                "LeRobot v3 Parquet adapter is limited to "
-                "pi05_stackcube_panda_joint; refusing other model configurations"
+                "LeRobot v3 Parquet adapter is limited to the original and "
+                "state-conditioned StackCube Pi0.5 configurations."
             )
         data_loader = _create_openpi_v3_data_loader(
             openpi_data_loader,
@@ -187,3 +190,21 @@ def _validate_openpi_model_shape(model_cfg: Any, openpi_config: Any) -> None:
             f"{model_cfg.openpi.config_name}.model.action_dim="
             f"{official_action_dim}."
         )
+    # Pi0.5 tokenizes state only when discrete_state_input=True. Ensure the
+    # RLinf model and the upstream OpenPI data tokenizer cannot disagree.
+    local_discrete = OmegaConf.select(
+        model_cfg, "openpi.discrete_state_input", default=None
+    )
+    if local_discrete is not None:
+        upstream_discrete = bool(
+            getattr(openpi_config.model, "discrete_state_input", False)
+        )
+        if bool(local_discrete) != upstream_discrete:
+            raise ValueError(
+                "Pi0.5 state conditioning mismatch: "
+                f"RLinf YAML discrete_state_input={local_discrete}, but "
+                f"OpenPI {model_cfg.openpi.config_name} "
+                f"discrete_state_input={upstream_discrete}. "
+                "Training and inference must tokenize state identically."
+            )
+
