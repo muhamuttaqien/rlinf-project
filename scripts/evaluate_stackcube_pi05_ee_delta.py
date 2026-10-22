@@ -47,51 +47,94 @@ DEFAULT_OUTPUT = Path(
 )
 
 
-def decode_first_action(predicted) -> np.ndarray:
+def decode_action_chunk(predicted, *, action_chunk: int = 10) -> np.ndarray:
+    """Return environment-space 7D EE actions, preserving order and time."""
+    if action_chunk not in (1, 10):
+        raise ValueError("action_chunk must be 1 or 10")
     actions = as_numpy(predicted)
     if (
         actions.ndim != 3 or actions.shape[0] != 1
-        or actions.shape[1] < 1 or actions.shape[2] != ACTION_DIM
+        or actions.shape[1] < action_chunk or actions.shape[2] != ACTION_DIM
         or not np.isfinite(actions).all()
     ):
-        raise ValueError(f"Expected finite [1,horizon,{ACTION_DIM}] EE actions, got {actions.shape}")
-    return np.asarray(actions[0, 0], dtype=np.float32)
+        raise ValueError(
+            f"Expected finite [1,horizon,{ACTION_DIM}] EE actions with "
+            f"horizon >= {action_chunk}, got {actions.shape}"
+        )
+    return np.asarray(actions[0, :action_chunk], dtype=np.float32)
 
 
-def evaluate_one(env, model, seed: int, *, max_steps: int, record_video: bool):
+def decode_first_action(predicted) -> np.ndarray:
+    """Legacy helper for first-action replanning."""
+    return decode_action_chunk(predicted, action_chunk=1)[0]
+
+
+def _robot_grasped(env, info) -> bool | None:
+    """Use robot contact detection when available; don't invent 0 grasps."""
+    agent = env.unwrapped.agent
+    if hasattr(agent, "is_grasping"):
+        return scalar_bool(agent.is_grasping(env.unwrapped.cubeA))
+    if "is_cubeA_grasped" in info:
+        return scalar_bool(info["is_cubeA_grasped"])
+    return None
+
+
+def evaluate_one(
+    env, model, seed: int, *, max_steps: int, record_video: bool,
+    action_chunk: int = 10,
+):
+    """Evaluate executable chunks and report initial command for investigation."""
+    if action_chunk not in (1, 10):
+        raise ValueError("action_chunk must be 1 or 10")
     obs, _ = env.reset(seed=seed)
     steps = 0
     success = False
-    grasped = False
+    grasped: bool | None = None
     closest = float("inf")
     frames = []
-    while steps < max_steps:
+    first_action = None
+    first_tcp = as_numpy(env.unwrapped.agent.tcp.pose.p).reshape(3).copy()
+    first_cube = as_numpy(env.unwrapped.cubeA.pose.p).reshape(3).copy()
+    finished = False
+
+    while steps < max_steps and not finished:
         parsed = extract_ee_observation(env, obs)
-        if record_video and steps % 2 == 0:
+        if record_video and (steps % 2 == 0 or not frames):
             frames.append(parsed["image"].copy())
-        action_chunk, _ = model.predict_action_batch(
+        action_batch, _ = model.predict_action_batch(
             policy_input(parsed), mode="eval"
         )
-        # This action already lives in ManiSkill's normalized 7D
-        # pd_ee_delta_pose action space. Do NOT apply delta transforms twice.
-        action = decode_first_action(action_chunk)
-        obs, _reward, terminated, truncated, info = env.step(action[None, :])
-        steps += 1
-        success |= success_from_info(info)
-        if "is_cubeA_grasped" in info:
-            grasped |= scalar_bool(info["is_cubeA_grasped"])
-        tcp = as_numpy(env.unwrapped.agent.tcp.pose.p).reshape(3)
-        cube = as_numpy(env.unwrapped.cubeA.pose.p).reshape(3)
-        closest = min(closest, float(np.linalg.norm(tcp - cube)))
-        if success or scalar_bool(terminated) or scalar_bool(truncated):
-            break
-    if record_video:
+        actions = decode_action_chunk(action_batch, action_chunk=action_chunk)
+        if first_action is None:
+            first_action = actions[0].tolist()
+        for action in actions:
+            obs, _reward, terminated, truncated, info = env.step(action[None, :])
+            steps += 1
+            success |= success_from_info(info)
+            contact = _robot_grasped(env, info)
+            if contact is not None:
+                grasped = bool(grasped) or contact
+            tcp = as_numpy(env.unwrapped.agent.tcp.pose.p).reshape(3)
+            cube = as_numpy(env.unwrapped.cubeA.pose.p).reshape(3)
+            closest = min(closest, float(np.linalg.norm(tcp - cube)))
+            finished = (
+                success or scalar_bool(terminated) or scalar_bool(truncated)
+                or steps >= max_steps
+            )
+            if record_video and (steps % 2 == 0 or finished):
+                frames.append(extract_ee_observation(env, obs)["image"].copy())
+            if finished:
+                break
+    if record_video and not frames:
         frames.append(extract_ee_observation(env, obs)["image"].copy())
     return {
         "seed": seed, "success": success, "steps": steps,
         "ever_grasped": grasped, "min_tcp_to_red_cube_m": closest,
+        "initial_tcp_xyz": first_tcp.tolist(),
+        "initial_red_cube_xyz": first_cube.tolist(),
+        "first_ee_action": first_action,
+        "action_chunk_executed": action_chunk,
     }, frames
-
 
 def run(args: argparse.Namespace):
     import torch
