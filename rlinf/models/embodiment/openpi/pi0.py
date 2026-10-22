@@ -103,6 +103,8 @@ class Pi0(model.BaseModel):
         self.pcd = config.pcd
         self.embed_dtype = _str_to_dtype(config.dtype)
         self._config = config
+        # Optional SFT-only control; default preserves the existing OpenPI behavior.
+        self.train_image_augmentation = True
 
         paligemma_config = gemma.get_config(config.paligemma_variant)
         action_expert_config = gemma.get_config(config.action_expert_variant)
@@ -782,7 +784,9 @@ class Pi0(model.BaseModel):
         batch_size = actions.shape[0]
         device = actions.device
 
-        observation = model.preprocess_observation(observation, train=True)
+        observation = model.preprocess_observation(
+            observation, train=self.train_image_augmentation
+        )
         observation = model._observation_to_dtype(observation, self.embed_dtype)
         actions = actions.to(dtype=torch.float32)
         dtype = actions.dtype
@@ -832,7 +836,9 @@ class Pi0(model.BaseModel):
         observation = self._observation_to_device(observation)
         actions = self._actions_to_device(actions)
         if not self.rlt_cfg.use_rlt:
-            per_element_loss = self.compute_loss(observation, actions, train=True)
+            per_element_loss = self.compute_loss(
+                observation, actions, train=self.train_image_augmentation
+            )
             return self._reduce_sft_loss(per_element_loss, use_action_chunk_loss)
 
         per_element_loss, prefix_output, prefix_mask = (
