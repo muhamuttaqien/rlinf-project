@@ -82,6 +82,7 @@ def run(args: argparse.Namespace) -> None:
     import torch
 
     from rlinf.data.datasets.openpi.v3_stackcube_dataset import V3StackCubeDataset
+    from rlinf.data.storage.lerobot import resolve_lerobot_dataset_root
     from rlinf.models.embodiment.openpi import get_model
     from rlinf.models.embodiment.openpi.modules.model import preprocess_observation
     from scripts.evaluate_stackcube_pi05 import make_model_config
@@ -91,7 +92,20 @@ def run(args: argparse.Namespace) -> None:
         raise RuntimeError("CUDA required to load the trained Pi0.5 checkpoint")
     ckpt = args.checkpoint.expanduser().resolve()
     stats = args.norm_stats.expanduser().resolve()
-    root = args.dataset_root.expanduser().resolve()
+    # Resolve exactly as the RLinf SFT loader does. The on-disk dataset
+    # location can differ from HF_LEROBOT_HOME set in the current shell.
+    root = (
+        args.dataset_root.expanduser().resolve()
+        if args.dataset_root is not None
+        else resolve_lerobot_dataset_root(args.repo_id)
+    )
+    if not (root / "meta" / "info.json").is_file():
+        raise FileNotFoundError(
+            f"LeRobot dataset metadata not found under {root}. "
+            "Pass --dataset-root with the existing training dataset's "
+            "directory (the one containing meta/info.json); do not "
+            "recollect or overwrite the dataset."
+        )
     if not (ckpt / "model_state_dict/full_weights.pt").is_file():
         raise FileNotFoundError(f"Missing trained checkpoint at {ckpt}")
     if not stats.is_file():
@@ -196,11 +210,14 @@ def main() -> None:
         "checkpoints/global_step_600/actor",
     )
     parser.add_argument(
-        "--dataset-root", type=Path,
-        default=Path(os.getenv(
-            "HF_LEROBOT_HOME",
-            "/data1/Muttaqien/rlinf_data/lerobot",
-        )) / "local/stackcube_easy_ee_delta_two_cam100",
+        "--repo-id", default=os.getenv(
+            "STACKCUBE_DATASET", "local/stackcube_easy_ee_delta_two_cam100",
+        ),
+        help="LeRobot repo ID passed to RLinf's canonical dataset resolver",
+    )
+    parser.add_argument(
+        "--dataset-root", type=Path, default=None,
+        help="Optional exact existing dataset directory (contains meta/info.json)",
     )
     parser.add_argument(
         "--norm-stats", type=Path,
