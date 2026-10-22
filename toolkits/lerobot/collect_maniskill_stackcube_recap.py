@@ -51,7 +51,9 @@ def _to_numpy(value: Any) -> np.ndarray:
     return np.array(array, copy=True)
 
 
-def _extract_observation(obs: dict[str, Any]) -> dict[str, np.ndarray]:
+def _extract_observation(
+    obs: dict[str, Any], *, require_wrist_camera: bool = False
+) -> dict[str, np.ndarray]:
     """Read the RGB and proprioception fields used by the OpenPI adapter."""
     qpos = _to_numpy(obs["agent"]["qpos"]).astype(np.float32)
     if qpos.shape != (STATE_DIM,) or not np.isfinite(qpos).all():
@@ -68,11 +70,16 @@ def _extract_observation(obs: dict[str, Any]) -> dict[str, np.ndarray]:
                 return image
         raise ValueError(f"Missing RGB camera {names}; available: {list(cameras)}")
 
-    return {
-        "image": rgb("base_camera", "3rd_view_camera"),
-        "wrist_image": rgb("hand_camera", "wide_hand_camera") if any(k in cameras for k in ("hand_camera", "wide_hand_camera")) else rgb("base_camera", "3rd_view_camera"),
-        "state": qpos,
-    }
+    base_rgb = rgb("base_camera", "3rd_view_camera")
+    has_wrist = any(k in cameras for k in ("hand_camera", "wide_hand_camera"))
+    if require_wrist_camera and not has_wrist:
+        raise ValueError("Two-camera collection requires real hand_camera sensor")
+    wrist_rgb = (
+        rgb("hand_camera", "wide_hand_camera") if has_wrist else base_rgb
+    )
+    if require_wrist_camera and np.array_equal(base_rgb, wrist_rgb):
+        raise ValueError("Base and wrist camera images are identical")
+    return {"image": base_rgb, "wrist_image": wrist_rgb, "state": qpos}
 
 
 def _solver_succeeded(result: Any) -> bool:
@@ -86,7 +93,9 @@ def _solver_succeeded(result: Any) -> bool:
     return bool(_to_numpy(success).reshape(-1)[0])
 
 
-def _collect_episode(env: Any, solve: Any, seed: int) -> list[dict[str, Any]] | None:
+def _collect_episode(
+    env: Any, solve: Any, seed: int, *, require_wrist_camera: bool = False
+) -> list[dict[str, Any]] | None:
     """Record every solver step, including calls to the unwrapped ManiSkill env."""
     observations: list[dict[str, np.ndarray]] = []
     actions: list[np.ndarray] = []
@@ -99,7 +108,9 @@ def _collect_episode(env: Any, solve: Any, seed: int) -> list[dict[str, Any]] | 
         output = original_reset(*args, **kwargs)
         observations.clear()
         actions.clear()
-        observations.append(_extract_observation(output[0]))
+        observations.append(_extract_observation(
+            output[0], require_wrist_camera=require_wrist_camera
+        ))
         return output
 
     def step_hook(action: Any, *args: Any, **kwargs: Any):
@@ -214,6 +225,10 @@ def main() -> None:
     parser.add_argument("--image-size", type=_positive_int, default=224)
     parser.add_argument("--control-freq", type=_positive_int, default=20)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--easy-two-cam", action="store_true",
+        help="Collect narrow randomized StackCube with panda_wristcam and real hand camera",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -230,9 +245,11 @@ def main() -> None:
             raise FileExistsError(f"{destination} already exists; pass --overwrite to replace it")
         shutil.rmtree(destination)
 
+    if args.easy_two_cam:
+        import toolkits.lerobot.easy_stackcube_env  # noqa: F401 (register gym env)
     env = gym.make(
-        "StackCube-v1",
-        robot_uids="panda",
+        "StackCubeEasyTwoCam-v1" if args.easy_two_cam else "StackCube-v1",
+        robot_uids="panda_wristcam" if args.easy_two_cam else "panda",
         num_envs=1,
         obs_mode="rgb",
         control_mode="pd_joint_pos",
@@ -248,7 +265,9 @@ def main() -> None:
         for attempt in range(args.max_attempts):
             seed = args.seed + attempt
             try:
-                frames = _collect_episode(env, solve, seed)
+                frames = _collect_episode(
+                    env, solve, seed, require_wrist_camera=args.easy_two_cam
+                )
             except (ValueError, RuntimeError, AssertionError) as exc:
                 LOG.warning("Solver attempt seed=%s failed: %s", seed, exc)
                 continue
