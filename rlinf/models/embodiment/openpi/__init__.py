@@ -242,6 +242,13 @@ def get_model(cfg: Any, torch_dtype: Any = None) -> Any:
             "use 'eval', 'sft', 'rl', 'dagger', or 'dsrl'."
         )
 
+    # SFT-only, opt-in switch for a baseline with identical train/eval image
+    # geometry. Default True preserves the established augmenting behavior.
+    if task == "sft":
+        model.train_image_augmentation = bool(
+            OmegaConf.select(model_cfg, "train_image_augmentation", default=True)
+        )
+
     if full_weights_path is not None:
         load_full_weights(
             model,
