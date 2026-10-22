@@ -48,7 +48,8 @@ class V3StackCubeDataset:
     """Map-style samples compatible with OpenPI's ManiSkill repack transform."""
 
     def __init__(
-        self, root: str | Path, *, action_horizon: int, repo_id: str | None = None
+        self, root: str | Path, *, action_horizon: int, repo_id: str | None = None,
+        use_wrist_image: bool = False
     ):
         import pyarrow.parquet as pq
 
@@ -62,6 +63,7 @@ class V3StackCubeDataset:
         if action_horizon < 1:
             raise ValueError("action_horizon must be positive")
         self.action_horizon = action_horizon
+        self.use_wrist_image = bool(use_wrist_image)
 
         features = self.info["features"]
         for key, shape in (("state", [9]), ("actions", [8])):
@@ -78,6 +80,15 @@ class V3StackCubeDataset:
                 f"feature, got {camera}"
             )
 
+        if self.use_wrist_image:
+            wrist = features.get("wrist_image", {})
+            if wrist.get("dtype") != "image" or list(wrist.get("shape", [])) != [
+                224, 224, 3
+            ]:
+                raise ValueError(
+                    "Two-camera StackCube requires a real 224x224 wrist_image feature"
+                )
+
         data_files = sorted((self.root / "data").rglob("*.parquet"))
         episode_files = sorted((self.root / "meta" / "episodes").rglob("*.parquet"))
         if not data_files or not episode_files:
@@ -91,7 +102,8 @@ class V3StackCubeDataset:
         frames = []
         for file in data_files:
             schema = set(pq.read_schema(file).names)
-            missing = (set(numeric_keys) | {"image"}) - schema
+            image_keys = {"image", "wrist_image"} if self.use_wrist_image else {"image"}
+            missing = (set(numeric_keys) | image_keys) - schema
             if missing:
                 raise ValueError(f"{file} missing Parquet columns {sorted(missing)}")
             rows = pq.read_table(file, columns=list(numeric_keys)).to_pylist()
@@ -166,7 +178,7 @@ class V3StackCubeDataset:
         state["_cached_group"] = None
         return state
 
-    def _embedded_image(self, frame: dict) -> np.ndarray:
+    def _embedded_image(self, frame: dict, *, image_key: str = "image") -> np.ndarray:
         """Decode the selected embedded RGB image from its Parquet row group."""
         import pyarrow.parquet as pq
         from PIL import Image
@@ -181,16 +193,16 @@ class V3StackCubeDataset:
         if not 0 <= group_index < parquet.num_row_groups:
             raise IndexError(f"Parquet row offset outside file: {row_offset}")
 
-        group_key = (str(path), group_index)
+        group_key = (str(path), group_index, image_key)
         if self._cached_group_key != group_key:
             self._cached_group = parquet.read_row_group(
-                group_index, columns=["image"]
-            ).column("image")
+                group_index, columns=[image_key]
+            ).column(image_key)
             self._cached_group_key = group_key
         entry = self._cached_group[row_offset - offsets[group_index]].as_py()
         if not isinstance(entry, dict):
             raise ValueError(
-                f"Expected embedded LeRobot image struct, got {type(entry)}"
+                f"Expected embedded LeRobot {image_key} struct, got {type(entry)}"
             )
         encoded = entry.get("bytes")
         if encoded is not None:
@@ -237,13 +249,18 @@ class V3StackCubeDataset:
             raise ValueError(f"Nonfinite robot values at frame {idx}")
 
         image = self._embedded_image(frame)
+        wrist_image = (
+            self._embedded_image(frame, image_key="wrist_image")
+            if self.use_wrist_image else np.zeros_like(image)
+        )
+        if self.use_wrist_image and np.array_equal(image, wrist_image):
+            raise ValueError("Two-camera sample has identical base and wrist images")
         return {
             "state": state,
             "actions": actions,
             "image": image,
-            # The collector's wrist camera is a duplicated base-camera frame.
-            # Use zeros and leave its OpenPI mask disabled.
-            "wrist_image": np.zeros_like(image),
+            # The legacy single-camera config still masks out this placeholder.
+            "wrist_image": wrist_image,
             "episode_index": np.int64(frame["episode_index"]),
             "frame_index": np.int64(frame["frame_index"]),
         }
