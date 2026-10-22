@@ -78,10 +78,69 @@ def selected_indices(start: int, end: int, count: int) -> list[int]:
     ).tolist()
 
 
+def load_expert_samples(
+    root: Path, repo_id: str, episode_id: int, samples: int,
+) -> tuple[str, list[tuple[int, dict]]]:
+    """Use the same native LeRobot reader chosen by RLinf's SFT data loader.
+
+    LeRobot v3 needs RLinf's Parquet adapter; v2.1 uses LeRobotDataset with
+    OpenPI's native action-horizon delta timestamps. Both return *raw*
+    unnormalized actions and camera observations for this diagnostic.
+    """
+    from rlinf.data.datasets.openpi.v3_stackcube_dataset import (
+        V3StackCubeDataset, is_lerobot_v3_dataset,
+    )
+
+    if is_lerobot_v3_dataset(root):
+        dataset = V3StackCubeDataset(
+            root, action_horizon=10, use_wrist_image=True,
+            state_dim=8, action_dim=7,
+        )
+        if episode_id not in dataset.episodes:
+            raise ValueError(f"Episode {episode_id} not present in dataset")
+        episode = dataset.episodes[episode_id]
+        chosen = selected_indices(
+            int(episode["dataset_from_index"]),
+            int(episode["dataset_to_index"]),
+            samples,
+        )
+        return "v3-parquet", [(idx, dataset[idx]) for idx in chosen]
+
+    # Exactly the native reader used by OpenPI create_torch_dataset for
+    # datasets that are not recognized as v3; pin an explicit local root to
+    # avoid resolving/downloading an unrelated Hub dataset.
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    info = json.loads((root / "meta" / "info.json").read_text(encoding="utf-8"))
+    fps = float(info["fps"])
+    if fps <= 0:
+        raise ValueError(f"Dataset FPS must be positive, got {fps}")
+    dataset = LeRobotDataset(
+        repo_id=repo_id,
+        root=root,
+        delta_timestamps={"actions": [t / fps for t in range(10)]},
+    )
+    # v2.1 has an indexed HF table; inspect episode_index without decoding
+    # all the camera frames. Fall back to indexed item reads if necessary.
+    if hasattr(dataset, "hf_dataset"):
+        episode_ids = dataset.hf_dataset["episode_index"]
+    else:
+        episode_ids = [
+            dataset[i]["episode_index"] for i in range(len(dataset))
+        ]
+    matched = [
+        i for i, value in enumerate(episode_ids)
+        if int(np.asarray(value).reshape(-1)[0]) == episode_id
+    ]
+    if not matched:
+        raise ValueError(f"Episode {episode_id} not present in dataset")
+    offsets = selected_indices(0, len(matched), samples)
+    return "native-lerobot", [(matched[i], dataset[matched[i]]) for i in offsets]
+
+
 def run(args: argparse.Namespace) -> None:
     import torch
 
-    from rlinf.data.datasets.openpi.v3_stackcube_dataset import V3StackCubeDataset
     from rlinf.data.storage.lerobot import resolve_lerobot_dataset_root
     from rlinf.models.embodiment.openpi import get_model
     from rlinf.models.embodiment.openpi.modules.model import preprocess_observation
@@ -111,18 +170,11 @@ def run(args: argparse.Namespace) -> None:
     if not stats.is_file():
         raise FileNotFoundError(f"Missing norm stats at {stats}")
 
-    dataset = V3StackCubeDataset(
-        root, action_horizon=10, use_wrist_image=True,
-        state_dim=8, action_dim=7,
+    dataset_format, examples = load_expert_samples(
+        root, args.repo_id, args.episode, args.samples,
     )
-    if args.episode not in dataset.episodes:
-        raise ValueError(f"Episode {args.episode} not present in dataset")
-    episode = dataset.episodes[args.episode]
-    indices = selected_indices(
-        int(episode["dataset_from_index"]),
-        int(episode["dataset_to_index"]),
-        args.samples,
-    )
+    print(f"DATASET format={dataset_format} root={root} "
+          f"episode={args.episode} samples={len(examples)}")
 
     cfg, _ = make_model_config(
         args.config, DEFAULT_MODEL_CONFIG, ckpt, stats,
@@ -132,8 +184,7 @@ def run(args: argparse.Namespace) -> None:
     rows = []
 
     with torch.inference_mode():
-        for index in indices:
-            row = dataset[index]
+        for index, row in examples:
             input_data = policy_input(row)
             observation = model.env_obs_to_observation(input_data)
             noise = torch.randn(
@@ -161,7 +212,7 @@ def run(args: argparse.Namespace) -> None:
             legacy_actions = legacy[0].detach().cpu().numpy()
             result = {
                 "dataset_index": index,
-                "frame_index": int(row["frame_index"]),
+                "frame_index": int(np.asarray(row["frame_index"]).reshape(-1)[0]),
                 "expert_first_action": target[0].tolist(),
                 "inference_first_action": normal_actions[0].tolist(),
                 "training_view_first_action": legacy_actions[0].tolist(),
@@ -192,6 +243,7 @@ def run(args: argparse.Namespace) -> None:
     report = {
         "checkpoint": str(ckpt),
         "dataset_root": str(root),
+        "dataset_format": dataset_format,
         "episode": args.episode,
         "sample_seed": args.seed,
         "samples": len(rows),
