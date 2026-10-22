@@ -24,6 +24,7 @@ few successes: never relabel unverified demonstrations as expert data.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from typing import Any
 
@@ -171,6 +172,9 @@ def main() -> None:
     env = make_env()
     dataset = None
     success_count = 0
+    # Keep a sidecar mapping each saved expert episode to its original
+    # simulator seed; this is needed for exact replay / debugging later.
+    saved_episodes: list[dict[str, int]] = []
     try:
         for attempt in range(args.max_attempts):
             seed = args.seed + attempt
@@ -212,6 +216,27 @@ def main() -> None:
             for frame in frames:
                 add_frame_to_dataset(dataset, frame)
             dataset.save_episode()
+            saved_episodes.append({
+                "episode_index": success_count,
+                "seed": seed,
+                "steps": len(frames),
+            })
+            # Sidecar metadata does not alter LeRobot columns or training data.
+            (target_dir / "collection_manifest.json").write_text(
+                json.dumps({
+                    "repo_id": args.repo_id,
+                    "robot": "panda_wristcam",
+                    "environment": "StackCubeEasyEEDeltaTwoCam-v1",
+                    "control_mode": "pd_ee_delta_pose",
+                    "state_dim": STATE_DIM,
+                    "action_dim": ACTION_DIM,
+                    "fps": 20,
+                    "requested_episodes": args.num_episodes,
+                    "successful_episodes": len(saved_episodes),
+                    "episodes": saved_episodes,
+                }, indent=2) + "\n",
+                encoding="utf-8",
+            )
             success_count += 1
             if (
                 success_count == 1 or success_count % 10 == 0
