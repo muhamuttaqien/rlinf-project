@@ -62,7 +62,7 @@ actor:
       action_env_dim: ${actor.model.action_dim}
       model_action_dim: 32
       num_images_in_input: 2  # Actual base camera and robot-mounted wrist camera
-      discrete_state_input: True  # Tokenize real 9D Panda qpos into the Pi0.5 prompt
+      discrete_state_input: True  # Tokenize 8D TCP pose and gripper width into the Pi0.5 prompt
       train_expert_only: False
       use_rlt: False
       detach_critic_input: True
