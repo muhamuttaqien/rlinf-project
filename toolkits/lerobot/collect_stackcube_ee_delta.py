@@ -213,10 +213,14 @@ def main() -> None:
                 add_frame_to_dataset(dataset, frame)
             dataset.save_episode()
             success_count += 1
-            LOG.info(
-                "SAVED successful EE episode %d/%d seed=%d steps=%d",
-                success_count, args.num_episodes, seed, len(frames)
-            )
+            if (
+                success_count == 1 or success_count % 10 == 0
+                or success_count == args.num_episodes
+            ):
+                LOG.info(
+                    "SAVED successful EE episode %d/%d seed=%d steps=%d",
+                    success_count, args.num_episodes, seed, len(frames)
+                )
             if success_count >= args.num_episodes:
                 break
     finally:
