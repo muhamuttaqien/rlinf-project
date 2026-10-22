@@ -105,6 +105,7 @@ class Pi0(model.BaseModel):
         self._config = config
         # Optional SFT-only control; default preserves the existing OpenPI behavior.
         self.train_image_augmentation = True
+        self.report_env_action_loss = False
 
         paligemma_config = gemma.get_config(config.paligemma_variant)
         action_expert_config = gemma.get_config(config.action_expert_variant)
@@ -839,7 +840,20 @@ class Pi0(model.BaseModel):
             per_element_loss = self.compute_loss(
                 observation, actions, train=self.train_image_augmentation
             )
-            return self._reduce_sft_loss(per_element_loss, use_action_chunk_loss)
+            loss = self._reduce_sft_loss(per_element_loss, use_action_chunk_loss)
+            if not self.report_env_action_loss:
+                return loss
+            # Diagnostic metrics only: the full 32D loss remains the
+            # optimization target. Report executable channels separately.
+            env_dim = int(self.action_env_dim)
+            if not 1 <= env_dim <= per_element_loss.shape[-1]:
+                raise ValueError(f"Invalid executable action dimension: {env_dim}")
+            return {
+                "loss": loss,
+                "flow_loss_env_7d": per_element_loss[..., :env_dim].mean().detach(),
+                "flow_loss_arm_6d": per_element_loss[..., :6].mean().detach(),
+                "flow_loss_gripper_1d": per_element_loss[..., 6:7].mean().detach(),
+            }
 
         per_element_loss, prefix_output, prefix_mask = (
             self._sft_forward_with_rlt_prefix(observation, actions)
