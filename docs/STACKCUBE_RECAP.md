@@ -397,3 +397,56 @@ Stage 1 now handles LeRobot task descriptions from either `meta/tasks.jsonl`
 or `meta/tasks.parquet`. For future failed-policy rollout datasets, it also
 unpacks shape-(1,) Boolean success labels correctly, so `[False]` is a failed
 episode rather than being interpreted as a truthy list.
+
+
+## Milestone 8 — Evaluate StackCube policy after SFT
+
+The 200-step SFT pilot completed on the 96 GB lab GPU (final reported
+`train/loss=0.0646`). This is a training metric, not a success rate.
+RLinf's FSDP checkpoint writer saves inference-ready model weights at:
+
+```text
+../results/maniskill_stackcube_panda_pi05_sft/checkpoints/
+  global_step_200/actor/model_state_dict/full_weights.pt
+```
+
+Use `scripts/evaluate_stackcube_pi05.py` to run real **policy-generated**
+ManiSkill StackCube-v1 rollouts, without the expert planner. It constructs the
+same Panda, RGB 224×224, `pd_joint_pos`, 9D qpos and 8D action environment
+used to collect the SFT demonstrations. The official OpenPI transforms load
+the exact SFT normalization stats and decode 10-action chunks to 8D absolute
+joint targets. The local JSON file records every seed, success flag and
+episode length. Video frames are captured from the simulator, not reused from
+the demonstration dataset, and up to three rollout MP4s are uploaded to W&B.
+
+From the same lab terminal where SFT succeeded, retain the working NVIDIA
+NVML library override and CUDA selection. Run from the repository root:
+
+```bash
+test -s ../results/maniskill_stackcube_panda_pi05_sft/checkpoints/global_step_200/actor/model_state_dict/full_weights.pt
+PYTHONPATH="$PWD" python -m pytest tests/unit_tests/test_evaluate_stackcube_pi05.py -q
+PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05.py \
+  --episodes 20 --seed-start 10000 --max-videos 3
+```
+
+This does not use Ray and will load only one checkpoint onto CUDA. The
+default held-out candidate seeds are 10000–10019; confirm your demonstration
+collection did not use these seeds. Results go to
+`../results/maniskill_stackcube_panda_pi05_sft/evaluation/step_200/results.json`.
+W&B project: `rlinf-openpi-recap`, run name:
+`maniskill_stackcube_panda_pi05_step200_eval`.
+
+The pretrained model baseline should use **the same seeds**, environment and
+normalization, in a separate process/run (not simultaneously on the GPU):
+
+```bash
+PYTHONPATH="$PWD" python scripts/evaluate_stackcube_pi05.py \
+  --checkpoint "$PI05_MODEL_PATH" \
+  --label pretrained --episodes 20 --seed-start 10000 \
+  --output ../results/maniskill_stackcube_panda_pi05_sft/evaluation/pretrained
+```
+
+Before making success-rate claims, inspect results and policy rollout videos.
+If the evaluator reports an OpenPI transform error or ManiSkill mismatch,
+fix the interface rather than changing action semantics or padding qpos.
+The tests use fakes; they do not establish actual simulator performance.
