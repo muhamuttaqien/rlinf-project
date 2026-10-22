@@ -31,9 +31,8 @@ from typing import Any
 import numpy as np
 import sapien
 
-from toolkits.lerobot.collect_maniskill_stackcube_recap import (
-    _dataset_path, _solver_succeeded,
-)
+from toolkits.lerobot.collect_maniskill_stackcube_recap import _dataset_path
+from rlinf.data.storage.lerobot import add_frame_to_dataset
 from toolkits.lerobot.stackcube_ee_delta import (
     TASK, ACTION_DIM, STATE_DIM, extract_ee_observation, make_env,
     normalized_ee_action, pose_in_robot_root, root_relative_tcp,
@@ -129,10 +128,10 @@ def collect_episode(env: Any, seed: int, *, max_steps: int = 300):
         lift_pose = sapien.Pose([0, 0, 0.10]) * grasp_pose
         if not move(lift_pose, gripper_command=-1.0):
             return None
-        target_red = base.cubeB.pose.p + np.array([[0, 0, 0.04]], dtype=np.float32)
+        target_red = _as_numpy(base.cubeB.pose.p).reshape(3) + np.array([0, 0, 0.04])
         # Keep actual grasp displacement after lifting; align the carried red cube
         # with the green cube. The 0.04m offset is one cube height.
-        offset = _as_numpy(target_red - base.cubeA.pose.p).reshape(3)
+        offset = target_red - _as_numpy(base.cubeA.pose.p).reshape(3)
         align_pose = sapien.Pose(lift_pose.p + offset, lift_pose.q)
         if not move(align_pose, gripper_command=-1.0):
             return None
@@ -205,7 +204,7 @@ def main() -> None:
                     image_writer_processes=0,
                 )
             for frame in frames:
-                dataset.add_frame(frame)
+                add_frame_to_dataset(dataset, frame)
             dataset.save_episode()
             success_count += 1
             LOG.info(
