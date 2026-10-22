@@ -80,8 +80,10 @@ def test_rollout_stops_at_success_and_uses_predicted_actions(monkeypatch):
     assert metrics == {"seed": 10_000, "success": True, "steps": 3}
     assert model.calls == 1
     assert env.steps == 3
-    assert len(frames) == 2
-    assert int(frames[-1][0, 0, 0]) == 3
+    # Initial state, periodic frame (step 2), then successful final frame
+    # (step 3, even though video_stride is 2).
+    assert len(frames) == 3
+    assert [int(frame[0, 0, 0]) for frame in frames] == [0, 2, 3]
 
 
 def test_rollout_stops_at_truncation(monkeypatch):
