@@ -39,7 +39,9 @@ CUBE_Z_M = 0.02  # 4cm cube resting on the tabletop
 MAX_YAW_RAD = 0.15
 
 
-def sample_cube_poses(batch_size: int, device: torch.device | str):
+def sample_cube_poses(
+    batch_size: int, device: torch.device | str, *, xy_half_width_m: float = XY_HALF_WIDTH_M
+):
     """Separate, non-overlapping object regions with small seeded perturbations.
 
     Called inside ManiSkill's seeded reset. Uses torch RNG with no custom seed.
@@ -47,7 +49,7 @@ def sample_cube_poses(batch_size: int, device: torch.device | str):
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
     with torch.device(device):
-        delta = (torch.rand((2, batch_size, 2)) * 2 - 1) * XY_HALF_WIDTH_M
+        delta = (torch.rand((2, batch_size, 2)) * 2 - 1) * xy_half_width_m
         yaw = (torch.rand((2, batch_size)) * 2 - 1) * MAX_YAW_RAD
         positions = torch.zeros((2, batch_size, 3))
         positions[0, :, :2] = torch.tensor(RED_CENTER_XY) + delta[0]
@@ -76,5 +78,23 @@ class EasyTwoCameraStackCubeEnv(StackCubeEnv):
     def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
         self.table_scene.initialize(env_idx)
         positions, quaternions = sample_cube_poses(len(env_idx), self.device)
+        self.cubeA.set_pose(Pose.create_from_pq(p=positions[0], q=quaternions[0]))
+        self.cubeB.set_pose(Pose.create_from_pq(p=positions[1], q=quaternions[1]))
+
+# New controlled experiment: EE delta-pose actions, narrower XY randomization.
+# Register separately so the previously prepared 2.5cm-joint baseline is unchanged.
+EE_ENV_ID = "StackCubeEasyEEDeltaTwoCam-v1"
+EE_XY_HALF_WIDTH_M = 0.01  # independent +/-1.0 cm for both cubes
+
+
+@register_env(EE_ENV_ID, max_episode_steps=300)
+class EasyEEDeltaTwoCameraStackCubeEnv(EasyTwoCameraStackCubeEnv):
+    """Same stacking physics, real wrist camera and fixed robot start, +/-1 cm."""
+
+    def _initialize_episode(self, env_idx: torch.Tensor, options: dict):
+        self.table_scene.initialize(env_idx)
+        positions, quaternions = sample_cube_poses(
+            len(env_idx), self.device, xy_half_width_m=EE_XY_HALF_WIDTH_M
+        )
         self.cubeA.set_pose(Pose.create_from_pq(p=positions[0], q=quaternions[0]))
         self.cubeB.set_pose(Pose.create_from_pq(p=positions[1], q=quaternions[1]))
