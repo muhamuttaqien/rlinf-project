@@ -14,9 +14,10 @@
 
 """Evaluate real-two-camera Pi0.5 on native 7D EE delta StackCube.
 
-Uses 1 action per 10-step prediction (replan every simulator control step).
-No joint-position actions, state estimates from privileged cube coordinates,
-or expert assistance are used. Success comes only from ManiSkill.
+Executes 10 actions per prediction by default (optional --action-chunk 1).
+Policy rollouts never use expert actions or privileged cube state as inputs.
+Optional --compare-expert runs an independent expert afterward. Success comes
+only from ManiSkill.
 """
 
 from __future__ import annotations
@@ -180,6 +181,30 @@ def run(args: argparse.Namespace):
                     f"min_tcp_m={result['min_tcp_to_red_cube_m']:.3f} "
                     f"first_action={np.round(result['first_ee_action'], 3)}"
                 )
+                if i == 0 and args.compare_expert:
+                    # Run independently after the learned policy rollout:
+                    # same controller and target seed, no expert actions used by policy.
+                    from toolkits.lerobot.collect_stackcube_ee_delta import (
+                        collect_episode,
+                    )
+
+                    expert_frames = collect_episode(
+                        env, seed, max_steps=args.max_steps
+                    )
+                    if expert_frames:
+                        expert_action = np.asarray(
+                            expert_frames[0]["actions"], dtype=np.float32
+                        )
+                        policy_action = np.asarray(
+                            result["first_ee_action"], dtype=np.float32
+                        )
+                        print(
+                            f"EXPERT seed={seed} success=1 steps={len(expert_frames)} "
+                            f"first_action={np.round(expert_action, 3)} "
+                            f"first_action_mae={np.mean(np.abs(expert_action - policy_action)):.3f}"
+                        )
+                    else:
+                        print(f"EXPERT seed={seed} success=0 (no successful expert replay)")
     finally:
         env.close()
 
@@ -215,6 +240,10 @@ def main():
     parser.add_argument(
         "--action-chunk", type=int, choices=(1, 10), default=10,
         help="Execute 10 actions per prediction, or 1 to replan each step",
+    )
+    parser.add_argument(
+        "--compare-expert", action="store_true",
+        help="After the first policy rollout, compare its initial action with a fresh expert rollout",
     )
     parser.add_argument("--seed-start", type=int, default=10000)
     parser.add_argument("--max-steps", type=int, default=300)
