@@ -92,6 +92,7 @@ def make_model_config(
     state_by_config = {
         "pi05_stackcube_panda_joint": False,
         "pi05_stackcube_panda_joint_state": True,
+        "pi05_stackcube_panda_easy_two_cam_state": True,
     }
     if config_name not in state_by_config:
         raise ValueError(
@@ -105,19 +106,27 @@ def make_model_config(
         )
     if int(model_cfg.action_dim) != 8 or int(model_cfg.openpi.action_horizon) != 10:
         raise ValueError("Expected 8D absolute actions and horizon 10")
-    if int(model_cfg.openpi.num_images_in_input) != 1:
-        raise ValueError("Expected base-camera-only StackCube training")
+    expected_cameras = (
+        2 if config_name == "pi05_stackcube_panda_easy_two_cam_state" else 1
+    )
+    if int(model_cfg.openpi.num_images_in_input) != expected_cameras:
+        raise ValueError(
+            f"Expected {expected_cameras} StackCube camera input(s) for "
+            f"{config_name}"
+        )
     OmegaConf.resolve(model_cfg)
     return model_cfg, config
 
 
-def extract_stackcube_obs(obs: dict[str, Any]) -> tuple[dict[str, Any], np.ndarray]:
-    """Match the LeRobot StackCube collector's 9D state and camera selection."""
+def extract_stackcube_obs(
+    obs: dict[str, Any], *, use_wrist_camera: bool = False
+) -> tuple[dict[str, Any], np.ndarray]:
+    """Match the LeRobot collector's 9D state, base RGB and optional wrist RGB."""
     from toolkits.lerobot.collect_maniskill_stackcube_recap import (
         _extract_observation,
     )
 
-    parsed = _extract_observation(obs)
+    parsed = _extract_observation(obs, require_wrist_camera=use_wrist_camera)
     image = parsed["image"]
     state = parsed["state"]
     if image.ndim != 3 or image.shape[-1] != 3 or state.shape != (9,):
@@ -127,6 +136,11 @@ def extract_stackcube_obs(obs: dict[str, Any]) -> tuple[dict[str, Any], np.ndarr
         "states": state[None, ...],
         "task_descriptions": [TASK],
     }
+    if use_wrist_camera:
+        wrist = parsed["wrist_image"]
+        if wrist.shape != image.shape or wrist.dtype != np.uint8:
+            raise ValueError("Expected independent 224x224 uint8 wrist camera RGB")
+        env_obs["wrist_images"] = wrist[None, ...]
     return env_obs, image
 
 
@@ -139,6 +153,7 @@ def evaluate_episode(
     record_video: bool,
     video_stride: int = 2,
     action_chunk: int = 10,
+    use_wrist_camera: bool = False,
 ) -> tuple[dict[str, Any], list[np.ndarray]]:
     """Roll out one held-out seed; compute success exclusively from ManiSkill.
 
@@ -154,7 +169,10 @@ def evaluate_episode(
     finished = False
 
     while steps < max_steps and not finished:
-        model_obs, camera = extract_stackcube_obs(obs)
+        model_obs, camera = (
+            extract_stackcube_obs(obs, use_wrist_camera=True)
+            if use_wrist_camera else extract_stackcube_obs(obs)
+        )
         if record_video and (not frames):
             frames.append(camera.copy())
 
@@ -176,7 +194,10 @@ def evaluate_episode(
                 or success
                 or steps >= max_steps
             ):
-                _, camera = extract_stackcube_obs(obs)
+                _, camera = (
+                    extract_stackcube_obs(obs, use_wrist_camera=True)
+                    if use_wrist_camera else extract_stackcube_obs(obs)
+                )
                 frames.append(camera.copy())
             if finished or success:
                 break
@@ -240,12 +261,20 @@ def run(args: argparse.Namespace) -> None:
 
     if not torch.cuda.is_available():
         raise RuntimeError("GPU inference requires CUDA; check CUDA_VISIBLE_DEVICES")
+    if args.easy_two_cam:
+        import toolkits.lerobot.easy_stackcube_env  # noqa: F401
+    expected_cameras = 2 if args.easy_two_cam else 1
+    if int(model_cfg.openpi.num_images_in_input) != expected_cameras:
+        raise ValueError(
+            f"Environment expects {expected_cameras} cameras but model config "
+            f"has {model_cfg.openpi.num_images_in_input}"
+        )
 
     LOGGER.info("Loading %s onto cuda:0", checkpoint)
     model = get_model(model_cfg).to("cuda:0").eval()
     env = gym.make(
-        "StackCube-v1",
-        robot_uids="panda",
+        "StackCubeEasyTwoCam-v1" if args.easy_two_cam else "StackCube-v1",
+        robot_uids="panda_wristcam" if args.easy_two_cam else "panda",
         num_envs=1,
         obs_mode="rgb",
         control_mode="pd_joint_pos",
@@ -278,6 +307,11 @@ def run(args: argparse.Namespace) -> None:
                     "action_dim": 8,
                     "action_chunk": args.action_chunk,
                     "obs_image_size": 224,
+                    "num_cameras": expected_cameras,
+                    "environment": (
+                        "StackCubeEasyTwoCam-v1" if args.easy_two_cam
+                        else "StackCube-v1"
+                    ),
                     "video_stride": args.video_stride,
                     "policy_type": "openpi_pi05",
                 },
@@ -295,6 +329,7 @@ def run(args: argparse.Namespace) -> None:
                     record_video=record,
                     video_stride=args.video_stride,
                     action_chunk=args.action_chunk,
+                    use_wrist_camera=args.easy_two_cam,
                 )
                 results.append(metrics)
                 LOGGER.info(
@@ -341,6 +376,10 @@ def run(args: argparse.Namespace) -> None:
             "label": args.label,
             "checkpoint": str(checkpoint),
             "action_chunk": args.action_chunk,
+            "num_cameras": expected_cameras,
+            "environment": (
+                "StackCubeEasyTwoCam-v1" if args.easy_two_cam else "StackCube-v1"
+            ),
             "episodes": len(results),
             "successes": successes,
             "success_rate": successes / len(results),
@@ -396,6 +435,10 @@ def main() -> None:
     )
     parser.add_argument("--wandb-entity", default=None)
     parser.add_argument("--no-wandb", action="store_true")
+    parser.add_argument(
+        "--easy-two-cam", action="store_true",
+        help="Evaluate the narrow-randomization Panda wristcam environment",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     run(args)
