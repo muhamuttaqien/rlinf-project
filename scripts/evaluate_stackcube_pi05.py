@@ -196,7 +196,9 @@ def run(args: argparse.Namespace) -> None:
     # any of its observations or the expert solver in the evaluation rollouts.
     from rlinf.data.storage.lerobot import resolve_lerobot_repo_id
 
-    train_repo = resolve_lerobot_repo_id(os.getenv("STACKCUBE_DATASET", "local/stackcube_sft_pilot100_lab"))
+    train_repo = resolve_lerobot_repo_id(
+        os.getenv("STACKCUBE_DATASET", "local/stackcube_sft_pilot100_lab")
+    )
     dataset_root = resolve_lerobot_dataset_root(train_repo)
     if not (dataset_root / "meta" / "info.json").is_file():
         raise FileNotFoundError(f"Training dataset not found at {dataset_root}")
