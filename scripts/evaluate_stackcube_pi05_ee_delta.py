@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Evaluate real-two-camera Pi0.5 on native 7D EE delta StackCube.
+"""Evaluate clean-v1 Pi0.5 on native 7D EE delta StackCube.
 
-Executes 1 action per prediction by default (optional --action-chunk 10).
+Executes 10 actions per prediction by default (optional --action-chunk 1).
 Policy rollouts never use expert actions or privileged cube state as inputs.
 Optional --compare-expert runs an independent expert afterward. Success comes
 only from ManiSkill.
@@ -36,15 +36,15 @@ from toolkits.lerobot.stackcube_ee_delta import (
     ACTION_DIM, extract_ee_observation, make_env, policy_input
 )
 
-CONFIG = Path("examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_easy_ee_delta_two_cam.yaml")
+CONFIG = Path("examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_clean_v1.yaml")
 MODEL_CONFIG = Path("examples/sft/config/model/pi0_5.yaml")
 DEFAULT_STATS = Path(
-    "/data1/Muttaqien/rlinf_data/pi05_stackcube_easy_ee_delta_two_cam_assets/"
-    "local/stackcube_easy_ee_delta_two_cam100/norm_stats.json"
+    "/data1/Muttaqien/rlinf_data/pi05_stackcube_clean_v1_assets/"
+    "local/stackcube_pi05_clean_v1/norm_stats.json"
 )
 DEFAULT_OUTPUT = Path(
     "/data1/Muttaqien/rlinf_data/results/"
-    "maniskill_stackcube_easy_ee_delta_two_cam_pi05_state_sft/evaluation"
+    "maniskill_stackcube_pi05_clean_v1/evaluation"
 )
 
 
@@ -88,8 +88,9 @@ def predict_policy_actions(model, parsed, *, legacy_training_view=False, rng=Non
     """
     env_obs = policy_input(parsed)
     if not legacy_training_view:
+        kwargs = {"rng": rng} if rng is not None else {}
         actions, _ = model.predict_action_batch(
-            env_obs, mode="eval", rng=rng,
+            env_obs, mode="eval", **kwargs,
         )
         return actions
 
@@ -275,8 +276,8 @@ def main():
     )
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument(
-        "--action-chunk", type=int, choices=(1, 10), default=1,
-        help="Default 1 action with feedback each step; 10 = open-loop chunk",
+        "--action-chunk", type=int, choices=(1, 10), default=10,
+        help="Default 10 action open-loop chunk; 1 = replanning after each step",
     )
     parser.add_argument(
         "--compare-expert", action="store_true",
