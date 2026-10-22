@@ -193,13 +193,18 @@ class V3StackCubeDataset:
         if not 0 <= group_index < parquet.num_row_groups:
             raise IndexError(f"Parquet row offset outside file: {row_offset}")
 
-        group_key = (str(path), group_index, image_key)
+        group_key = (str(path), group_index)
         if self._cached_group_key != group_key:
+            image_columns = (
+                ["image", "wrist_image"] if self.use_wrist_image else ["image"]
+            )
             self._cached_group = parquet.read_row_group(
-                group_index, columns=[image_key]
-            ).column(image_key)
+                group_index, columns=image_columns
+            )
             self._cached_group_key = group_key
-        entry = self._cached_group[row_offset - offsets[group_index]].as_py()
+        entry = self._cached_group.column(image_key)[
+            row_offset - offsets[group_index]
+        ].as_py()
         if not isinstance(entry, dict):
             raise ValueError(
                 f"Expected embedded LeRobot {image_key} struct, got {type(entry)}"
