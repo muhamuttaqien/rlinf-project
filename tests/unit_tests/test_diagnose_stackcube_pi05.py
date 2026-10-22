@@ -125,3 +125,63 @@ def test_summary_keeps_offline_and_online_statistics_separate():
     assert stats["paired_expert_samples"] == 1
     assert stats["paired_gripper_action_abs_error"] == pytest.approx(1.1)
     assert stats["mean_finger_qpos_sum"] == pytest.approx(0.03)
+
+
+def test_task_status_reads_stackcube_flags_and_geometry():
+    class Pose:
+        def __init__(self, xyz):
+            self.p = np.array([xyz], dtype=np.float32)
+
+    class Actor:
+        def __init__(self, xyz):
+            self.pose = Pose(xyz)
+
+    class Env:
+        def __init__(self):
+            self.agent = type("Robot", (), {"tcp": Actor([0.0, 0.0, 0.1])})()
+            self.cubeA = Actor([0.0, 0.0, 0.05])
+            self.cubeB = Actor([0.2, 0.0, 0.05])
+
+    info = {
+        "success": np.array([False]),
+        "is_cubeA_grasped": np.array([True]),
+        "is_cubeA_on_cubeB": np.array([False]),
+        "is_cubeA_static": np.array([True]),
+    }
+    status = diagnostic.stackcube_task_status(info, Env())
+    assert status["is_cubeA_grasped"] is True
+    assert status["is_cubeA_on_cubeB"] is False
+    assert status["is_cubeA_static"] is True
+    assert status["tcp_to_cubeA_m"] == pytest.approx(0.05)
+    assert status["cubeA_to_cubeB_xy_m"] == pytest.approx(0.2)
+
+
+def test_summary_counts_task_stages_without_guessing_missing_metrics():
+    expert = []
+    rollout = [{
+        "step": 1, "arm_target_mae_after": 0.01, "arm_motion_l2": 0.01,
+        "gripper_command": 1.0, "finger_qpos_sum": 0.08,
+        "is_cubeA_grasped": False, "is_cubeA_on_cubeB": False,
+        "is_cubeA_static": True, "tcp_to_cubeA_m": 0.12,
+        "cubeA_to_cubeB_xy_m": 0.2,
+    }, {
+        "step": 2, "arm_target_mae_after": 0.02, "arm_motion_l2": 0.02,
+        "gripper_command": -1.0, "finger_qpos_sum": 0.0,
+        "is_cubeA_grasped": True, "is_cubeA_on_cubeB": False,
+        "is_cubeA_static": False, "tcp_to_cubeA_m": 0.02,
+        "cubeA_to_cubeB_xy_m": 0.18,
+    }]
+    stats = diagnostic.summarize_diagnostics(expert, rollout)
+    assert stats["is_cubeA_grasped_steps"] == 1
+    assert stats["is_cubeA_grasped_first_step"] == 2
+    assert stats["is_cubeA_on_cubeB_steps"] == 0
+    assert stats["is_cubeA_on_cubeB_first_step"] is None
+    assert stats["is_cubeA_static_steps"] == 1
+    assert stats["min_tcp_to_cubeA_m"] == pytest.approx(0.02)
+    assert stats["min_cubeA_to_cubeB_xy_m"] == pytest.approx(0.18)
+
+    empty = diagnostic.summarize_diagnostics([], [{
+        "step": 1, "arm_target_mae_after": 0.01, "arm_motion_l2": 0.01,
+        "gripper_command": -1.0, "finger_qpos_sum": 0.0
+    }])
+    assert "is_cubeA_grasped_steps" not in empty
