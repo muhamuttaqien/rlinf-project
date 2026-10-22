@@ -135,6 +135,28 @@ integration with an opt-in change to disable train-only image augmentation.
 It preserves the pretrained architecture, original learning rate, action
 dimensionality, padded 32D model action space and the 600-step budget.
 
+**Launcher overrides:** run the Hydra Python entrypoint directly, as above.
+Some older SFT shell wrappers do not forward additional command-line
+arguments; they are not used for Clean V1. A controlled step override is:
+
+~~~bash
+PYTHONPATH="$PWD" python examples/sft/train_vla_sft.py \
+  --config-path "$PWD/examples/sft/config" \
+  --config-name maniskill_stackcube_panda_sft_openpi_pi05_clean_v1 \
+  runner.max_steps=100
+~~~
+
+The optimizer schedule tracks the changed step count through YAML
+interpolation. Only use this as an intentional separate experiment.
+
+**Resume limitation:** the official OpenPI loader is not a
+`StatefulDataLoader`; RLinf currently restores dataset cursor/RNG only
+for a loader of that type. The runner can resume global steps and
+model/optimizer state, but **exact sample order and RNG replay are not
+guaranteed**. Clean V1 starts with `runner.resume_dir` unset. If an
+interrupted training run must resume exactly, validate a proper
+stateful OpenPI loader path before treating it as an equivalent run.
+
 ## Gate 4: evaluate the new checkpoint
 
 First perform offline teacher-forced comparison on saved expert observations,
@@ -164,4 +186,7 @@ executable controller commands.
 - Use new repo ID, assets path, log directory and branch.
 - Do not change the controller, model architecture or all-zero padded-action
   loss without diagnosing actual runtime behavior.
+- Use Clean V1's preflight, persisted-data audit and OpenPI transform
+  round-trip gate; legacy joint-action validators target another dataset
+  representation and must not be substituted.
 - Prefer a small number of decisive checks to repeated smoke-test cascades.
