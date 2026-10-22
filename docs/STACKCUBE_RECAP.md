@@ -769,3 +769,47 @@ Read the terminal `TASK STAGES` summary and the corresponding
 inspect `is_cubeA_grasped` and `is_cubeA_on_cubeB` first. If grasping
 never happens, inspect gripper-to-cube approach and the recorded video before
 extending the training schedule.
+
+
+## Milestone 9.10 — Premature grasp closure and visual sensitivity
+
+The task-stage diagnostic on seed 0 showed the first closing gripper
+command at simulator step 61, when TCP was 0.187 m from red cube A.
+At the closest approach, step 110, TCP was still 0.074 m from cube A,
+and the gripper was already completely closed. No grasp occurred.
+This is a positioning/command-timing failure, not an inability of the
+joint controller to execute commands. It is not yet proof of absent
+visual conditioning.
+
+To isolate visual vs proprioceptive input sensitivity, use the new
+non-destructive diagnostic. It resets ManiSkill twice, on seeds 0 and
+10000, takes base camera images and qpos from the two scenes, and
+predicts four action chunks with **identical flow noise**: baseline
+(image0, qpos0), repeat (image0, qpos0), image swap (image10000,
+qpos0), and state swap (image0, qpos10000). No actions are applied.
+The same-input repeat quantifies unavoidable stochastic differences.
+The report compares physical 8D action chunks, not normalized outputs.
+
+From the repository root:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-chat
+PYTHONPATH="$PWD" python -m pytest \
+  tests/unit_tests/test_stackcube_pi05_visual_sensitivity.py -q
+
+PYTHONPATH="$PWD" python scripts/diagnose_stackcube_pi05_visual_sensitivity.py \
+  --checkpoint /data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/checkpoints/global_step_200/actor \
+  --config examples/sft/config/maniskill_stackcube_panda_sft_openpi_pi05_state.yaml \
+  --seed-a 0 --seed-b 10000
+```
+
+Output:
+`/data1/Muttaqien/rlinf_data/results/maniskill_stackcube_panda_pi05_state_sft_resume100/evaluation/step_200/visual_sensitivity/visual_sensitivity.json`.
+
+If swapping a visibly different image barely changes actions beyond
+repeat noise, visual grounding is suspect. If action differences are
+substantial, image information affects inference, but its causal
+appropriateness and generalization still require evaluation. Replacing
+one sensor modality while holding the other fixed produces an artificial
+observation pairing, so do not interpret the size of the difference
+as task performance.
