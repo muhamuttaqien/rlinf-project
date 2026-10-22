@@ -1,0 +1,99 @@
+# Easy StackCube SFT: two genuine RGB cameras and narrow cube positions.
+# Start from pretrained Pi0.5 base; previous baselines stay unchanged.
+# Use RAW dataset, not the RECAP returns copy (which has sidecar metadata).
+# This is standard OpenPI Pi0.5 SFT; RECAP CFG training is a later stage.
+defaults:
+  - model/pi0_5@actor.model
+  - hybrid_engines/fsdp@actor.fsdp_config
+  - override hydra/job_logging: stdout
+  - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    actor: 0-0
+
+runner:
+  task_type: sft
+  logger:
+    log_path: ${oc.env:STACKCUBE_RESULTS_ROOT,/data1/Muttaqien/rlinf_data/results}
+    project_name: rlinf-openpi-recap
+    experiment_name: "maniskill_stackcube_easy_two_cam_pi05_state_sft"
+    logger_backends: ["wandb", "tensorboard"]
+    # Log expert dataset examples once at startup; not learned-policy rollouts.
+    sft_media:
+      enabled: true
+      max_episodes: 2
+      frames_per_video: 32
+  max_epochs: -1
+  max_steps: 600             # initial pilot from pretrained base
+  val_check_interval: -1
+  save_interval: 100
+
+data:
+  train_data_paths: ${oc.env:STACKCUBE_DATASET,local/stackcube_easy_two_cam100}
+  num_workers: 2
+
+actor:
+  group_name: "ActorGroup"
+  training_backend: "fsdp"
+  micro_batch_size: 1
+  global_batch_size: 16
+  seed: 42
+  model:
+    model_path: ${oc.env:PI05_MODEL_PATH,/path/to/pi05_base}
+    model_type: "openpi"
+    is_lora: False
+    num_action_chunks: 10
+    action_dim: 8  # Panda pd_joint_pos (7 joints + 1 gripper command)
+    add_value_head: False
+    openpi:
+      task: sft
+      config_name: "pi05_stackcube_panda_easy_two_cam_state"
+      action_horizon: 10
+      action_chunk: ${actor.model.num_action_chunks}
+      action_env_dim: ${actor.model.action_dim}
+      model_action_dim: 32
+      num_images_in_input: 2  # Actual base camera and robot-mounted wrist camera
+      discrete_state_input: True  # Tokenize real 9D Panda qpos into the Pi0.5 prompt
+      train_expert_only: False
+      use_rlt: False
+      detach_critic_input: True
+    openpi_data:
+      # Recompute norm stats from the new easy two-camera dataset.
+      # Set STACKCUBE_NORM_STATS to the exact norm_stats.json written by
+      # toolkits/lerobot/calculate_norm_stats.py before starting SFT.
+      norm_stats_path: ${oc.env:STACKCUBE_NORM_STATS,/path/to/norm_stats.json}
+  optim:
+    lr: 1e-5
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-08
+    weight_decay: 1.0e-10
+    clip_grad: 1.0
+    total_training_steps: ${runner.max_steps}
+    lr_warmup_steps: 20
+    lr_scheduler: "cosine"
+    num_cycles: 0.5
+    min_lr: 2.5e-6
+  fsdp_config:
+    strategy: "fsdp"
+    sharding_strategy: "no_shard"
+    use_orig_params: True
+    gradient_checkpointing: False
+    mixed_precision:
+      param_dtype: ${actor.model.precision}
+      reduce_dtype: ${actor.model.precision}
+      buffer_dtype: ${actor.model.precision}
+
+reward:
+  use_reward_model: False
+critic:
+  use_critic_model: False
