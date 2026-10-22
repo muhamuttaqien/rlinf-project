@@ -277,6 +277,32 @@ _CONFIGS = [
         num_workers=2,
         num_train_steps=5000,
     ),
+    # Native Panda EE delta-pose controller and real base+wrist RGB.
+    # State is 8D TCP XYZ+WXYZ quaternion+finger opening; action is 7D.
+    TrainConfig(
+        name="pi05_stackcube_panda_easy_ee_delta_two_cam_state",
+        model=pi0_config.Pi0Config(
+            pi05=True, action_horizon=10, discrete_state_input=True
+        ),
+        data=LeRobotRLTManiSkillJointDataConfig(
+            repo_id="local/stackcube_easy_ee_delta_two_cam100",
+            base_config=DataConfig(prompt_from_task=False),
+            assets=AssetsConfig(
+                assets_dir="checkpoints/torch/pi05_stackcube_panda_joint/assets"
+            ),
+            default_prompt=(
+                "stack the red cube on top of the green cube and release it"
+            ),
+            output_action_dim=7,
+            use_wrist_image=True,
+            extra_delta_transform=False,
+        ),
+        pytorch_weight_path="checkpoints/torch/pi05_base",
+        seed=0,
+        batch_size=16,
+        num_workers=2,
+        num_train_steps=5000,
+    ),
     TrainConfig(
         name="pi05_franka",
         model=pi0_config.Pi0Config(
