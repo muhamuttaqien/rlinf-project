@@ -80,9 +80,35 @@ def _robot_grasped(env, info) -> bool | None:
     return None
 
 
+def predict_policy_actions(model, parsed, *, legacy_training_view=False, rng=None):
+    """Use the same OpenPI action sampler/decoder with controlled image input.
+
+    The legacy path reproduces image preprocessing used by the *existing*
+    checkpoint during SFT. It is diagnostic-only, not a new policy recipe.
+    """
+    env_obs = policy_input(parsed)
+    if not legacy_training_view:
+        actions, _ = model.predict_action_batch(
+            env_obs, mode="eval", rng=rng,
+        )
+        return actions
+
+    from rlinf.models.embodiment.openpi.modules.model import (
+        preprocess_observation,
+    )
+
+    observation = model.env_obs_to_observation(env_obs)
+    observation = preprocess_observation(observation, train=True)
+    model_actions = model.sample_actions(
+        observation, num_steps=model.num_steps, rng=rng,
+    )
+    return model.decode_actions(model_actions, observation.state)
+
+
 def evaluate_one(
     env, model, seed: int, *, max_steps: int, record_video: bool,
-    action_chunk: int = 1,
+    action_chunk: int = 1, legacy_training_view: bool = False,
+    policy_rng=None,
 ):
     """Evaluate executable chunks and report initial command for investigation."""
     if action_chunk not in (1, 10):
@@ -102,8 +128,9 @@ def evaluate_one(
         parsed = extract_ee_observation(env, obs)
         if record_video and (steps % 2 == 0 or not frames):
             frames.append(parsed["image"].copy())
-        action_batch, _ = model.predict_action_batch(
-            policy_input(parsed), mode="eval"
+        action_batch = predict_policy_actions(
+            model, parsed, legacy_training_view=legacy_training_view,
+            rng=policy_rng,
         )
         actions = decode_action_chunk(action_batch, action_chunk=action_chunk)
         if first_action is None:
@@ -166,9 +193,17 @@ def run(args: argparse.Namespace):
         with torch.inference_mode():
             for i in range(args.episodes):
                 seed = args.seed_start + i
+                policy_rng = (
+                    torch.Generator(device=model.device).manual_seed(
+                        args.policy_noise_seed + seed
+                    )
+                    if args.policy_noise_seed is not None else None
+                )
                 result, frames = evaluate_one(
                     env, model, seed, max_steps=args.max_steps,
                     record_video=(i == 0), action_chunk=args.action_chunk,
+                    legacy_training_view=args.legacy_training_view,
+                    policy_rng=policy_rng,
                 )
                 results.append(result)
                 if frames:
@@ -215,6 +250,8 @@ def run(args: argparse.Namespace):
         "checkpoint": str(ckpt),
         "action_dim": 7, "state_dim": 8, "cameras": 2,
         "action_chunk_executed": args.action_chunk,
+        "legacy_training_view": args.legacy_training_view,
+        "policy_noise_seed": args.policy_noise_seed,
         "episodes": len(results), "successes": successes,
         "success_rate": successes / len(results), "per_episode": results,
     }
@@ -244,6 +281,15 @@ def main():
     parser.add_argument(
         "--compare-expert", action="store_true",
         help="After the first policy rollout, compare its initial action with a fresh expert rollout",
+    )
+    parser.add_argument(
+        "--legacy-training-view", action="store_true",
+        help="Diagnostic: reproduce the checkpoint's deterministic SFT "
+             "base-camera crop in closed-loop inference",
+    )
+    parser.add_argument(
+        "--policy-noise-seed", type=int, default=None,
+        help="Make the flow-sampler noise reproducible for each environment seed",
     )
     parser.add_argument("--seed-start", type=int, default=10000)
     parser.add_argument("--max-steps", type=int, default=300)
