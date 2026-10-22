@@ -88,8 +88,21 @@ def make_model_config(
     model_cfg.openpi.task = "eval"
     model_cfg.openpi.torch_compile = False
     model_cfg.openpi_data.norm_stats_path = str(norm_stats.resolve())
-    if str(model_cfg.openpi.config_name) != "pi05_stackcube_panda_joint":
-        raise ValueError("This evaluator requires pi05_stackcube_panda_joint")
+    config_name = str(model_cfg.openpi.config_name)
+    state_by_config = {
+        "pi05_stackcube_panda_joint": False,
+        "pi05_stackcube_panda_joint_state": True,
+    }
+    if config_name not in state_by_config:
+        raise ValueError(
+            "This evaluator requires a supported StackCube Pi0.5 config "
+            "(original or state-conditioned)."
+        )
+    if bool(model_cfg.openpi.discrete_state_input) != state_by_config[config_name]:
+        raise ValueError(
+            f"State conditioning mismatch for {config_name}: expected "
+            f"discrete_state_input={state_by_config[config_name]}."
+        )
     if int(model_cfg.action_dim) != 8 or int(model_cfg.openpi.action_horizon) != 10:
         raise ValueError("Expected 8D absolute actions and horizon 10")
     if int(model_cfg.openpi.num_images_in_input) != 1:
