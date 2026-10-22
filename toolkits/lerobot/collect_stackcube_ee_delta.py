@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -160,7 +159,10 @@ def main() -> None:
             "Choose a fresh --repo-id; this collector never overwrites."
         )
 
-    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    try:
+        from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    except ModuleNotFoundError:
+        from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
     env = make_env()
     dataset = None
