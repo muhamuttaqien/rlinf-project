@@ -27,7 +27,11 @@ nuc:
   ros2_driver: null
   robot_ip: null
   tcp_frame: null
-  gripper_driver: null
+  gripper_type: robotiq          # User-confirmed hardware family; exact model pending.
+  gripper_model: null            # e.g. 2F-85 or 2F-140 only if verified.
+  gripper_connection: null       # Serial/USB-RS485 or other actual interface; inspect NUC.
+  gripper_transport: null        # ROS 2 bridge vs direct serial; do not guess.
+  gripper_driver: null           # Existing RLinf Robotiq Modbus driver is a candidate.
   command_interface: null
   state_interface: null
   controller_local_watchdog: null

@@ -1,12 +1,12 @@
 # Dataset collection plan — currently zero episodes
 
-The experiment requires **two distinct camera views** (base and wrist) and **SpaceMouse EE-space teleoperation**, with all peripherals plugged into the GPU Workstation. NUC hosts arm, gripper and safety controller. There is **no dataset yet**, so SFT and RECAP training are blocked.
+The experiment requires **two distinct camera views** (base and wrist) and **SpaceMouse EE-space teleoperation**, with all peripherals plugged into the GPU Workstation. NUC hosts the Franka arm, **Robotiq gripper**, and safety controller. There is **no dataset yet**, so SFT and RECAP training are blocked.
 
 ## Phase 1: capture synchronized raw records (after hardware connection)
 
 - **Base and wrist camera:** record two real image streams, serial IDs, capture timestamps, image dimensions, color format, exposure/crop settings, and dropped-frame indicators. Do not fake missing frames by inserting black images.
-- **NUC measured state:** capture joint positions/velocities, EE/TCP pose and twist, gripper width/state, controller state and robot time. Verify TCP and base frame conventions (including quaternion order).
-- **Workstation operator intent:** retain six SpaceMouse EE-motion axes and button events as **operator commands** (normalized input, not physical meters/radians); record timestamp, operator mapping and controller mode.
+- **NUC measured state:** capture joint positions/velocities, EE/TCP pose and twist, **Robotiq actual width/status/fault where available**, controller state and robot time. Distinguish gripper requested width from measured width and grasp success; verify tool offset and TCP calibration. Verify TCP and base frame conventions (including quaternion order).
+- **Workstation operator intent:** retain six SpaceMouse EE-motion axes and **Robotiq open/close button events** as **operator commands** (normalized input, not physical meters/radians); record timestamp, operator mapping and controller mode.
 - **NUC executed command:** record accepted/rejected EE target (actual command semantics and units) separately from human intent and measured motion; also record safety clamps and timestamps.
 - **Episode metadata:** episode ID, frame index, task text, human intervention, reset, success/failure at episode end, interruption reasons, and sampling rate.
 

@@ -18,11 +18,13 @@ The following describes repository implementations, **not** a finalized deployme
 
 **Experiment enforcement:** both images are mandatory. The existing `RealworldInputs` silently inserts a blank second image if missing, so the experiment-only validator now rejects this case *before* the transform. Image camera serials and color channel semantics are not yet verified.
 
-The planned SpaceMouse input is **6D normalized/cartesian twist intent** plus gripper button/width request, NOT the 7D SFT policy target. Neither upstream `franka_spacemouse` `Twist` nor RLinf `SpaceMouse` output establishes a metric translation/rotation action label. Record source commands and measured EE pose separately; define a reproducible action conversion only after the NUC control interface and time alignment are verified.
+The planned SpaceMouse input is **6D normalized/cartesian twist intent** plus **Robotiq** open/close or width request, NOT the 7D SFT policy target. Neither upstream `franka_spacemouse` `Twist` nor RLinf `SpaceMouse` output establishes a metric translation/rotation action label. Record source commands and measured EE pose separately; define a reproducible action conversion only after the NUC control interface and time alignment are verified.
 
 ## Upstream representation B — Franka environment / robot
 
 `rlinf/envs/real/franka/base.py` uses a nested observation with `state.tcp_pose` (7), `tcp_vel` (6), `tcp_force` (3), `tcp_torque` (3), and `gripper_position` (1) for a parallel-jaw gripper; it also contains `frames` keyed by camera name. These total **20 scalar state values** when flattened, **not 19**. The code does *not* establish which field to drop or how to form a 19D policy state. Do **not** silently truncate.
+
+The actual mounted tool is a **Robotiq gripper**. RLinf's `RobotiqGripper` (for 2F-85/2F-140) controls width in metres over Modbus RTU and derives width feedback from raw register position; the `is_open` flag tracks the requested open/close state, not independent grasp success. The precise Robotiq model, calibration, full opening width, physical mounting, TCP/tool offset and feedback validity are pending. Do not reuse Franka Hand width limits or treat a command as proof of gripping.
 
 `FrankaRobotState` stores TCP position + quaternion (SciPy `as_quat` in the ROS 1 backend, i.e. xyzw there), plus joint and force measurements. Before ROS 2 integration verify target/reference frame, quaternion convention, TCP/flange offsets, gripper width vs normalized command, units, RGB/BGR conversion, camera role mapping and timing. `FrankaEnv._frames_from` currently stores policy frames in BGR order: verify the complete model path before deciding whether conversion is required.
 
