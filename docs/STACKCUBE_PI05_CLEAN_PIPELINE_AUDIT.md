@@ -6,7 +6,7 @@
 
 ## Executive verdict
 
-The Clean V1 baseline has measurably stronger engineering controls than the previous experiment. The previous train-only image crop is disabled; training and evaluation OpenPI input fields/geometry matched on a saved sample; 100 new successful demonstrations passed persistence audit; the normalized 7D → padded 32D → decoded 7D round-trip passed; and the new SFT completed 600 steps. **No new confirmed core data/action-alignment or transform bug has been identified from this audit.** This does not establish that the full installed SFT dataloader and closed-loop policy are correct or adequate.
+The Clean V1 baseline has measurably stronger engineering controls than the previous experiment. The previous train-only image crop is disabled; training and evaluation OpenPI input fields/geometry matched on a saved sample; 100 new successful demonstrations passed persistence audit; the normalized 7D → padded 32D → decoded 7D round-trip passed; and the new SFT completed 600 steps. **No new confirmed core data/action-alignment or transform bug has been identified from this audit.** A deterministic batch from the actual installed OpenPI SFT dataloader has now passed end-to-end parity checks, but this is not a proof about every training sample, multi-worker shuffling, or learned closed-loop policy performance.
 
 Closed-loop results: **0/10 successes, 8/10 ever-grasped** at chunk=10; **0/3 successes, 2/3 ever-grasped** at chunk=1. An independent expert succeeds on evaluation seed 10000 in 63 steps.
 
