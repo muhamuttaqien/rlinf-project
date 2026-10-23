@@ -1,4 +1,4 @@
-# RECAP configuration plan — blocked until data-transform alignment
+# RECAP configuration plan — blocked until data collection and transform alignment
 
 Reuse the upstream executable pipeline rather than copying its internals:
 
@@ -8,6 +8,8 @@ Reuse the upstream executable pipeline rather than copying its internals:
 4. `examples/offline_rl/config/cfg_rl_openpi.yaml`: same positive/negative data and advantage tag; select *the same* OpenPI pi0.5 dataset transform and appropriate checkpoint.
 
 **Important blocker:** `ValueDataset` maps `robot_type=franka` to `FrankaEEInputs` and the real-world SFT `pi05_franka_pnp` maps to `RealworldInputs`. The two disagree about image mapping, so templates that simply set `robot_type=franka` are not sufficient. Resolve with a *focused* upstream-compatible adapter after inspecting a real or representative LeRobot dataset. Do not run Value Model SFT/Advantage/CFG with an invented mapping.
+
+**Current inventory:** no real demonstration or rollout dataset exists. SFT dataset, rollout dataset, norm stats, return sidecars, and advantages are all pending. Do not synthesize these as if they were measured on Franka.
 
 **Only when data exist:** fix true episode success labels and failure policy; confirm action horizon/normalization; name checkpoint/asset directories; confirm RECAP tags are identical across stages; keep artifacts outside Git.
 

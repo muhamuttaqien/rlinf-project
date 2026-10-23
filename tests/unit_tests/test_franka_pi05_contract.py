@@ -28,7 +28,7 @@ def sample():
     }
 
 
-def test_valid_transform_sample():
+def test_valid_two_camera_transform_sample():
     validate_realworld_pi05_sample(sample())
 
 
@@ -53,14 +53,22 @@ def test_nonfinite_actions_rejected():
         validate_realworld_pi05_sample(s)
 
 
-def test_bad_image_rejected():
+def test_bad_base_image_rejected():
     s = sample()
     s["observation/image"] = np.zeros((128, 128), dtype=np.uint8)
     with pytest.raises(ValueError, match="observation/image"):
         validate_realworld_pi05_sample(s)
 
 
-def test_missing_extra_view_accepted_as_upstream_fallback():
+def test_missing_wrist_image_rejected():
     s = sample()
     del s["observation/extra_view_image"]
-    validate_realworld_pi05_sample(s)
+    with pytest.raises(ValueError, match="observation/extra_view_image"):
+        validate_realworld_pi05_sample(s)
+
+
+def test_bad_wrist_image_rejected():
+    s = sample()
+    s["observation/extra_view_image"] = np.zeros((128, 128, 3), dtype=np.float32)
+    with pytest.raises(ValueError, match="observation/extra_view_image"):
+        validate_realworld_pi05_sample(s)

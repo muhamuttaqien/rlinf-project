@@ -1,0 +1,45 @@
+# Non-executable handoff profile. This is NOT a ROS 2 launch configuration.
+experiment: openpi_recap_franka
+ros:
+  domain_id: 70
+  distribution: null             # Inspect Workstation and NUC, do not guess.
+  rmw_implementation: null
+workstation:
+  roles: [training, inference, recording, teleoperation]
+  cameras:
+    base:
+      serial_number: null
+      frame_id: null
+      image_format: null
+      observation_key: observation/image
+    wrist:
+      serial_number: null
+      frame_id: null
+      image_format: null
+      observation_key: observation/extra_view_image
+  spacemouse:
+    control_space: ee_cartesian_6d
+    hardware_path: null
+    reader_implementation: null  # choose exactly one HID reader
+    operator_position_front: null
+nuc:
+  robot_model: null               # FR3 vs Panda MUST be verified
+  ros2_driver: null
+  robot_ip: null
+  tcp_frame: null
+  gripper_driver: null
+  command_interface: null
+  state_interface: null
+  controller_local_watchdog: null
+  safety_controller_verified: false
+dataset:
+  available: false
+  demonstrations: 0
+  rollouts: 0
+  lerobot_path: null
+  action_semantics: null
+  state_projection_19d: null
+  sft_recap_transform_alignment_verified: false
+deployment:
+  autonomous_control_enabled: false
+  robot_motion_enabled: false

@@ -1,13 +1,13 @@
 # OpenPI pi0.5 SFT + RECAP — Franka (pre-hardware handoff)
 
-**Status:** Milestone 0A preparation; not a tested robot deployment.
+**Status:** Pre-hardware preparation for the two-camera, EE-space teleoperation experiment; no demonstrations or rollout datasets exist yet. Not a tested robot deployment.
 
 ## Responsibility split
 
 | Workstation (GPU) | NUC (robot) |
 | --- | --- |
 | OpenPI pi0.5 SFT, inference, RECAP, LeRobot data recording | Franka arm and gripper driver/controller |
-| Locally attached cameras and SpaceMouse | Hardware safety enforcement, watchdog, controller health |
+| Two local cameras (base and wrist) and SpaceMouse | Hardware safety enforcement, watchdog, controller health |
 | ROS 2 client / observations, requested actions | ROS 2 server / state publication, bounded commands |
 
 Both machines use `ROS_DOMAIN_ID=70`; this is only a DDS discovery setting, **not** an interface contract or a guarantee of connectivity. Match ROS 2 distributions, DDS settings, QoS, network routes, firewall, host clocks, and message package versions when hardware becomes available.
@@ -25,6 +25,14 @@ Robot-control feedback loops and limits belong on the NUC. The Workstation may i
 - `rlinf/models/embodiment/openpi/policies/realworld_policy.py`: real-world OpenPI adapter.
 - `examples/offline_rl/advantage_labeling/recap/` and `examples/offline_rl/policy_optimization/cfg_rl/`: RECAP pipeline stages.
 
+## Experiment decisions (2026-10-23)
+
+- Two cameras on the **Workstation**: **base** and **wrist**. Both observations are required during recording/training; a missing image must not be replaced with a blank image in this experiment.
+- Teleoperation uses native SpaceMouse six-axis EE/cartesian motion intent, **not** joint-space teleoperation. Gripper commands use the SpaceMouse buttons.
+- The [Franka Robotics franka_spacemouse](https://github.com/frankarobotics/franka_spacemouse) ROS 2 implementation is a **reference**, not an automatically compatible backend: its example targets the **FR3**, while actual robot model and NUC controller have not been checked. See [spacemouse_ros2_reference.md](spacemouse_ros2_reference.md).
+- Dataset inventory: **none yet**. No pretrained or synthetic data should be presented as real demonstrations. See [dataset_collection_plan.md](dataset_collection_plan.md).
+- The non-executable [hardware profile](hardware_profile.example.yaml) documents intended placement without inventing actual topic names or robot IPs.
+
 ## Pre-hardware milestones
 
 - **0A:** Record system/data contracts, plus a non-deployable starting SFT config.
@@ -41,7 +49,7 @@ Robot-control feedback loops and limits belong on the NUC. The Workstation may i
 
 1. Workstation and NUC can discover each other on domain 70 and receive real timestamped arm/gripper state (read-only first).
 2. Confirm actual controller interfaces, frames, units, command semantics, QoS, clock sync, safety bounds, and watchdog behavior.
-3. Validate SpaceMouse and camera streams locally and synchronize with robot state.
+3. Validate both base and wrist camera streams and SpaceMouse locally and synchronize them with robot state.
 4. Verify a single authority for robot commands and safe operator-enabled transitions before any motion.
 5. Collect a tiny LeRobot dataset, compute OpenPI norm stats and exercise SFT/RECAP transforms with **real data** before training or deploying.
 
