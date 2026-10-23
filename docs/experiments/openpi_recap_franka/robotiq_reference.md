@@ -4,9 +4,9 @@
 
 ## Reuse existing RLinf components
 
-- [RLinf Robotiq driver](../../../../rlinf/robotics/parts/end_effectors/grippers/robotiq.py): `RobotiqGripper`, registered as `robotiq` / `robotiq_gripper`. Implements direct **Modbus RTU serial** communication via `pymodbus`, for **2F-85 and 2F-140**. It does **not** require ROS to talk to the gripper.
-- [Composable Franka robot](../../../../rlinf/robotics/robots/franka.py): its `declare_end_effector` already supports `gripper_type` and `gripper_connection`, independent of the selected arm backend.
-- [Franka + ZED + Robotiq example](../../../../examples/embodiment/config/realworld_collect_data_zed_robotiq.yaml): `gripper_type: robotiq`, example `gripper_connection: "/dev/ttyUSB0"`, `controller_node_rank: 1`. Example is **not** an approved ROS 2 deployment config.
+- [RLinf Robotiq driver](../../../rlinf/robotics/parts/end_effectors/grippers/robotiq.py): `RobotiqGripper`, registered as `robotiq` / `robotiq_gripper`. Implements direct **Modbus RTU serial** communication via `pymodbus`, for **2F-85 and 2F-140**. It does **not** require ROS to talk to the gripper.
+- [Composable Franka robot](../../../rlinf/robotics/robots/franka.py): its `declare_end_effector` already supports `gripper_type` and `gripper_connection`, independent of the selected arm backend.
+- [Franka + ZED + Robotiq example](../../../examples/embodiment/config/realworld_collect_data_zed_robotiq.yaml): `gripper_type: robotiq`, example `gripper_connection: "/dev/ttyUSB0"`, `controller_node_rank: 1`. Example is **not** an approved ROS 2 deployment config.
 - [Upstream guide](../../source-en/rst_source/examples/embodied/franka_zed_robotiq.rst): documents a multi-node arrangement, SpaceMouse, Robotiq serial control and LeRobot export. Follow the design pattern when applicable, not its assumed ZED camera hardware.
 
 ## Major incompatibility with the provided SpaceMouse reference
