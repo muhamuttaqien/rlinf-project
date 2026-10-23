@@ -66,8 +66,40 @@ def make_check_config(
     return cfg
 
 
+def expected_observation(expected: dict):
+    """Apply upstream Observation.from_dict to the independent transformed row.
+
+    DataLoaderImpl converts batched torch uint8 images to model-ready tensors
+    (sometimes HWC -> CHW and [0,255] -> [-1,1]) while packaging them into
+    Observation. Comparing the raw transform dictionary would be a false
+    mismatch even when the data loader is entirely correct.
+    """
+    import torch
+    from openpi.models.model import Observation
+
+    def batch_tensor(value):
+        return torch.as_tensor(np.expand_dims(as_numpy(value), axis=0).copy())
+
+    converted = {
+        "image": {key: batch_tensor(value) for key, value in expected["image"].items()},
+        "image_mask": {
+            key: batch_tensor(value)
+            for key, value in expected["image_mask"].items()
+        },
+        "state": batch_tensor(expected["state"]),
+    }
+    for field in (
+        "tokenized_prompt", "tokenized_prompt_mask",
+        "token_ar_mask", "token_loss_mask",
+    ):
+        if field in expected:
+            converted[field] = batch_tensor(expected[field])
+    return Observation.from_dict(converted)
+
+
 def compare_first_batch(observation, model_actions, expected: dict, raw: dict) -> dict:
     """Check that *loader* output equals independently transformed frame zero."""
+    prepared = expected_observation(expected)
     model_actions = as_numpy(model_actions)
     if model_actions.shape != (1, 10, 32):
         raise AssertionError(f"Actual SFT target shape must be [1,10,32]: {model_actions.shape}")
@@ -83,7 +115,7 @@ def compare_first_batch(observation, model_actions, expected: dict, raw: dict) -
         atol=1e-6, rtol=0, err_msg="Actual loader action targets differ from row 0",
     )
     np.testing.assert_allclose(
-        as_numpy(observation.state)[0], as_numpy(expected["state"]),
+        as_numpy(observation.state), as_numpy(prepared.state),
         atol=1e-6, rtol=0, err_msg="Actual loader state differs from row 0",
     )
 
@@ -91,13 +123,13 @@ def compare_first_batch(observation, model_actions, expected: dict, raw: dict) -
         if key not in observation.images or key not in observation.image_masks:
             raise AssertionError(f"Loader missing image or mask for {key}")
         np.testing.assert_allclose(
-            as_numpy(observation.images[key])[0],
-            as_numpy(expected["image"][key]),
+            as_numpy(observation.images[key]),
+            as_numpy(prepared.images[key]),
             atol=1e-6, rtol=0, err_msg=f"Actual SFT image mismatch: {key}",
         )
         np.testing.assert_array_equal(
-            as_numpy(observation.image_masks[key])[0],
-            as_numpy(expected["image_mask"][key]),
+            as_numpy(observation.image_masks[key]),
+            as_numpy(prepared.image_masks[key]),
             err_msg=f"Actual SFT camera mask mismatch: {key}",
         )
     for key in ("base_0_rgb", "left_wrist_0_rgb"):
@@ -108,10 +140,11 @@ def compare_first_batch(observation, model_actions, expected: dict, raw: dict) -
 
     for field in ("tokenized_prompt", "tokenized_prompt_mask"):
         actual_tokens = getattr(observation, field)
-        if actual_tokens is None or field not in expected:
+        expected_tokens = getattr(prepared, field)
+        if actual_tokens is None or expected_tokens is None:
             raise AssertionError(f"Required OpenPI prompt field absent: {field}")
         np.testing.assert_array_equal(
-            as_numpy(actual_tokens)[0], as_numpy(expected[field]),
+            as_numpy(actual_tokens), as_numpy(expected_tokens),
             err_msg=f"Actual SFT token mismatch: {field}",
         )
 
