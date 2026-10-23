@@ -62,3 +62,35 @@ This **does not validate a constant temporal shift**: the other frames align wel
 - `scripts/evaluate_stackcube_pi05_ee_delta.py`
 - `scripts/check_stackcube_pi05_clean_transforms.py`
 - `scripts/diagnose_stackcube_pi05_clean_actions.py`
+
+## Real SFT loader batch check (ready; workstation execution pending)
+
+The new `scripts/check_stackcube_pi05_clean_sft_batch.py` calls
+`build_openpi_sft_dataloader`, the same dispatch used by
+`FSDPVlaSftWorker.build_dataloader`, with `eval_dataset=True` to disable
+shuffling and make the *first* batch correspond to persisted LeRobot row zero.
+For this one diagnostic, it uses `micro_batch_size=1` and `num_workers=0`;
+these are sampling/execution settings, **not** an alternative implementation
+of the SFT transforms. No model weights or GPU training are needed.
+
+It checks the actual batch's state, all image pixels and camera masks,
+prompt tokens, `[1,10,32]` normalized model action targets against
+transforms applied independently to raw row zero; then decodes the **actual
+loader target** back to the raw `[10,7]` action window. It cannot verify
+that a shuffled multi-worker batch has the same ordering, because shuffled
+ordering is intentionally excluded from this deterministic check.
+
+Run from the project root on the original workstation (existing
+`HF_LEROBOT_HOME`, `PI05_MODEL_PATH` environment):
+
+~~~bash
+PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_sft_batch.py \
+  --repo-id local/stackcube_pi05_clean_v1 \
+  --model-path "$PI05_MODEL_PATH" \
+  --norm-stats /data1/Muttaqien/rlinf_data/pi05_stackcube_clean_v1_assets/local/stackcube_pi05_clean_v1/norm_stats.json
+~~~
+
+Accept **only** `OPENPI ACTUAL SFT BATCH PASSED`. Until that appears
+in a workstation log, the loader remains **Potential Issue /
+not yet fully verified**. This check is non-mutating and does not involve
+training, simulated rollouts, or new demonstrations.
