@@ -38,54 +38,40 @@ iterations differs.
 
 ## Run — one training job, no repeated smoke tests
 
-From the original GPU workstation's repository root, in the working
-Python environment that successfully trained the 600-step baseline:
+From the repository root, in the same Python environment used for the
+600-step baseline, set the **original pretrained** model location and
+invoke the non-overwriting launcher:
 
 ~~~bash
 git pull --ff-only origin experiment/stackcube-pi05-restart-v1
-
-export HF_LEROBOT_HOME=/data1/Muttaqien/rlinf_data/lerobot
-export STACKCUBE_DATASET=local/stackcube_pi05_clean_v1
-export STACKCUBE_NORM_STATS=/data1/Muttaqien/rlinf_data/pi05_stackcube_clean_v1_assets/local/stackcube_pi05_clean_v1/norm_stats.json
-export STACKCUBE_RESULTS_ROOT=/data1/Muttaqien/rlinf_data/results
-export EMBODIED_PATH="$PWD/examples/sft"
-export CUDA_VISIBLE_DEVICES=0
-
-export RAY_ADDRESS=local
-export RAY_TMPDIR=/data1/Muttaqien/rt
-export RLINF_RAY_DISABLE_DASHBOARD=1
-export RAY_EXPERIMENTAL_NOSET_CUDA_VISIBLE_DEVICES=1
-export RLINF_RAY_LOCAL_NUM_GPUS=1
-
-# Must be ORIGINAL base pretrained weights, not any trained actor checkpoint.
-: "${PI05_MODEL_PATH:?Set PI05_MODEL_PATH to original pi05_base directory}"
-test -f "$PI05_MODEL_PATH/model.safetensors" || exit 1
-test ! -f "$PI05_MODEL_PATH/full_weights.pt" || exit 1
-test ! -f "$PI05_MODEL_PATH/model_state_dict/full_weights.pt" || exit 1
-test ! -f "$PI05_MODEL_PATH/actor/model_state_dict/full_weights.pt" || exit 1
-test -f "$STACKCUBE_NORM_STATS" || exit 1
-
-NEW_ROOT="$STACKCUBE_RESULTS_ROOT/maniskill_stackcube_pi05_clean_v1_1800_32d"
-test ! -e "$NEW_ROOT" || { echo "Refusing to overwrite existing Experiment B results: $NEW_ROOT"; exit 1; }
-mkdir -p "$RAY_TMPDIR"
-
-PYTHONPATH="$PWD" python examples/sft/train_vla_sft.py \
-  --config-path "$PWD/examples/sft/config" \
-  --config-name maniskill_stackcube_panda_sft_openpi_pi05_clean_v1_1800_32d
+export PI05_MODEL_PATH=/absolute/path/to/original/pi05_base
+bash scripts/run_stackcube_pi05_clean_exp_b.sh
 ~~~
 
-This deliberately does **not** set `runner.resume_dir`; do not pass a
-resume override. No RECAP critic or DAgger stage is involved.
-The new results directory is intentionally checked for absence to
-avoid accidentally mixing two runs.
+If `PI05_MODEL_PATH` is already correctly exported, omit the second line;
+do **not** use the step-600 SFT checkpoint here.
 
-Expected checkpoints:
-- `$NEW_ROOT/checkpoints/global_step_600/actor`
-- `$NEW_ROOT/checkpoints/global_step_1200/actor`
-- `$NEW_ROOT/checkpoints/global_step_1800/actor`
+The launcher pins known workstation paths for Clean V1's existing
+dataset, normalization, results, Ray temporary directory, and ROS-independent
+GPU job. It verifies that the base contains `model.safetensors` without
+competing `full_weights.pt`, that the 100-demo dataset and norm stats exist,
+and that the new results directory does **not** exist. It then executes
+the existing `examples/sft/train_vla_sft.py` Hydra entrypoint with the
+new config. It makes no model/loader/objective changes and does **not**
+pass `runner.resume_dir` or delete any existing outputs.
 
-The existing `$STACKCUBE_RESULTS_ROOT/maniskill_stackcube_pi05_clean_v1`
-baseline is left untouched.
+Experiment B outputs go to:
+
+~~~text
+/data1/Muttaqien/rlinf_data/results/maniskill_stackcube_pi05_clean_v1_1800_32d
+~~~
+
+Expected checkpoints under this directory:
+- `checkpoints/global_step_600/actor`
+- `checkpoints/global_step_1200/actor`
+- `checkpoints/global_step_1800/actor`
+
+The existing `maniskill_stackcube_pi05_clean_v1` baseline remains untouched.
 
 ## First evaluation: unchanged 10 held-out seeds
 
