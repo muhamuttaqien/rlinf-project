@@ -17,7 +17,7 @@ Closed-loop results: **0/10 successes, 8/10 ever-grasped** at chunk=10; **0/3 su
 | Expert collector and pre-step observation/action alignment | **Verified** (source-level alignment and successful replay) | `collect_stackcube_ee_delta.collect_episode.apply` obtains `extract_ee_observation(env, obs)` **before** `env.step(action)`, then writes precisely that command and subsequent success. Only successful episodes are saved. Held-out expert seed 10000 succeeds. | This verifies capture logic, not a per-action numerical check of installed controller kinematics. |
 | LeRobot persistence and success labeling | **Verified** (reported runtime) | User reported fresh 100-episode collection, `audit_stackcube_pi05_clean_data.py` passed, followed by fresh normalization stats. The audit checks 8D/7D columns, per-episode contiguous frame indices, only terminal success=True, and three independent base/wrist image pairs. | Three image pairs are a deliberately bounded inspection, not pixel-level inspection of every frame. |
 | Episode-local action horizon | **Verified** (source) | `v3_stackcube_dataset.V3StackCubeDataset.__getitem__` constructs action indices `idx..idx+9`, clipped to that episode's last frame using `_last_index`. Frame and episode bounds are checked when loading. | Tail padding repeats the terminal action. This is explicit, not a confirmed off-by-one bug. |
-| Actual OpenPI SFT loader end-to-end | **Potential Issue** (verification gap) | `official_sft_data_loader.py` uses the official OpenPI `create_data_loader` with a scoped v3 dataset factory override; it checks 10-step horizon, 32D model actions, and state-tokenization flags. Training ran 600 steps, so a real loader was exercised. | The standalone transform-parity script transforms a raw sample but **does not inspect one batch returned by the actual training dataloader**; confirm its images, prompt, state, mask, and first normalized action correspond to the persisted row. |
+| Actual OpenPI SFT loader end-to-end | **Verified** (deterministic real batch; reported runtime) | `official_sft_data_loader.py` uses the official OpenPI `create_data_loader` with a scoped v3 dataset factory override; it checks 10-step horizon, 32D model actions, and state-tokenization flags. Training ran 600 steps, so a real loader was exercised. | The actual SFT dataloader's unshuffled first batch was checked directly against persisted LeRobot row zero: state, images, masks, prompt tokens, normalized action target and decoded raw 7D actions matched. This tests one deterministic batch with microbatch 1 and num_workers 0, not the stochastic ordering of the training run. |
 | Train/eval image geometry, prompt and state transform | **Verified** (tested sample, source) | Clean YAML sets `train_image_augmentation=False`; `get_model` passes it to `Pi0.sft_forward`; `compute_loss` uses it in `preprocess_observation`. `check_stackcube_pi05_clean_transforms.py` reported train/eval images/state/tokens identical. | Scope: deterministic geometry and tested saved sample, not a full-dataset parity proof. |
 | Normalization, padding and output decoder | **Verified** (reported runtime) | Fresh norm stats loaded; round-trip 7D → normalized 32D → decoded 7D passed. `EnvIO.decode_actions` invokes `Unnormalize` and `ManiSkillOutputs(output_action_dim=7)`. | Round-trip establishes invertibility, not prediction quality. |
 | SFT flow-matching objective | **Potential Issue** (design/training risk, not bug) | `Pi0.sft_forward(data, use_action_chunk_loss=False)` averages error over the full 32D model target; `FSDPVlaSftWorker.get_train_model_output` calls this without overriding the switch. Seven action channels are executable and the other 25 are padded. Diagnostic 7D losses are **not** the optimized objective. | Do not call this a coding defect without a controlled loss ablation. Training loss is a flow-matching loss, not direct action MAE. |
@@ -40,11 +40,11 @@ This **does not validate a constant temporal shift**: the other frames align wel
 
 ## Next decisive verification, without retraining
 
-1. **Highest priority:** Inspect exactly one real batch returned by `build_official_openpi_sft_dataloader` for the first saved episode and confirm the first unpadded 7D normalized action and actual image/state/prompt agree with the corresponding raw record and the verified OpenPI transformation pipeline. This closes the outstanding train-data path gap.
+1. **Completed (PASSED):** One real batch returned by `build_openpi_sft_dataloader` matched persisted LeRobot row zero (camera pixels/masks, state, tokens, and all 10×32 model target values); decoding the actual loader target recovered 10×7 raw action values within tolerance.
 2. **Only if needed:** Numerically compare training episode 0 observations at frames 14–17 (TCP pose/gripper width and base/wrist image differences). If observations are nearly identical, the gripper timing cannot reliably be supervised from a single visual/state frame without additional context.
 3. **Optional, later:** A controlled 7D-only objective ablation or state/trajectory modeling change is a research experiment, **not** an implementation fix justified by current evidence.
 
-**Stop condition:** No new SFT or collection until the actual loader-batch contract is checked. No large smoke-test campaign is warranted; the remaining gap is narrowly specified.
+**Stop condition cleared:** The actual loader-batch contract passed on the workstation. No new SFT or data collection is justified by a detected loader implementation defect. The next focused investigation is transition observability and motion-phase predictions; no large smoke-test campaign is warranted.
 
 ## Relevant source paths
 
@@ -63,7 +63,7 @@ This **does not validate a constant temporal shift**: the other frames align wel
 - `scripts/check_stackcube_pi05_clean_transforms.py`
 - `scripts/diagnose_stackcube_pi05_clean_actions.py`
 
-## Real SFT loader batch check (ready; workstation execution pending)
+## Real SFT loader batch check (PASSED on workstation)
 
 The new `scripts/check_stackcube_pi05_clean_sft_batch.py` calls
 `build_openpi_sft_dataloader`, the same dispatch used by
@@ -90,7 +90,4 @@ PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_sft_batch.py \
   --norm-stats /data1/Muttaqien/rlinf_data/pi05_stackcube_clean_v1_assets/local/stackcube_pi05_clean_v1/norm_stats.json
 ~~~
 
-Accept **only** `OPENPI ACTUAL SFT BATCH PASSED`. Until that appears
-in a workstation log, the loader remains **Potential Issue /
-not yet fully verified**. This check is non-mutating and does not involve
-training, simulated rollouts, or new demonstrations.
+**Reported workstation output:** `OPENPI ACTUAL SFT BATCH PASSED dataset=local/stackcube_pi05_clean_v1 batch_actions=[1, 10, 32] decoded_actions=[10, 7]`. The first decoded 7D action matched the first raw 7D action within floating-point tolerance. The check compared the real loader's normalized model targets, camera pixels/masks, state, and prompt tokens against independently transformed row zero. Thus the **tested loader data path is Verified**, not a pending gap. This check is non-mutating and does not involve training, simulated rollouts, or new demonstrations.
