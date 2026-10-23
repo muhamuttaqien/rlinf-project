@@ -41,7 +41,7 @@ This **does not validate a constant temporal shift**: the other frames align wel
 ## Next decisive verification, without retraining
 
 1. **Completed (PASSED):** One real batch returned by `build_openpi_sft_dataloader` matched persisted LeRobot row zero (camera pixels/masks, state, tokens, and all 10×32 model target values); decoding the actual loader target recovered 10×7 raw action values within tolerance.
-2. **Only if needed:** Numerically compare training episode 0 observations at frames 14–17 (TCP pose/gripper width and base/wrist image differences). If observations are nearly identical, the gripper timing cannot reliably be supervised from a single visual/state frame without additional context.
+2. **Completed:** The Clean V1 episode-0 transition observability check compared stored 8D state and both camera frames at expert gripper close. Consecutive conditioning observations are **not identical**; notably step 15→16 has 8.2017 mm TCP motion and wrist-image MAE 11.376. The expert label changes open→close at step 16, and gripper width decreases on the following observation, as expected. This provides no evidence of an off-by-one alignment bug; it does not prove that the unobserved expert target/phase is recoverable from model inputs.
 3. **Optional, later:** A controlled 7D-only objective ablation or state/trajectory modeling change is a research experiment, **not** an implementation fix justified by current evidence.
 
 **Stop condition cleared:** The actual loader-batch contract passed on the workstation. No new SFT or data collection is justified by a detected loader implementation defect. The next focused investigation is transition observability and motion-phase predictions; no large smoke-test campaign is warranted.
@@ -93,7 +93,7 @@ PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_sft_batch.py \
 **Reported workstation output:** `OPENPI ACTUAL SFT BATCH PASSED dataset=local/stackcube_pi05_clean_v1 batch_actions=[1, 10, 32] decoded_actions=[10, 7]`. The first decoded 7D action matched the first raw 7D action within floating-point tolerance. The check compared the real loader's normalized model targets, camera pixels/masks, state, and prompt tokens against independently transformed row zero. Thus the **tested loader data path is Verified**, not a pending gap. This check is non-mutating and does not involve training, simulated rollouts, or new demonstrations.
 
 
-## Final observability check — first gripper close (source reviewed; dataset run pending)
+## Final observability check — first gripper close (PASSED; implementation audit closed)
 
 Source: `toolkits/lerobot/collect_stackcube_ee_delta.py`. The expert calls
 `move(grasp_pose)` then immediately `gripper(-1.0, 14)`; `move`
@@ -135,6 +135,13 @@ PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_transition_observabi
   --image-grid "$RUN_ROOT/evaluation/step_600/gripper_observability.png"
 ~~~
 
-Report status is **Pending workstation result**. Do not present the
-observability hypothesis as Verified until actual state/image deltas are
-available; no more generic pipeline smoke tests are planned.
+**Workstation check completed:** `TRANSITION OBSERVABILITY CHECK COMPLETE episode=0`.
+
+- Steps 13→14: TCP 9.8599 mm, base-image MAE 1.132, wrist-image MAE 12.028; expert open→open.
+- Steps 14→15: TCP 9.8862 mm, base-image MAE 1.129, wrist-image MAE 12.690; expert open→open.
+- **Steps 15→16 (first close): TCP 8.2017 mm, rotation 0.1834°, width change +0.0006 mm, base-image MAE 0.890, wrist-image MAE 11.376, 57.05% of wrist RGB pixels differ by >8 in at least one channel, expert open→close; full observation NOT identical.**
+- Steps 16→17: TCP 3.7885 mm, gripper width change -38.9478 mm, expert close→close. This is temporally consistent with the closing command stored at step 16 taking effect before the next observation.
+- Steps 17→18: TCP 0.1236 mm, width change -1.8365 mm; expert close→close.
+- All five consecutive observation pairs were marked `identical=False`.
+
+**Audit verdict:** No new core implementation bug is confirmed in Clean V1 by this check. Contradictory gripper labels on *identical* stored observations are ruled out for this transition. The model's premature gripper close at step 15 under three flow-noise seeds remains a prediction-quality or phase-inference question, not a proven temporal-label bug. This diagnostic cannot prove that observations carry enough information to exactly reproduce the expert's internal stopping condition. The implemented pipeline audit is **closed** absent new concrete evidence of a code defect; the next work belongs to targeted model/data/learning experiments rather than additional generic smoke tests.
