@@ -85,7 +85,7 @@ def _sample_record(sample: dict) -> dict:
     }
 
 
-def training_episode(repo_id: str, episode: int):
+def training_episode(repo_id: str, episode: int, *, closing_only: bool = False):
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
     from rlinf.data.datasets.openpi.v3_stackcube_dataset import (
         is_lerobot_v3_dataset,
@@ -102,11 +102,24 @@ def training_episode(repo_id: str, episode: int):
     expert_actions = np.asarray(
         reader.hf_dataset["actions"], dtype=np.float32
     )[indices]
-    selected = phase_samples(expert_actions)
-    return [
-        (step, phase, _sample_record(reader[int(indices[step])]))
-        for step, phase in selected
-    ]
+    if closing_only:
+        close_steps = np.flatnonzero(expert_actions[:, 6] < -0.5)
+        if not len(close_steps):
+            raise ValueError("No gripper closing transition in saved episode")
+        first_close = int(close_steps[0])
+        selected = [
+            (step, "closing_transition")
+            for step in range(max(0, first_close - 2), min(len(indices), first_close + 3))
+        ]
+    else:
+        selected = phase_samples(expert_actions)
+    samples = []
+    for step, phase in selected:
+        frame = _sample_record(reader[int(indices[step])])
+        if closing_only:
+            frame["expert_gripper_next4"] = expert_actions[step:step + 4, 6].tolist()
+        samples.append((step, phase, frame))
+    return samples
 
 
 def heldout_episode(seed: int):
@@ -160,6 +173,47 @@ def compare(model, cases, *, source: str, noise_seed: int, output: list[dict]):
         )
 
 
+def compare_fixed_noise_at_close(model, cases, *, seeds: tuple[int, ...]) -> dict:
+    """Reuse identical sampling noise across successive *expert* observations.
+
+    Three independent flow-noise draws establish whether the one-step
+    gripper flip is robust or stochastic. No environment actions are executed.
+    """
+    import torch
+
+    records = []
+    for seed in seeds:
+        for step, _phase, frame in cases:
+            # Reinitializing the generator for every frame uses the SAME
+            # initial 32D x 10 noise realization at each adjacent timestep.
+            rng = torch.Generator(device=model.device).manual_seed(seed)
+            actions, _ = model.predict_action_batch(
+                policy_input(frame), mode="eval", rng=rng
+            )
+            chunk = as_numpy(actions)
+            if chunk.ndim != 3 or chunk.shape[0] != 1 or chunk.shape[-1] != 7:
+                raise ValueError(f"Invalid predicted action chunk: {chunk.shape}")
+            predicted_next4 = chunk[0, :4, 6].tolist()
+            observed = float(frame["actions"][6])
+            predicted = float(chunk[0, 0, 6])
+            record = {
+                "noise_seed": seed,
+                "step": step,
+                "expert_first_gripper": observed,
+                "predicted_first_gripper": predicted,
+                "expert_gripper_next4": frame["expert_gripper_next4"],
+                "predicted_gripper_next4": predicted_next4,
+            }
+            records.append(record)
+            print(
+                f"TRANSITION noise={seed} step={step} "
+                f"expert_now={observed:+.2f} policy_now={predicted:+.2f} "
+                f"expert_next4={np.round(frame['expert_gripper_next4'], 2).tolist()} "
+                f"policy_next4={np.round(predicted_next4, 2).tolist()}"
+            )
+    return {"noise_seeds": list(seeds), "samples": records}
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--checkpoint", type=Path, required=True)
@@ -168,6 +222,11 @@ def main() -> None:
     p.add_argument("--train-episode", type=int, default=0)
     p.add_argument("--heldout-seed", type=int, default=10000)
     p.add_argument("--noise-seed", type=int, default=1234)
+    p.add_argument(
+        "--transition-noise-check", action="store_true",
+        help="Compare 5 adjacent training frames around first gripper close "
+             "under 3 common flow-noise realizations; skip held-out replay",
+    )
     p.add_argument("--config", type=Path, default=CONFIG)
     p.add_argument("--output", type=Path, required=True)
     args = p.parse_args()
@@ -182,14 +241,31 @@ def main() -> None:
     if not args.norm_stats.is_file():
         raise FileNotFoundError(f"Missing normalization stats: {args.norm_stats}")
 
-    train_cases = training_episode(args.dataset, args.train_episode)
-    heldout_cases = heldout_episode(args.heldout_seed)
+    train_cases = training_episode(
+        args.dataset, args.train_episode,
+        closing_only=args.transition_noise_check,
+    )
+    heldout_cases = (
+        [] if args.transition_noise_check else heldout_episode(args.heldout_seed)
+    )
     cfg, _ = make_model_config(
         args.config, MODEL_CONFIG, args.checkpoint, args.norm_stats,
     )
     if cfg.openpi.config_name != "pi05_stackcube_panda_easy_ee_delta_two_cam_state":
         raise ValueError("Expected the Clean V1 7D EE-delta OpenPI configuration")
     model = get_model(cfg).to("cuda:0").eval()
+    if args.transition_noise_check:
+        with torch.inference_mode():
+            diagnostics = compare_fixed_noise_at_close(
+                model, train_cases,
+                seeds=tuple(args.noise_seed + offset for offset in range(3)),
+            )
+        output = args.output.expanduser().resolve()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(diagnostics, indent=2) + "\n", encoding="utf-8")
+        print(f"TRANSITION NOISE CHECK COMPLETE: {output}")
+        return
+
     results: list[dict] = []
     with torch.inference_mode():
         compare(
