@@ -91,3 +91,50 @@ PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_sft_batch.py \
 ~~~
 
 **Reported workstation output:** `OPENPI ACTUAL SFT BATCH PASSED dataset=local/stackcube_pi05_clean_v1 batch_actions=[1, 10, 32] decoded_actions=[10, 7]`. The first decoded 7D action matched the first raw 7D action within floating-point tolerance. The check compared the real loader's normalized model targets, camera pixels/masks, state, and prompt tokens against independently transformed row zero. Thus the **tested loader data path is Verified**, not a pending gap. This check is non-mutating and does not involve training, simulated rollouts, or new demonstrations.
+
+
+## Final observability check — first gripper close (source reviewed; dataset run pending)
+
+Source: `toolkits/lerobot/collect_stackcube_ee_delta.py`. The expert calls
+`move(grasp_pose)` then immediately `gripper(-1.0, 14)`; `move`
+stops when root-relative TCP position error is below 0.009 m and
+`abs(dot(q, target_q)) > 0.995`. The action command switch is therefore
+controlled by the expert's internal target and completion threshold. The
+policy's 8D observation supplies TCP position, orientation and gripper
+opening but not the expert's internal phase/target; the images may contain
+indirect cues. **This is an observability hypothesis, not an established
+temporal-alignment defect.**
+
+A minimal non-mutating diagnostic was added at
+`scripts/check_stackcube_pi05_clean_transition_observability.py`.
+It loads saved Clean V1 episode 0; identifies the first +1 → -1
+expert gripper-command transition; inspects six adjacent frames. For each
+consecutive pair it reports:
+- TCP translation (mm), shortest quaternion rotation (degrees), measured
+  gripper opening change (mm).
+- Base and wrist camera mean absolute pixel change in uint8 units and
+  fraction of RGB pixels with any channel difference over 8.
+- Whether the *entire stored conditioning observation* (state and both
+  images) is exactly equal, and the expert gripper labels.
+- Optional PNG grid with the original camera pixels and step labels.
+
+No numerical threshold is used to **assert** whether observations are
+"nearly identical": inspect the actual changes rather than declaring a bug
+based on arbitrary cutoffs. Identical stored observations with different
+expert labels would constitute direct evidence of label ambiguity for the
+available conditioning, not necessarily an off-by-one collector bug.
+
+Run on the workstation from repo root:
+
+~~~bash
+export HF_LEROBOT_HOME=/data1/Muttaqien/rlinf_data/lerobot
+RUN_ROOT=/data1/Muttaqien/rlinf_data/results/maniskill_stackcube_pi05_clean_v1
+PYTHONPATH="$PWD" python scripts/check_stackcube_pi05_clean_transition_observability.py \
+  --repo-id local/stackcube_pi05_clean_v1 --episode 0 \
+  --output "$RUN_ROOT/evaluation/step_600/gripper_observability.json" \
+  --image-grid "$RUN_ROOT/evaluation/step_600/gripper_observability.png"
+~~~
+
+Report status is **Pending workstation result**. Do not present the
+observability hypothesis as Verified until actual state/image deltas are
+available; no more generic pipeline smoke tests are planned.
