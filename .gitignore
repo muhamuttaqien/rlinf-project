@@ -37,6 +37,7 @@ data/
 demos/
 logs/
 outputs/
+checkpoints
 checkpoints/
 wandb/
 models/
