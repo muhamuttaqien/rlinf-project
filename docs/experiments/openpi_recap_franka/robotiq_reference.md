@@ -2,7 +2,7 @@
 
 **User-confirmed system:** Franka arm with a **Robotiq gripper**, two Workstation cameras (base + wrist), SpaceMouse EE-space teleoperation and ROS 2 domain 70. No real demonstrations yet.
 
-These preparation notes describe the intended reuse pattern. For dated adapter identities, the mounted-unit label, differences between the Workstation and NUC drivers, and the remaining read-only feedback blockers, use the [Milestone 1B.1 qualification](milestone_1b_1_report.md). The existing serial adapter is verified there; the mounted 85/140 variant and calibrated width remain pending.
+These preparation notes describe the intended reuse pattern. For dated adapter identities, the mounted-unit label, differences between the Workstation and NUC drivers, and the remaining read-only feedback blockers, use the [Milestone 1B.1 qualification](milestone_1b_1_report.md). A user-authorized single status read verified communication at 115200 baud, 8N1, slave ID 9; it reported fault `0x09`. The user considers 2F-85 most likely, but the mounted 85/140 variant and calibrated width remain unconfirmed. Continuous observation integration is still blocked.
 
 ## Reuse existing RLinf components
 
