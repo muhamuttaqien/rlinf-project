@@ -2,6 +2,8 @@
 
 **User-confirmed system:** Franka arm with a **Robotiq gripper**, two Workstation cameras (base + wrist), SpaceMouse EE-space teleoperation and ROS 2 domain 70. No real demonstrations yet.
 
+These preparation notes describe the intended reuse pattern. For dated adapter identities, the mounted-unit label, differences between the Workstation and NUC drivers, and the remaining read-only feedback blockers, use the [Milestone 1B.1 qualification](milestone_1b_1_report.md). The existing serial adapter is verified there; the mounted 85/140 variant and calibrated width remain pending.
+
 ## Reuse existing RLinf components
 
 - [RLinf Robotiq driver](../../../rlinf/robotics/parts/end_effectors/grippers/robotiq.py): `RobotiqGripper`, registered as `robotiq` / `robotiq_gripper`. Implements direct **Modbus RTU serial** communication via `pymodbus`, for **2F-85 and 2F-140**. It does **not** require ROS to talk to the gripper.
