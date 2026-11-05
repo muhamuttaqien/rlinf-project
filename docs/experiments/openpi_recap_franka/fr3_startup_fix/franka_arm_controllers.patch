@@ -1,0 +1,1044 @@
+--- a/src/franka_arm_controllers/CMakeLists.txt
++++ b/src/franka_arm_controllers/CMakeLists.txt
+@@ -110,6 +110,24 @@
+   find_package(ament_cmake_lint_cmake REQUIRED)
+   find_package(ament_cmake_xmllint REQUIRED)
+ 
++  find_package(franka_description REQUIRED)
++  find_program(XACRO_EXECUTABLE xacro REQUIRED)
++  execute_process(
++    COMMAND ${XACRO_EXECUTABLE} ${franka_description_DIR}/../robots/fr3/fr3.urdf.xacro
++      ros2_control:=true use_fake_hardware:=true hand:=false robot_ip:=127.0.0.1
++    OUTPUT_FILE ${CMAKE_CURRENT_BINARY_DIR}/fr3_offline.urdf
++    RESULT_VARIABLE XACRO_RESULT)
++  if(NOT XACRO_RESULT EQUAL 0)
++    message(FATAL_ERROR "Could not generate offline FR3 URDF")
++  endif()
++  ament_add_gtest(joint_impedance_ik_controller_test test/joint_impedance_ik_controller_test.cpp)
++  target_link_libraries(joint_impedance_ik_controller_test ${PROJECT_NAME})
++  ament_target_dependencies(joint_impedance_ik_controller_test franka_semantic_components)
++  target_compile_definitions(joint_impedance_ik_controller_test PRIVATE
++    TEST_URDF_PATH="${CMAKE_CURRENT_BINARY_DIR}/fr3_offline.urdf")
++  set_tests_properties(joint_impedance_ik_controller_test PROPERTIES
++    ENVIRONMENT "ROS_DOMAIN_ID=213;ROS_LOCALHOST_ONLY=1")
++
+   set(CPP_DIRECTORIES src include test)
+ 
+   ament_cppcheck(${CPP_DIRECTORIES})
+--- a/src/franka_arm_controllers/include/franka_arm_controllers/joint_impedance_ik_controller.hpp
++++ b/src/franka_arm_controllers/include/franka_arm_controllers/joint_impedance_ik_controller.hpp
+@@ -14,113 +14,90 @@
+ 
+ #pragma once
+ 
+-#include <Eigen/Dense>
++#include <array>
++#include <atomic>
++#include <chrono>
++#include <memory>
++#include <mutex>
+ #include <string>
+ 
++#include <urdf/model.h>
++#include <Eigen/Dense>
+ #include <controller_interface/controller_interface.hpp>
+-#include <franka_arm_controllers/robot_utils.hpp>
+ #include <geometry_msgs/msg/twist.hpp>
+-#include <rclcpp/rclcpp.hpp>
+-#include "franka_semantic_components/franka_cartesian_pose_interface.hpp"
+-#include "franka_semantic_components/franka_robot_model.hpp"
+-
+-#include <tf2/LinearMath/Vector3.h>
+-#include <urdf/model.h>
+ #include <kdl/chain.hpp>
+ #include <kdl/chainfksolverpos_recursive.hpp>
+ #include <kdl/chainiksolverpos_nr_jl.hpp>
+ #include <kdl/chainiksolvervel_pinv.hpp>
+-#include <kdl/frames.hpp>
+-#include <kdl/jntarray.hpp>
+ #include <kdl_parser/kdl_parser.hpp>
++#include <rclcpp/rclcpp.hpp>
++#include <realtime_tools/realtime_buffer.hpp>
++#include "franka_semantic_components/franka_robot_model.hpp"
+ 
++namespace franka_arm_controllers {
+ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+ 
+-namespace franka_arm_controllers {
+-
+-/**
+- * joint impedance controller to move the robot to a desired pose.
+- */
+ class JointImpedanceIKController : public controller_interface::ControllerInterface {
+  public:
+   using Vector7d = Eigen::Matrix<double, 7, 1>;
+-  [[nodiscard]] controller_interface::InterfaceConfiguration command_interface_configuration()
+-      const override;
+-  [[nodiscard]] controller_interface::InterfaceConfiguration state_interface_configuration()
+-      const override;
+-  controller_interface::return_type update(const rclcpp::Time& time,
+-                                           const rclcpp::Duration& period) override;
++  controller_interface::InterfaceConfiguration command_interface_configuration() const override;
++  controller_interface::InterfaceConfiguration state_interface_configuration() const override;
++  controller_interface::return_type update(const rclcpp::Time&, const rclcpp::Duration&) override;
+   CallbackReturn on_init() override;
+-  CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+-  CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
+-  CallbackReturn on_deactivate(const rclcpp_lifecycle::State& previous_state) override;
++  CallbackReturn on_configure(const rclcpp_lifecycle::State&) override;
++  CallbackReturn on_activate(const rclcpp_lifecycle::State&) override;
++  CallbackReturn on_cleanup(const rclcpp_lifecycle::State&) override;
++  CallbackReturn on_deactivate(const rclcpp_lifecycle::State&) override;
+ 
+  private:
+-  /**
+-   * @brief updates the joint states from the state interfaces
+-   *
+-   */
+-  void update_joint_states_();
+-
+-  /**
+-   * @brief computes the torque commands based on impedance control law with compensated coriolis
+-   * terms
+-   *
+-   * @return Eigen::Vector7d torque for each joint of the robot
+-   */
+-  Vector7d compute_torque_command_(const Vector7d& joint_positions_desired,
+-                                   const Vector7d& joint_positions_current,
+-                                   const Vector7d& joint_velocities_current);
+-
+-  /**
+-   * @brief assigns the Kp, Kd and arm_id parameters
+-   *
+-   * @return true when parameters are present, false when parameters are not available
+-   */
++  struct Intent {
++    std::array<double, 6> axes{};
++    int64_t received_ns{0};
++    bool moving{false};
++  };
++  struct Sample {
++    std::array<double, 7> q{};
++    Intent intent{};
++    int64_t received_ns{0};
++    int64_t activation_ns{0};
++  };
++  struct Target {
++    std::array<double, 7> q{};
++    int64_t state_ns{0};
++    int64_t command_ns{0};
++    int64_t activation_ns{0};
++    bool valid{false};
++  };
++  static int64_t monotonic_ns();
++  bool update_joint_states_();
+   bool assign_parameters_();
+-
+-  tf2::Vector3 transform_velocity_to_world_frame_(
+-      const geometry_msgs::msg::Twist::SharedPtr& msg) const;
+-
+-  std::unique_ptr<franka_semantic_components::FrankaCartesianPoseInterface> franka_cartesian_pose_;
+-
+-  Eigen::Quaterniond orientation_;
+-  Eigen::Vector3d position_;
+-
+-  const bool k_elbow_activated_{false};
++  void spacemouse_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
++  void solve_ik_();  // Non-real-time timer callback; never called by update().
+ 
+   std::string arm_id_;
+-  std::string namespace_prefix_;
+-  urdf::Model model_;
+-  KDL::Tree tree_;
++  std::array<std::string, 7> joint_names_;
++  std::array<size_t, 7> position_indices_{}, velocity_indices_{}, command_indices_{};
++  std::array<double, 7> velocity_limits_{};
++  std::vector<double> arm_mounting_orientation_;
++  std::unique_ptr<franka_semantic_components::FrankaRobotModel> franka_robot_model_;
+   KDL::Chain chain_;
+-  unsigned int nj_;
+   KDL::JntArray q_min_, q_max_, q_init_, q_result_;
+-  void solve_ik_(const Eigen::Vector3d& new_position, const Eigen::Quaterniond& new_orientation);
+-  bool is_gripper_loaded_ = true;
+-  std::vector<double> arm_mounting_orientation_;
+-
+-  std::string robot_description_;
+-  std::unique_ptr<franka_semantic_components::FrankaRobotModel> franka_robot_model_;
+-
+-  const std::string k_robot_state_interface_name{"robot_state"};
+-  const std::string k_robot_model_interface_name{"robot_model"};
+-
+-  Vector7d dq_filtered_;
+-  Vector7d k_gains_;
+-  Vector7d d_gains_;
+-  const int num_joints_{7};
+-
+-  std::vector<double> joint_positions_desired_;
+-  std::vector<double> joint_positions_current_{0, 0, 0, 0, 0, 0, 0};
+-  std::vector<double> joint_velocities_current_{0, 0, 0, 0, 0, 0, 0};
+-  std::vector<double> joint_efforts_current_{0, 0, 0, 0, 0, 0, 0};
+-
+-  // Spacemouse
++  std::unique_ptr<KDL::ChainFkSolverPos_recursive> fk_solver_;
++  std::unique_ptr<KDL::ChainIkSolverVel_pinv> velocity_solver_;
++  std::unique_ptr<KDL::ChainIkSolverPos_NR_JL> ik_solver_;
++  Vector7d dq_filtered_{Vector7d::Zero()};
++  Vector7d k_gains_, d_gains_;
++  Vector7d q_{Vector7d::Zero()}, dq_{Vector7d::Zero()}, q_desired_{Vector7d::Zero()};
++  double command_timeout_s_{0.25};
++  double ik_update_rate_{50.0};
++  realtime_tools::RealtimeBuffer<Intent> intent_buffer_;
++  realtime_tools::RealtimeBuffer<Target> target_buffer_;
++  std::mutex sample_mutex_;
++  std::mutex ik_mutex_;
++  Sample sample_;
++  std::atomic<bool> active_{false};
++  std::atomic<int64_t> activation_ns_{0};
+   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr spacemouse_sub_;
+-  void spacemouse_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
+-  Eigen::Vector3d desired_linear_position_update_{0.0, 0.0, 0.0};
+-  Eigen::Vector3d desired_angular_position_update_{0.0, 0.0, 0.0};
+-  Eigen::Quaterniond desired_angular_position_update_quaternion_{1.0, 0.0, 0.0, 0.0};
++  rclcpp::TimerBase::SharedPtr ik_timer_;
+ };
+-}  // namespace franka_arm_controllers
+\ No newline at end of file
++}  // namespace franka_arm_controllers
+--- a/src/franka_arm_controllers/package.xml
++++ b/src/franka_arm_controllers/package.xml
+@@ -32,6 +32,9 @@
+   <test_depend>ament_cmake_gmock</test_depend>
+   <test_depend>ament_cmake_clang_tidy</test_depend>
+   <test_depend>controller_manager</test_depend>
++  <test_depend>ament_cmake_gtest</test_depend>
++  <test_depend>franka_description</test_depend>
++  <test_depend>xacro</test_depend>
+   <test_depend>ros2_control_test_assets</test_depend>
+ 
+   <export>
+--- a/src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp
++++ b/src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp
+@@ -12,27 +12,28 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-#include <franka_arm_controllers/default_robot_behavior_utils.hpp>
+ #include <franka_arm_controllers/joint_impedance_ik_controller.hpp>
+-
+-#include <chrono>
+-#include <string>
++#include <franka_arm_controllers/robot_utils.hpp>
+ 
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2/LinearMath/Quaternion.h>
+-
+-using namespace std::chrono_literals;
+-using Vector7d = Eigen::Matrix<double, 7, 1>;
++#include <algorithm>
++#include <cmath>
++#include <limits>
+ 
+ namespace franka_arm_controllers {
++int64_t JointImpedanceIKController::monotonic_ns() {
++  return std::chrono::duration_cast<std::chrono::nanoseconds>(
++             std::chrono::steady_clock::now().time_since_epoch())
++      .count();
++}
+ 
+ controller_interface::InterfaceConfiguration
+ JointImpedanceIKController::command_interface_configuration() const {
+   controller_interface::InterfaceConfiguration config;
+   config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+-  for (int i = 1; i <= num_joints_; ++i) {
+-    config.names.push_back(namespace_prefix_ + arm_id_ + "_joint" + std::to_string(i) + "/effort");
+-  }
++  for (const auto& name : joint_names_)
++    config.names.push_back(name + "/effort");
+   return config;
+ }
+ 
+@@ -40,316 +41,285 @@
+ JointImpedanceIKController::state_interface_configuration() const {
+   controller_interface::InterfaceConfiguration config;
+   config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+-  config.names = franka_cartesian_pose_->get_state_interface_names();
+-  for (int i = 1; i <= num_joints_; ++i) {
+-    config.names.push_back(namespace_prefix_ + arm_id_ + "_joint" + std::to_string(i) +
+-                           "/position");
+-  }
+-  for (int i = 1; i <= num_joints_; ++i) {
+-    config.names.push_back(namespace_prefix_ + arm_id_ + "_joint" + std::to_string(i) +
+-                           "/velocity");
+-  }
+-  for (int i = 1; i <= num_joints_; ++i) {
+-    config.names.push_back(namespace_prefix_ + arm_id_ + "_joint" + std::to_string(i) + "/effort");
+-  }
+-  for (const auto& franka_robot_model_name : franka_robot_model_->get_state_interface_names()) {
+-    config.names.push_back(franka_robot_model_name);
+-  }
+-
++  for (const auto& name : joint_names_) {
++    for (const auto* type : {"position", "velocity", "effort"}) {
++      config.names.push_back(name + "/" + type);
++    }
++  }
++  for (const auto& name : franka_robot_model_->get_state_interface_names()) {
++    config.names.push_back(name);
++  }
+   return config;
+ }
+ 
+-void JointImpedanceIKController::update_joint_states_() {
+-  for (auto i = 0; i < num_joints_; ++i) {
+-    const auto& position_interface = state_interfaces_.at(16 + i);
+-    const auto& velocity_interface = state_interfaces_.at(23 + i);
+-    const auto& effort_interface = state_interfaces_.at(30 + i);
+-    joint_positions_current_[i] = position_interface.get_value();
+-    q_init_(i) = joint_positions_current_[i];
+-    joint_velocities_current_[i] = velocity_interface.get_value();
+-    joint_efforts_current_[i] = effort_interface.get_value();
+-  }
+-}
+-
+-Vector7d JointImpedanceIKController::compute_torque_command_(
+-    const Vector7d& joint_positions_desired,
+-    const Vector7d& joint_positions_current,
+-    const Vector7d& joint_velocities_current) {
+-  std::array<double, 7> coriolis_array = franka_robot_model_->getCoriolisForceVector();
+-  Vector7d coriolis(coriolis_array.data());
+-  const double kAlpha = 0.99;
+-  dq_filtered_ = (1 - kAlpha) * dq_filtered_ + kAlpha * joint_velocities_current;
+-  Vector7d q_error = joint_positions_desired - joint_positions_current;
+-  Vector7d tau_d_calculated =
+-      k_gains_.cwiseProduct(q_error) - d_gains_.cwiseProduct(dq_filtered_) + coriolis;
+-
+-  return tau_d_calculated;
++bool JointImpedanceIKController::update_joint_states_() {
++  for (size_t i = 0; i < 7; ++i) {
++    q_[i] = state_interfaces_[position_indices_[i]].get_value();
++    dq_[i] = state_interfaces_[velocity_indices_[i]].get_value();
++  }
++  return q_.allFinite() && dq_.allFinite();
+ }
+ 
+ controller_interface::return_type JointImpedanceIKController::update(
+-    const rclcpp::Time& /*time*/,
+-    const rclcpp::Duration& /*period*/) {
+-  update_joint_states_();
+-  std::tie(orientation_, position_) = franka_cartesian_pose_->getCurrentOrientationAndTranslation();
+-
+-  auto new_position = position_ + desired_linear_position_update_;
+-  auto new_orientation = orientation_ * desired_angular_position_update_quaternion_;
+-
+-  solve_ik_(new_position, new_orientation);
+-
+-  if (joint_positions_desired_.empty()) {
+-    return controller_interface::return_type::OK;
+-  }
+-
+-  Vector7d joint_positions_desired_eigen(joint_positions_desired_.data());
+-  Vector7d joint_positions_current_eigen(joint_positions_current_.data());
+-  Vector7d joint_velocities_current_eigen(joint_velocities_current_.data());
+-
+-  auto tau_d_calculated = compute_torque_command_(
+-      joint_positions_desired_eigen, joint_positions_current_eigen, joint_velocities_current_eigen);
+-
+-  for (int i = 0; i < num_joints_; i++) {
+-    command_interfaces_[i].set_value(tau_d_calculated(i));
+-  }
+-
++    const rclcpp::Time&,
++    const rclcpp::Duration& period) {
++  if (!active_.load() || !update_joint_states_() || !std::isfinite(period.seconds()) ||
++      period.seconds() <= 0.0)
++    return controller_interface::return_type::ERROR;
++  const auto now = monotonic_ns();
++  const auto activation = activation_ns_.load();
++  const auto intent = *intent_buffer_.readFromRT();
++  const auto fresh = [&](int64_t stamp) {
++    return stamp >= activation && now >= stamp && (now - stamp) * 1e-9 <= command_timeout_s_;
++  };
++  {
++    // The real-time loop skips a sample rather than waiting for the IK callback.
++    std::unique_lock<std::mutex> lock(sample_mutex_, std::try_to_lock);
++    if (lock.owns_lock()) {
++      std::copy_n(q_.data(), 7, sample_.q.begin());
++      sample_.intent = intent;
++      sample_.received_ns = now;
++      sample_.activation_ns = activation;
++    }
++  }
++  const auto target = *target_buffer_.readFromRT();
++  if (intent.moving && fresh(intent.received_ns) && target.valid &&
++      target.activation_ns == activation && fresh(target.state_ns) && fresh(target.command_ns)) {
++    // A delayed cycle must not turn into a larger reference jump at the 1 kHz boundary.
++    const double dt = std::min(period.seconds(), 0.001);
++    for (size_t i = 0; i < 7; ++i) {
++      const double step = velocity_limits_[i] * dt;
++      q_desired_[i] += std::clamp(target.q[i] - q_desired_[i], -step, step);
++    }
++  }
++  const auto coriolis_array = franka_robot_model_->getCoriolisForceVector();
++  const Eigen::Map<const Vector7d> coriolis(coriolis_array.data());
++  dq_filtered_ = 0.01 * dq_filtered_ + 0.99 * dq_;
++  const Vector7d torque =
++      k_gains_.cwiseProduct(q_desired_ - q_) - d_gains_.cwiseProduct(dq_filtered_) + coriolis;
++  if (!torque.allFinite())
++    return controller_interface::return_type::ERROR;
++  for (size_t i = 0; i < 7; ++i)
++    command_interfaces_[command_indices_[i]].set_value(torque[i]);
+   return controller_interface::return_type::OK;
+ }
+ 
+ CallbackReturn JointImpedanceIKController::on_init() {
+-  franka_cartesian_pose_ =
+-      std::make_unique<franka_semantic_components::FrankaCartesianPoseInterface>(
+-          franka_semantic_components::FrankaCartesianPoseInterface(k_elbow_activated_));
+-
++  auto_declare<double>("command_timeout", 0.25);
++  auto_declare<double>("ik_update_rate", 50.0);
+   return CallbackReturn::SUCCESS;
+ }
+ 
+ bool JointImpedanceIKController::assign_parameters_() {
+   arm_id_ = get_node()->get_parameter("arm_id").as_string();
+-  is_gripper_loaded_ = get_node()->get_parameter("load_gripper").as_string() == "true";
+   arm_mounting_orientation_ =
+       get_node()->get_parameter("arm_mounting_orientation").as_double_array();
+-
+-  auto k_gains = get_node()->get_parameter("k_gains").as_double_array();
+-  auto d_gains = get_node()->get_parameter("d_gains").as_double_array();
+-  if (k_gains.empty()) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "k_gains parameter not set");
++  const auto k = get_node()->get_parameter("k_gains").as_double_array();
++  const auto d = get_node()->get_parameter("d_gains").as_double_array();
++  command_timeout_s_ = get_node()->get_parameter("command_timeout").as_double();
++  ik_update_rate_ = get_node()->get_parameter("ik_update_rate").as_double();
++  if (k.size() != 7 || d.size() != 7 || arm_mounting_orientation_.size() != 3 ||
++      !std::isfinite(command_timeout_s_) || command_timeout_s_ <= 0 ||
++      !std::isfinite(ik_update_rate_) || ik_update_rate_ <= 0 || ik_update_rate_ > 100) {
++    RCLCPP_ERROR(get_node()->get_logger(),
++                 "Expected seven gains, three mounting angles, a positive timeout and IK rate in "
++                 "(0,100] Hz");
+     return false;
+   }
+-  if (k_gains.size() != static_cast<uint>(num_joints_)) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "k_gains should be of size %d but is of size %ld",
+-                 num_joints_, k_gains.size());
+-    return false;
+-  }
+-  if (d_gains.empty()) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "d_gains parameter not set");
+-    return false;
+-  }
+-  if (d_gains.size() != static_cast<uint>(num_joints_)) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "d_gains should be of size %d but is of size %ld",
+-                 num_joints_, d_gains.size());
+-    return false;
+-  }
+-  for (int i = 0; i < num_joints_; ++i) {
+-    d_gains_(i) = d_gains.at(i);
+-    k_gains_(i) = k_gains.at(i);
+-  }
+-  return true;
+-}
+-
+-CallbackReturn JointImpedanceIKController::on_configure(
+-    const rclcpp_lifecycle::State& /*previous_state*/) {
+-  if (!assign_parameters_()) {
+-    return CallbackReturn::FAILURE;
+-  }
+-
+-  namespace_prefix_ = get_node()->get_namespace();
+-
+-  if (namespace_prefix_ == "/" || namespace_prefix_.empty()) {
+-    namespace_prefix_.clear();
+-  } else {
+-    // Remove leading slash and add trailing underscore
+-    namespace_prefix_ = namespace_prefix_.substr(1) + "_";
+-  }
+-
++  for (size_t i = 0; i < 7; ++i) {
++    if (!std::isfinite(k[i]) || !std::isfinite(d[i]) || k[i] < 0 || d[i] < 0)
++      return false;
++    k_gains_[i] = k[i];
++    d_gains_[i] = d[i];
++  }
++  return std::all_of(arm_mounting_orientation_.begin(), arm_mounting_orientation_.end(),
++                     [](double v) { return std::isfinite(v); });
++}
++
++CallbackReturn JointImpedanceIKController::on_configure(const rclcpp_lifecycle::State&) {
++  active_.store(false);
++  if (ik_timer_)
++    ik_timer_->cancel();
++  // Retain operator-configured collision thresholds; configuring this controller sends no safety
++  // RPC.
++  auto client =
++      std::make_shared<rclcpp::AsyncParametersClient>(get_node(), "robot_state_publisher");
++  if (!client->wait_for_service(std::chrono::seconds(2)))
++    return CallbackReturn::FAILURE;
++  auto future = client->get_parameters({"robot_description"});
++  if (future.wait_for(std::chrono::seconds(2)) != std::future_status::ready)
++    return CallbackReturn::FAILURE;
++  const auto parameters = future.get();
++  if (parameters.empty())
++    return CallbackReturn::FAILURE;
++  std::lock_guard<std::mutex> solver_lock(ik_mutex_);
++  if (!assign_parameters_())
++    return CallbackReturn::FAILURE;
++  urdf::Model model;
++  KDL::Tree tree;
++  const auto description = parameters[0].as_string();
++  if (!model.initString(description) || !kdl_parser::treeFromUrdfModel(model, tree))
++    return CallbackReturn::FAILURE;
++  const auto robot_name =
++      robot_utils::getRobotNameFromDescription(description, get_node()->get_logger());
++  if (robot_name != arm_id_ || !tree.getChain("base", arm_id_ + "_link8", chain_) ||
++      chain_.getNrOfJoints() != 7)
++    return CallbackReturn::FAILURE;
++  q_min_.resize(7);
++  q_max_.resize(7);
++  q_init_.resize(7);
++  q_result_.resize(7);
++  size_t index = 0;
++  for (const auto& segment : chain_.segments) {
++    if (segment.getJoint().getType() == KDL::Joint::None)
++      continue;
++    const auto joint = model.getJoint(segment.getJoint().getName());
++    if (!joint || !joint->limits || !std::isfinite(joint->limits->velocity) ||
++        joint->limits->velocity <= 0 || !std::isfinite(joint->limits->lower) ||
++        !std::isfinite(joint->limits->upper) || joint->limits->lower >= joint->limits->upper)
++      return CallbackReturn::FAILURE;
++    joint_names_[index] = joint->name;
++    q_min_(index) = joint->limits->lower;
++    q_max_(index) = joint->limits->upper;
++    velocity_limits_[index] = joint->limits->velocity;
++    ++index;
++  }
+   franka_robot_model_ = std::make_unique<franka_semantic_components::FrankaRobotModel>(
+-      franka_semantic_components::FrankaRobotModel(arm_id_ + "/" + k_robot_model_interface_name,
+-                                                   arm_id_ + "/" + k_robot_state_interface_name));
+-
+-  auto collision_client = get_node()->create_client<franka_msgs::srv::SetFullCollisionBehavior>(
+-      "service_server/set_full_collision_behavior");
+-
+-  auto request = DefaultRobotBehavior::getDefaultCollisionBehaviorRequest();
+-  auto future_result = collision_client->async_send_request(request);
+-
+-  auto success = future_result.get();
+-
+-  if (!success->success) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "Failed to set default collision behavior.");
+-    return CallbackReturn::ERROR;
+-  } else {
+-    RCLCPP_INFO(get_node()->get_logger(), "Default collision behavior set.");
+-  }
+-
+-  auto parameters_client =
+-      std::make_shared<rclcpp::AsyncParametersClient>(get_node(), "robot_state_publisher");
+-  parameters_client->wait_for_service();
+-
+-  auto future = parameters_client->get_parameters({"robot_description"});
+-  auto result = future.get();
+-  if (!result.empty()) {
+-    robot_description_ = result[0].value_to_string();
+-  } else {
+-    RCLCPP_ERROR(get_node()->get_logger(), "Failed to get robot_description parameter.");
+-  }
+-
+-  arm_id_ = robot_utils::getRobotNameFromDescription(robot_description_, get_node()->get_logger());
+-
++      arm_id_ + "/robot_model", arm_id_ + "/robot_state");
++  fk_solver_ = std::make_unique<KDL::ChainFkSolverPos_recursive>(chain_);
++  velocity_solver_ = std::make_unique<KDL::ChainIkSolverVel_pinv>(chain_);
++  ik_solver_ = std::make_unique<KDL::ChainIkSolverPos_NR_JL>(chain_, q_min_, q_max_, *fk_solver_,
++                                                             *velocity_solver_, 100, 1e-6);
+   spacemouse_sub_ = get_node()->create_subscription<geometry_msgs::msg::Twist>(
+-      "franka_controller/target_cartesian_velocity_percent", 10,
+-      [this](const geometry_msgs::msg::Twist::SharedPtr msg) { this->spacemouse_callback(msg); });
+-
+-  RCLCPP_INFO(get_node()->get_logger(),
+-              "Subscribed to franka_controller/target_cartesian_velocity_percent.");
+-
+-  if (!model_.initString(robot_description_)) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "Failed to parse processed URDF");
+-    return CallbackReturn::FAILURE;
+-  }
+-
+-  if (!kdl_parser::treeFromUrdfModel(model_, tree_)) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "Failed to convert URDF to KDL tree.");
+-    return CallbackReturn::FAILURE;
+-  }
+-
+-  std::string tcp_name = namespace_prefix_ + "fr3_link8";
+-  if (!tree_.getChain("base", tcp_name, chain_)) {
+-    RCLCPP_FATAL(get_node()->get_logger(), "Failed to extract KDL chain.");
+-    return CallbackReturn::FAILURE;
+-  }
+-
+-  nj_ = chain_.getNrOfJoints();
+-  q_min_ = KDL::JntArray(nj_);
+-  q_max_ = KDL::JntArray(nj_);
+-  q_init_ = KDL::JntArray(nj_);
+-  q_result_ = KDL::JntArray(nj_);
+-
+-  // Extract joint limits from URDF
+-  unsigned int j = 0;
+-  for (const auto& segment : chain_.segments) {
+-    const KDL::Joint& kdl_joint = segment.getJoint();
+-    if (kdl_joint.getType() == KDL::Joint::None) {
+-      continue;
+-    }
+-
+-    const std::string& joint_name = kdl_joint.getName();
+-    auto joint = model_.getJoint(joint_name);
+-    if (!joint || !joint->limits) {
+-      RCLCPP_FATAL(get_node()->get_logger(), "No limits found for joint: %s", joint_name.c_str());
++      "franka_controller/target_cartesian_velocity_percent", rclcpp::SensorDataQoS().keep_last(1),
++      [this](geometry_msgs::msg::Twist::SharedPtr msg) { spacemouse_callback(msg); });
++  ik_timer_ = get_node()->create_wall_timer(std::chrono::duration<double>(1.0 / ik_update_rate_),
++                                            [this]() { solve_ik_(); });
++  return CallbackReturn::SUCCESS;
++}
++
++CallbackReturn JointImpedanceIKController::on_activate(const rclcpp_lifecycle::State&) {
++  active_.store(false);
++  const auto find_state = [&](const std::string& name) {
++    for (size_t i = 0; i < state_interfaces_.size(); ++i) {
++      if (state_interfaces_[i].get_name() == name)
++        return i;
++    }
++    return state_interfaces_.size();
++  };
++  for (size_t i = 0; i < 7; ++i) {
++    position_indices_[i] = find_state(joint_names_[i] + "/position");
++    velocity_indices_[i] = find_state(joint_names_[i] + "/velocity");
++    command_indices_[i] = command_interfaces_.size();
++    for (size_t j = 0; j < command_interfaces_.size(); ++j) {
++      if (command_interfaces_[j].get_name() == joint_names_[i] + "/effort")
++        command_indices_[i] = j;
++    }
++    if (position_indices_[i] == state_interfaces_.size() ||
++        velocity_indices_[i] == state_interfaces_.size() ||
++        command_indices_[i] == command_interfaces_.size())
+       return CallbackReturn::FAILURE;
+-    }
+-
+-    q_min_(j) = joint->limits->lower;
+-    q_max_(j) = joint->limits->upper;
+-    q_init_(j) = (q_max_(j) + q_min_(j)) / 2;
+-    ++j;
+-  }
+-
+-  return CallbackReturn::SUCCESS;
+-}
+-
+-CallbackReturn JointImpedanceIKController::on_activate(
+-    const rclcpp_lifecycle::State& /*previous_state*/) {
+-  dq_filtered_.setZero();
+-  joint_positions_desired_.reserve(num_joints_);
+-  joint_positions_current_.reserve(num_joints_);
+-  joint_velocities_current_.reserve(num_joints_);
+-  joint_efforts_current_.reserve(num_joints_);
+-
+-  franka_cartesian_pose_->assign_loaned_state_interfaces(state_interfaces_);
++  }
++  for (const auto& name : franka_robot_model_->get_state_interface_names()) {
++    if (find_state(name) == state_interfaces_.size())
++      return CallbackReturn::FAILURE;
++  }
++  if (!update_joint_states_())
++    return CallbackReturn::FAILURE;
++  for (size_t i = 0; i < 7; ++i) {
++    if (q_[i] < q_min_(i) || q_[i] > q_max_(i))
++      return CallbackReturn::FAILURE;
++  }
+   franka_robot_model_->assign_loaned_state_interfaces(state_interfaces_);
+-
+-  return CallbackReturn::SUCCESS;
+-}
+-
+-controller_interface::CallbackReturn JointImpedanceIKController::on_deactivate(
+-    const rclcpp_lifecycle::State& /*previous_state*/) {
+-  franka_cartesian_pose_->release_interfaces();
++  // Initialize the semantic pointers outside update(); never substitute a fake physical model.
++  if (!Eigen::Map<const Vector7d>(franka_robot_model_->getCoriolisForceVector().data())
++           .allFinite()) {
++    franka_robot_model_->release_interfaces();
++    return CallbackReturn::FAILURE;
++  }
++  q_desired_ = q_;
++  dq_filtered_ = dq_;
++  activation_ns_.store(monotonic_ns());
++  active_.store(true);
++  return CallbackReturn::SUCCESS;
++}
++
++CallbackReturn JointImpedanceIKController::on_deactivate(const rclcpp_lifecycle::State&) {
++  active_.store(false);
++  franka_robot_model_->release_interfaces();
++  return CallbackReturn::SUCCESS;
++}
++
++CallbackReturn JointImpedanceIKController::on_cleanup(const rclcpp_lifecycle::State&) {
++  active_.store(false);
++  if (ik_timer_)
++    ik_timer_->cancel();
++  // Cleanup is non-RT and waits for an in-flight solver before releasing its callback.
++  std::lock_guard<std::mutex> lock(ik_mutex_);
++  ik_timer_.reset();
++  spacemouse_sub_.reset();
+   return CallbackReturn::SUCCESS;
+ }
+ 
+ void JointImpedanceIKController::spacemouse_callback(
+     const geometry_msgs::msg::Twist::SharedPtr msg) {
+-  // The values for max_linear_pos_update and max_angular_pos_update are empirically determined.
+-  // These values represent a tradeoff between precision in teleop control and speed.
+-  // Lowering these values will make the robot move slower and more precise, while increasing them
+-  // will make it move faster but less precise.
+-  const double max_linear_pos_update = 0.007;
+-  const double max_angular_pos_update = 0.03;
+-
+-  tf2::Vector3 v_linear_world = transform_velocity_to_world_frame_(msg);
+-
+-  desired_angular_position_update_ =
+-      max_angular_pos_update * Eigen::Vector3d(msg->angular.x, msg->angular.y, msg->angular.z);
+-  desired_linear_position_update_ =
+-      max_linear_pos_update *
+-      Eigen::Vector3d(v_linear_world.x(), v_linear_world.y(), v_linear_world.z());
+-
+-  Eigen::AngleAxisd rollAngle(desired_angular_position_update_.x(), Eigen::Vector3d::UnitX());
+-  Eigen::AngleAxisd pitchAngle(desired_angular_position_update_.y(), Eigen::Vector3d::UnitY());
+-  Eigen::AngleAxisd yawAngle(desired_angular_position_update_.z(), Eigen::Vector3d::UnitZ());
+-  desired_angular_position_update_quaternion_ = yawAngle * pitchAngle * rollAngle;
+-}
+-
+-tf2::Vector3 JointImpedanceIKController::transform_velocity_to_world_frame_(
+-    const geometry_msgs::msg::Twist::SharedPtr& msg) const {
+-  tf2::Quaternion q;
+-  q.setRPY(arm_mounting_orientation_[0], arm_mounting_orientation_[1],
+-           arm_mounting_orientation_[2]);
+-
+-  // Create rotation matrix from quaternion
+-  tf2::Matrix3x3 rotation_matrix(q);
+-
+-  // Invert the transformation from robot-frame to world-frame
+-  rotation_matrix = rotation_matrix.transpose();
+-
+-  tf2::Vector3 v_linear_robot(msg->linear.x, msg->linear.y, msg->linear.z);
+-
+-  tf2::Vector3 v_linear_world = rotation_matrix * v_linear_robot;
+-
+-  return v_linear_world;
+-}
+-
+-void JointImpedanceIKController::solve_ik_(const Eigen::Vector3d& new_position,
+-                                           const Eigen::Quaterniond& new_orientation) {
+-  KDL::ChainFkSolverPos_recursive fk_solver(chain_);
+-  KDL::ChainIkSolverVel_pinv vel_solver(chain_);
+-  KDL::ChainIkSolverPos_NR_JL ik_solver(chain_, q_min_, q_max_, fk_solver, vel_solver, 100, 1e-6);
+-
+-  KDL::Rotation kdl_rot = KDL::Rotation::Quaternion(new_orientation.x(), new_orientation.y(),
+-                                                    new_orientation.z(), new_orientation.w());
+-  KDL::Vector kdl_pos(new_position.x(), new_position.y(), new_position.z());
+-  KDL::Frame desired_pose(kdl_rot, kdl_pos);
+-
+-  int status = ik_solver.CartToJnt(q_init_, desired_pose, q_result_);
+-  if (status < 0) {
+-    RCLCPP_ERROR_THROTTLE(
+-      get_node()->get_logger(),
+-      *get_node()->get_clock(),
+-      1000,
+-      "IK Failed with error code: %d", status);
+-
+-    joint_positions_desired_ = joint_positions_current_;
++  Intent intent;
++  intent.received_ns = monotonic_ns();
++  intent.axes = {msg->linear.x,  msg->linear.y,  msg->linear.z,
++                 msg->angular.x, msg->angular.y, msg->angular.z};
++  if (std::all_of(intent.axes.begin(), intent.axes.end(),
++                  [](double v) { return std::isfinite(v) && std::abs(v) <= 1.0; })) {
++    intent.moving =
++        std::any_of(intent.axes.begin(), intent.axes.end(), [](double v) { return v != 0.0; });
++  } else {
++    intent.axes.fill(0.0);
++  }
++  intent_buffer_.writeFromNonRT(intent);
++}
++
++void JointImpedanceIKController::solve_ik_() {
++  std::lock_guard<std::mutex> solver_lock(ik_mutex_);
++  if (!active_.load())
+     return;
+-  }
+-
+-  std::vector<double> joint_vector(q_result_.data.data(), q_result_.data.data() + q_result_.rows());
+-
+-  joint_positions_desired_ = joint_vector;
+-}
+-
++  Sample sample;
++  {
++    std::lock_guard<std::mutex> lock(sample_mutex_);
++    sample = sample_;
++  }
++  const auto now = monotonic_ns();
++  if (!sample.intent.moving || sample.activation_ns != activation_ns_.load() ||
++      sample.intent.received_ns < sample.activation_ns || now < sample.intent.received_ns ||
++      now < sample.received_ns || (now - sample.intent.received_ns) * 1e-9 > command_timeout_s_ ||
++      (now - sample.received_ns) * 1e-9 > command_timeout_s_)
++    return;
++  for (size_t i = 0; i < 7; ++i)
++    q_init_(i) = sample.q[i];
++  KDL::Frame pose;
++  if (fk_solver_->JntToCart(q_init_, pose) < 0)
++    return;
++  tf2::Quaternion mounting;
++  mounting.setRPY(arm_mounting_orientation_[0], arm_mounting_orientation_[1],
++                  arm_mounting_orientation_[2]);
++  const auto& a = sample.intent.axes;
++  const auto linear = tf2::Matrix3x3(mounting).transpose() * tf2::Vector3(a[0], a[1], a[2]);
++  // Preserve the existing normalized pose-offset scales, not an SI velocity contract.
++  pose.p = pose.p + KDL::Vector(0.007 * linear.x(), 0.007 * linear.y(), 0.007 * linear.z());
++  pose.M = pose.M * KDL::Rotation::RPY(0.03 * a[3], 0.03 * a[4], 0.03 * a[5]);
++  Target target;
++  target.state_ns = sample.received_ns;
++  target.command_ns = sample.intent.received_ns;
++  target.activation_ns = sample.activation_ns;
++  target.valid = ik_solver_->CartToJnt(q_init_, pose, q_result_) >= 0;
++  for (size_t i = 0; i < 7; ++i) {
++    target.q[i] = q_result_(i);
++    target.valid = target.valid && std::isfinite(target.q[i]) && target.q[i] >= q_min_(i) &&
++                   target.q[i] <= q_max_(i);
++  }
++  // An invalid solve explicitly invalidates the target; the RT loop holds its last reference.
++  target_buffer_.writeFromNonRT(target);
++}
+ }  // namespace franka_arm_controllers
+ 
+ #include "pluginlib/class_list_macros.hpp"
+-// NOLINTNEXTLINE
+ PLUGINLIB_EXPORT_CLASS(franka_arm_controllers::JointImpedanceIKController,
+                        controller_interface::ControllerInterface)
+--- /dev/null
++++ b/src/franka_arm_controllers/test/joint_impedance_ik_controller_test.cpp
+@@ -0,0 +1,217 @@
++// Copyright (c) 2026 Franka Robotics GmbH
++// Licensed under the Apache License, Version 2.0.
++
++#include <gtest/gtest.h>
++#include <algorithm>
++#include <deque>
++#include <franka_arm_controllers/joint_impedance_ik_controller.hpp>
++#include <franka_hardware/model.hpp>
++#include <fstream>
++#include <thread>
++
++using CallbackReturn = franka_arm_controllers::CallbackReturn;
++using Controller = franka_arm_controllers::JointImpedanceIKController;
++using namespace std::chrono_literals;
++
++class ConstantModel : public franka_hardware::Model {
++ public:
++  std::array<double, 7> coriolis(const franka::RobotState&) const override {
++    return {0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25};
++  }
++};
++
++class JointImpedanceIKControllerTest : public ::testing::Test {
++ protected:
++  static void SetUpTestSuite() { rclcpp::init(0, nullptr); }
++  static void TearDownTestSuite() { rclcpp::shutdown(); }
++  void SetUp() override {
++    std::ifstream file(TEST_URDF_PATH);
++    ASSERT_TRUE(file.is_open());
++    std::string urdf((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
++    provider = std::make_shared<rclcpp::Node>("robot_state_publisher", "/offline_fr3_test");
++    provider->declare_parameter("robot_description", urdf);
++    controller = std::make_unique<Controller>();
++    rclcpp::NodeOptions options;
++    options.allow_undeclared_parameters(true).automatically_declare_parameters_from_overrides(true);
++    options.parameter_overrides(
++        {rclcpp::Parameter("arm_id", "fr3"),
++         rclcpp::Parameter("arm_mounting_orientation", std::vector<double>{0, 0, 0}),
++         rclcpp::Parameter("k_gains", std::vector<double>(7, 10.0)),
++         rclcpp::Parameter("d_gains", std::vector<double>(7, 0.0)),
++         rclcpp::Parameter("command_timeout", 0.1), rclcpp::Parameter("ik_update_rate", 50.0)});
++    ASSERT_EQ(controller->init("offline_joint_impedance", "/offline_fr3_test", options),
++              controller_interface::return_type::OK);
++    executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
++    executor->add_node(provider);
++    executor->add_node(controller->get_node()->get_node_base_interface());
++    spin = std::thread([this] { executor->spin(); });
++    ASSERT_EQ(controller->on_configure(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++    publisher = provider->create_publisher<geometry_msgs::msg::Twist>(
++        "franka_controller/target_cartesian_velocity_percent", rclcpp::SensorDataQoS());
++  }
++  void TearDown() override {
++    if (controller && activated)
++      controller->on_deactivate(rclcpp_lifecycle::State());
++    if (executor)
++      executor->cancel();
++    if (spin.joinable())
++      spin.join();
++    controller.reset();
++    executor.reset();
++    provider.reset();
++  }
++  void assign(bool omit_position = false) {
++    auto names = controller->state_interface_configuration().names;
++    // Deliberately differ from both the request order and the old Cartesian-offset layout.
++    std::reverse(names.begin(), names.end());
++    for (const auto& name : names) {
++      const auto slash = name.rfind('/');
++      const auto joint = name.substr(0, slash), type = name.substr(slash + 1);
++      if (omit_position && name == "fr3_joint1/position")
++        continue;
++      double* value = nullptr;
++      if (type == "robot_model")
++        value = reinterpret_cast<double*>(&model_ptr);
++      else if (type == "robot_state")
++        value = reinterpret_cast<double*>(&state_ptr);
++      else {
++        const auto index = static_cast<size_t>(joint.back() - '1');
++        if (type == "position")
++          value = &q.at(index);
++        else if (type == "velocity")
++          value = &dq.at(index);
++        else
++          value = &effort.at(index);
++      }
++      states.emplace_back(joint, type, value);
++    }
++    auto command_names = controller->command_interface_configuration().names;
++    std::reverse(command_names.begin(), command_names.end());
++    for (const auto& name : command_names) {
++      const auto slash = name.rfind('/');
++      const auto index = static_cast<size_t>(name[slash - 1] - '1');
++      commands.emplace_back(name.substr(0, slash), "effort", &torque.at(index));
++    }
++    std::vector<hardware_interface::LoanedStateInterface> loaned_states;
++    std::vector<hardware_interface::LoanedCommandInterface> loaned_commands;
++    for (auto& value : states)
++      loaned_states.emplace_back(value);
++    for (auto& value : commands)
++      loaned_commands.emplace_back(value);
++    controller->assign_interfaces(std::move(loaned_commands), std::move(loaned_states));
++  }
++  void activate() {
++    assign();
++    ASSERT_EQ(controller->on_activate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++    activated = true;
++  }
++  void update() {
++    ASSERT_EQ(controller->update(rclcpp::Time(0), rclcpp::Duration::from_seconds(0.001)),
++              controller_interface::return_type::OK);
++  }
++  void exercise_input(const geometry_msgs::msg::Twist& input, int cycles = 20) {
++    for (int i = 0; i < cycles; ++i) {
++      publisher->publish(input);
++      update();
++      std::this_thread::sleep_for(5ms);
++    }
++  }
++  std::array<double, 7> q{0.1, -0.3, 0.1, -1.6, 0.1, 1.2, 0.5};
++  std::array<double, 7> dq{}, effort{}, torque{};
++  ConstantModel model;
++  franka_hardware::Model* model_ptr{&model};
++  franka::RobotState state{};
++  franka::RobotState* state_ptr{&state};
++  std::deque<hardware_interface::StateInterface> states;
++  std::deque<hardware_interface::CommandInterface> commands;
++  std::unique_ptr<Controller> controller;
++  rclcpp::Node::SharedPtr provider;
++  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher;
++  std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor;
++  std::thread spin;
++  bool activated{false};
++};
++
++TEST_F(JointImpedanceIKControllerTest, measuredInitializationAndNamedInterfaceMapping) {
++  activate();
++  for (int i = 0; i < 100; ++i)
++    update();
++  for (double value : torque)
++    EXPECT_NEAR(value, 0.25, 1e-12);
++  EXPECT_EQ(controller->state_interface_configuration().names.size(), 23u);
++}
++
++TEST_F(JointImpedanceIKControllerTest, missingJointStatePreventsActivation) {
++  assign(true);
++  EXPECT_EQ(controller->on_activate(rclcpp_lifecycle::State()), CallbackReturn::FAILURE);
++}
++
++TEST_F(JointImpedanceIKControllerTest, nonFiniteMeasuredStatePreventsActivation) {
++  q[0] = std::numeric_limits<double>::quiet_NaN();
++  assign();
++  EXPECT_EQ(controller->on_activate(rclcpp_lifecycle::State()), CallbackReturn::FAILURE);
++}
++
++TEST_F(JointImpedanceIKControllerTest, freshIKTargetIsBoundedAndExpiredIntentHoldsReference) {
++  activate();
++  geometry_msgs::msg::Twist input;
++  input.linear.x = 0.5;
++  std::array<double, 7> previous;
++  previous.fill(0.25);
++  bool moved = false;
++  for (int i = 0; i < 40; ++i) {
++    publisher->publish(input);
++    update();
++    for (size_t j = 0; j < 7; ++j) {
++      EXPECT_TRUE(std::isfinite(torque[j]));
++      // URDF velocity is below 6 rad/s; the 1 ms reference increment uses k=10.
++      EXPECT_LE(std::abs(torque[j] - previous[j]), 0.06);
++      moved = moved || std::abs(torque[j] - 0.25) > 1e-8;
++    }
++    previous = torque;
++    std::this_thread::sleep_for(5ms);
++  }
++  EXPECT_TRUE(moved);
++  std::this_thread::sleep_for(130ms);
++  update();
++  const auto held = torque;
++  for (int i = 0; i < 20; ++i)
++    update();
++  EXPECT_EQ(torque, held);
++  ASSERT_EQ(controller->on_deactivate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++  ASSERT_EQ(controller->on_cleanup(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++  ASSERT_EQ(controller->on_configure(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++  ASSERT_EQ(controller->on_activate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
++  update();
++  for (double value : torque)
++    EXPECT_NEAR(value, 0.25, 1e-12);
++}
++
++TEST_F(JointImpedanceIKControllerTest, invalidInputDoesNotProduceNonFiniteCommands) {
++  activate();
++  geometry_msgs::msg::Twist input;
++  input.linear.x = std::numeric_limits<double>::quiet_NaN();
++  exercise_input(input);
++  for (double value : torque)
++    EXPECT_NEAR(value, 0.25, 1e-12);
++  input.linear.x = 2.0;
++  exercise_input(input);
++  for (double value : torque)
++    EXPECT_NEAR(value, 0.25, 1e-12);
++}
++
++TEST_F(JointImpedanceIKControllerTest, preActivationInputIsIgnored) {
++  geometry_msgs::msg::Twist input;
++  input.linear.x = 0.5;
++  for (int i = 0; i < 10; ++i) {
++    publisher->publish(input);
++    std::this_thread::sleep_for(5ms);
++  }
++  activate();
++  for (int i = 0; i < 10; ++i) {
++    update();
++    std::this_thread::sleep_for(5ms);
++  }
++  for (double value : torque)
++    EXPECT_NEAR(value, 0.25, 1e-12);
++}
