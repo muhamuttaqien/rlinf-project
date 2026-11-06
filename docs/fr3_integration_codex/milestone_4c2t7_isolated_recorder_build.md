@@ -27,3 +27,7 @@ This is raw telemetry, not validated training actions. Safety, actual RT overhea
 ## Post-build verification (November 7, 2026)
 
 Operator reported: `PASS: Library exists, recorder connected, recording disabled by default.` The read-only check confirmed a nonempty isolated shared library and grepped the isolated source for the JSONL drain and default-empty `telemetry_jsonl_path`. This does **not** validate dynamic linker dependencies, controller lifecycle activation, or capture from hardware. The next action is a read-only dynamic dependency check (`ldd -r`) on the isolated library under the correct ROS overlays.
+
+## Runtime dependencies resolved (November 7, 2026)
+
+The operator located `libpinocchio_default.so.4.1.0` and `libpinocchio_parsers.so.4.1.0` under `/opt/openrobots/lib/`. The **read-only** `ldd -r` check for the isolated `libfranka_arm_controllers.so` passed after prefixing `LD_LIBRARY_PATH=/opt/openrobots/lib:${LD_LIBRARY_PATH:-}` for that shell. No global linker configuration, system libraries, or live controller were modified. **Remaining offline validation**: plugin library loadability and recorder lifecycle behavior; these have not been tested, and no hardware deployment is authorized.
