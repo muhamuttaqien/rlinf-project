@@ -646,6 +646,16 @@ controller instrumentation requires an explicit lab safety
 review, staging/offline tests, performance tests, and an
 approved deployment/rollback procedure.
 
+## Milestone 4C.2T — Offline telemetry validator (November 7, 2026)
+
+A separate, **offline-only proposed telemetry contract** and focused
+synthetic tests are now implemented at
+[Milestone 4C.2T](milestone_4c2t_target_telemetry.md).
+It validates future controller-tick and Robotiq goal-lifecycle
+records without creating actions or contacting the NUC. Synthetic
+validation is not evidence of real instrumented target capture.
+The 4C.2 training-action source and synchronization gates remain blocked.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
