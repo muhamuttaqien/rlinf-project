@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
 
 STATE_NAMES = ("joint_state", "tcp_pose", "external_wrench", "gripper_state")
+COMMAND_NAMES = ("operator_twist", "operator_gripper_request")
 BROADCASTER = "/franka_robot_state_broadcaster"
 
 
@@ -76,6 +77,8 @@ class RosStateSubscriber:
         pose_topic: str,
         wrench_topic: str,
         gripper_topic: str | None = None,
+        twist_topic: str | None = None,
+        gripper_request_topic: str | None = None,
         domain_id: int = 70,
     ) -> None:
         if not 0 <= domain_id <= 232:
@@ -93,9 +96,15 @@ class RosStateSubscriber:
         ]
         if gripper_topic:
             self.command.extend(["--gripper-topic", gripper_topic])
+        if twist_topic:
+            self.command.extend(["--twist-topic", twist_topic])
+        if gripper_request_topic:
+            self.command.extend(["--gripper-request-topic", gripper_request_topic])
         self.process = None
         self.thread = None
         self.records: dict[str, dict] = {}
+        self.events: list[dict] = []
+        self.dropped_events = 0
         self.metadata: dict = {}
         self.error: str | None = None
         self.lock = threading.Lock()
@@ -107,6 +116,8 @@ class RosStateSubscriber:
             raise RuntimeError("ROS subscriber is already running.")
         self.ready.clear()
         self.records.clear()
+        self.events.clear()
+        self.dropped_events = 0
         self.metadata.clear()
         self.error = None
         self.process = subprocess.Popen(
@@ -146,6 +157,11 @@ class RosStateSubscriber:
                         raise RuntimeError(record["error"])
                     elif record["event"] == "state" and record["name"] in STATE_NAMES:
                         self.records[record["name"]] = record
+                    elif record["event"] == "state" and record["name"] in COMMAND_NAMES:
+                        if len(self.events) >= 8192:
+                            self.dropped_events += 1
+                        else:
+                            self.events.append(record)
                     else:
                         raise ValueError(
                             f"Unexpected ROS subscription record: {record}"
@@ -154,6 +170,13 @@ class RosStateSubscriber:
             with self.lock:
                 self.error = str(error)
             self.ready.set()
+
+    def drain_events(self) -> tuple[list[dict], int]:
+        """Drain timestamped operator command events without resampling them."""
+        with self.lock:
+            events, self.events = self.events, []
+            dropped, self.dropped_events = self.dropped_events, 0
+            return events, dropped
 
     def snapshot(self, max_age_s: float) -> dict[str, Any]:
         """Invalidate cached state when receipt is stale or the reader stops."""

@@ -65,16 +65,19 @@ def main() -> None:
     parser.add_argument("--pose-topic", required=True)
     parser.add_argument("--wrench-topic", required=True)
     parser.add_argument("--gripper-topic")
+    parser.add_argument("--twist-topic")
+    parser.add_argument("--gripper-request-topic")
     args = parser.parse_args()
     os.environ["RCUTILS_LOGGING_USE_STDOUT"] = "0"
 
     import rclpy
-    from geometry_msgs.msg import PoseStamped, WrenchStamped
+    from geometry_msgs.msg import PoseStamped, Twist, WrenchStamped
     from rclpy.node import Node
     from rclpy.qos import qos_profile_sensor_data
     from rclpy.signals import SignalHandlerOptions
     from rosidl_runtime_py.convert import message_to_ordereddict
     from sensor_msgs.msg import JointState
+    from std_msgs.msg import Float32
 
     def emit(record: dict) -> None:
         sys.stdout.write(json.dumps(record, allow_nan=False) + "\n")
@@ -119,6 +122,11 @@ def main() -> None:
                             },
                             "external_wrench": {"force": "N", "torque": "N*m"},
                             "gripper_state": {"position": "source_joint_definition"},
+                            "operator_twist": {
+                                "linear": "normalized_controller_input_not_m_per_s",
+                                "angular": "normalized_controller_input_not_rad_per_s",
+                            },
+                            "operator_gripper_request": {"data": "normalized_open_fraction"},
                         }[name],
                         "message": payload,
                         "received_monotonic_ns": time.monotonic_ns(),
@@ -140,6 +148,10 @@ def main() -> None:
         subscribe("external_wrench", args.wrench_topic, WrenchStamped)
         if args.gripper_topic:
             subscribe("gripper_state", args.gripper_topic, JointState)
+        if args.twist_topic:
+            subscribe("operator_twist", args.twist_topic, Twist)
+        if args.gripper_request_topic:
+            subscribe("operator_gripper_request", args.gripper_request_topic, Float32)
         emit(
             {
                 "event": "ready",
