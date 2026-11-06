@@ -83,6 +83,14 @@ assistant.
 and 7D action semantics, including timing; no automatic projection
 of the existing 20D Franka state or normalized SpaceMouse inputs.**
 
+## Milestone 4C.2 contract candidate
+
+A non-deployable 19D state preview and proposed metric 7D action
+schema are implemented and documented in
+[Milestone 4C.2 — candidate policy contract](milestone_4c2_policy_contract.md).
+This requires workstation tests and explicit semantic review;
+it is **not** a policy-ready state or an action-label export.
+
 ## Required next work — do not silently guess
 
 1. **Episode semantics:** record genuine human-controlled task episodes,
