@@ -1,5 +1,45 @@
 # Milestone 3B — Live multimodal observation qualification
 
+## Qualification result — 2026-11-06 JST
+
+**Status: COMPLETE for the Milestone 3B operational sampling gates.**
+The workstation operator ran the read-only qualifier after releasing the
+two RealSense ROS publishers from their exclusive camera-device ownership.
+The output JSON reported `"passed": true` with all three checks true.
+
+| Measure | Observed result | Gate |
+| --- | ---: | --- |
+| Valid samples | 60 / 60 (100%) | >= 95% |
+| Distinct samples — FR3 joints | 60 / 60 | >= 60% |
+| Distinct samples — TCP pose | 60 / 60 | >= 60% |
+| Distinct samples — external wrench | 60 / 60 | >= 60% |
+| Distinct samples — Robotiq joint | 60 / 60 | >= 60% |
+| Distinct samples — base and wrist cameras | 60 / 60 for each | >= 60% |
+| Maximum camera host-receipt skew | 32.709273 ms | <= 100 ms |
+| p95 camera host-receipt skew | 24.3770542 ms | informational |
+| Effective observation rate | 14.961978 Hz | target 15 Hz |
+| Elapsed time | 4.010165 s | informational |
+| Failure reasons | none | no invalid samples |
+
+Deployed ROS domains were FR3 **70** and Robotiq **71**. Observed
+source topics were the Franka state broadcaster's measured joints,
+current pose and external wrench, plus Robotiq `/joint_states`.
+The camera configuration used base D435i serial `337122075473`
+(640x480 @ 30 FPS) and wrist D405 serial `218622277827`
+(848x480 @ 30 FPS). The qualifier requested 15 observation samples/s.
+
+Earlier in the same session, **29 / 29 CPU unit tests passed**
+(`test_fr3_live_qualification.py`, `test_fr3_multimodal.py`,
+`test_franka_observation.py`, `test_franka_pi05_contract.py`).
+
+**Remaining boundaries (not part of 3B's completed sampling gate):**
+the output retains `policy_ready: false` and
+`clock_exposure_sync_verified: false`. It is a validated *raw*
+observation pipeline, not a policy-specific 19D state projection
+or verified cross-device exposure synchronization. Any later
+training or online-control integration must qualify those separately.
+
+
 This is a **read-only** 60-sample live check, not robot teleoperation,
 data collection or policy inference. It reuses the Milestone 3A
 `assemble_fr3_multimodal` contract and the pre-existing ROS 2
