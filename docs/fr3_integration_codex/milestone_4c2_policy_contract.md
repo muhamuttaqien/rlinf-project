@@ -39,12 +39,13 @@ normalize, invent gripper width, or make data training-ready.
 | --- | --- |
 | 0–2 | base-frame TCP translation displacement (metres) |
 | 3–5 | base-frame TCP rotation-vector displacement (radians) |
-| 6 | commanded Robotiq gripper aperture width target (metres) |
+| 6 | **candidate** Robotiq controller knuckle joint-position target (radians, unit/joint mapping pending confirmation) |
 
 This is a **candidate future target contract**, not a mapping from
 SpaceMouse axes. It requires controller-side evidence of accepted
-metric EE/gripper setpoints, reference and rotation frames, tool/TCP
-calibration, exact action interval and a verified timebase. The
+metric EE setpoints, verified Robotiq controller joint-position
+semantics, reference and rotation frames, tool/TCP calibration,
+exact action interval and a verified timebase. The
 present domain-70 `JointImpedanceIKController` takes normalized
 SpaceMouse inputs and computes IK pose offsets (0.007 m, 0.03 rad
 scales); domain-71 Robotiq has a distinct control path. Neither is
@@ -276,6 +277,53 @@ without inspecting the live driver and converter.
 types/names and a bounded one-message state observation; do not
 relaunch the bridge or create a competing Modbus driver.
 
+## Verified NUC binary-gripper bridge semantics — November 7, 2026
+
+The operator inspected the running `/tmp/robotiq_cross_domain_bridge.py`
+source. It creates two ROS 2 contexts in one process, with
+`spacemouse_input_domain70` subscribing to
+`/gripper_client/target_gripper_width_percent` (Float32) in
+domain 70 and `robotiq_output_domain71` sending
+`control_msgs/action/GripperCommand` goals to
+`/robotiq_gripper_controller/gripper_cmd` in domain 71.
+
+Explicit mapping in that script:
+
+| Input | Bridge command | Goal `command.position` |
+| --- | --- | --- |
+| `>= 0.9` | `OPEN` | `0.0` |
+| `<= 0.1` | `CLOSE` | `0.7929` |
+| Between 0.1 and 0.9 | ignored | none |
+
+Each goal contains `command.max_effort=50.0`. The bridge has
+`queue.Queue(maxsize=1)` and replaces an unprocessed event with
+the newest event. While `busy`, it does not send another goal.
+It sets `busy=False` after an action result callback, and logs
+accepted goals/results, but **does not capture controller-side
+acceptance and execution timestamps or measured position alongside
+each individual action**.
+
+The source implements **binary endpoint control**; the observed
+`GripperCommand.command.position` is a controller joint-position
+target, NOT an aperture width in metres. The observed numeric
+endpoint `0.7929` is consistent with a knuckle-joint angular
+target, but the action server's joint mapping and SI unit semantics
+still need verification against the controller configuration/URDF.
+Do not assume 0.7929 is a calibrated physical opening width or
+that the bridge provides arbitrary intermediate widths.
+
+**Contract revision:** the proposed 7th training action is now
+`gripper_target_knuckle_rad` rather than
+`gripper_target_width_m`. The draft report version changes from
+`fr3_robotiq_policy_contract_candidate_v1` (earlier offline
+validation) to **`..._candidate_v2`**. This is only metadata,
+not an enabled action encoder or approval to actuate. Historical
+test results refer to v1; v2 requires focused workstation retesting.
+
+The `franka_gripper_client.py` and
+`openpi_gripper_bridge.py` files are Franka Hand examples and
+must not be used to command the actual Robotiq.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
@@ -283,7 +331,7 @@ relaunch the bridge or create a competing Modbus driver.
 - [ ] Verify TCP frame id and physical tool offset and quaternion order.
 - [ ] Confirm normalized force and torque semantics and whether torque
       magnitude is useful compared with directional components.
-- [ ] Verify Robotiq width conversion/limits and accepted control targets.
+- [ ] Verify Robotiq gripper-controller joint-position units, physical limits and accepted target mapping; metric aperture width is not established.
 - [ ] Choose the actual 7D action source and interval; confirm that
       metrics refer to accepted controller commands, not SpaceMouse intent.
 - [ ] Verify frame/action cross-host timing and documented tolerances.

@@ -88,9 +88,9 @@ def test_missing_torque_rejected():
 
 
 def test_action_contract_is_metadata_only_and_has_7_fields():
-    assert CONTRACT_VERSION.endswith("_candidate_v1")
+    assert CONTRACT_VERSION.endswith("_candidate_v2")
     assert ACTION_FIELDS == (
         "delta_tcp_x_m", "delta_tcp_y_m", "delta_tcp_z_m",
         "delta_tcp_rotvec_x_rad", "delta_tcp_rotvec_y_rad",
-        "delta_tcp_rotvec_z_rad", "gripper_target_width_m",
+        "delta_tcp_rotvec_z_rad", "gripper_target_knuckle_rad",
     )

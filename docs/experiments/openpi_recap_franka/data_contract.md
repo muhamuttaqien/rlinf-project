@@ -47,9 +47,9 @@ angle and 1 external torque magnitude. These selections intentionally
 lose torque direction and omit joint velocity/effort; the frame and
 calibration assumptions remain unverified. Proposed 7D future targets
 are Cartesian delta translation (m), delta rotation vector (rad), and
-Robotiq width target (m). **No metric action labels are generated.**
+Robotiq knuckle-joint position target (candidate radians, units/joint mapping to verify). **No metric action labels are generated.**
 See [Milestone 4C.2 contract](../../fr3_integration_codex/milestone_4c2_policy_contract.md).
-Do not treat this candidate as an approved SFT / RECAP schema.
+Do not treat this candidate as an approved SFT / RECAP schema. The November 7 NUC binary bridge uses `control_msgs/action/GripperCommand`, target `position=0.0` for open and `position=0.7929` for close (with `max_effort=50.0`), not a metre-valued gripper-width goal. See the revised **candidate v2** contract; controller joint semantics and action timestamps remain to be verified.
 
 ## Proposed non-ROS transport-neutral capture record (for later design)
 

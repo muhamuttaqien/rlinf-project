@@ -29,7 +29,7 @@ import numpy as np
 
 from toolkits.realworld_check.fr3_lerobot_preflight import audit_raw_episode
 
-CONTRACT_VERSION = "fr3_robotiq_policy_contract_candidate_v1"
+CONTRACT_VERSION = "fr3_robotiq_policy_contract_candidate_v2"
 FEATURE_NAMES = (
     "tcp_x_m", "tcp_y_m", "tcp_z_m",
     "tcp_quat_x", "tcp_quat_y", "tcp_quat_z", "tcp_quat_w",
@@ -42,7 +42,7 @@ FEATURE_NAMES = (
 ACTION_FIELDS = (
     "delta_tcp_x_m", "delta_tcp_y_m", "delta_tcp_z_m",
     "delta_tcp_rotvec_x_rad", "delta_tcp_rotvec_y_rad",
-    "delta_tcp_rotvec_z_rad", "gripper_target_width_m",
+    "delta_tcp_rotvec_z_rad", "gripper_target_knuckle_rad",
 )
 
 
@@ -117,6 +117,19 @@ def candidate_contract_report(raw: Path) -> tuple[dict[str, Any], np.ndarray]:
         ],
         "action_dim_proposed": 7,
         "action_fields_proposed": list(ACTION_FIELDS),
+        "gripper_bridge_reference": {
+            "source": "NUC /tmp/robotiq_cross_domain_bridge.py (operator inspected 2026-11-07)",
+            "action": "/robotiq_gripper_controller/gripper_cmd",
+            "action_type": "control_msgs/action/GripperCommand",
+            "open_request": 1.0,
+            "open_position_target": 0.0,
+            "close_request": 0.0,
+            "close_position_target": 0.7929,
+            "max_effort_field": 50.0,
+            "goal_queue_maxsize": 1,
+            "is_continuous_width_controller": False,
+            "goal_unit_and_joint_mapping_verified": False,
+        },
         "action_translation_frame": "robot_base_FRAME_UNVERIFIED",
         "action_rotation": "rotation_vector_axis_angle_FRAME_UNVERIFIED",
         "action_interval_s": None,
@@ -129,8 +142,8 @@ def candidate_contract_report(raw: Path) -> tuple[dict[str, Any], np.ndarray]:
         "required_approvals": [
             "Approve or revise this exact 19D state feature selection.",
             "Verify frame IDs, TCP/tool offset and the quaternion xyzw convention.",
-            "Calibrate Robotiq measured knuckle angle to physical gripper width (m).",
-            "Define accepted/actual 7D controller actions with SI units and synchronization tolerance.",
+            "Verify Robotiq controller target position units/joint and safe limits; do not infer metric aperture width.",
+            "Verify provenance and timing of accepted EE and Robotiq 7D controller goals; normalized operator input is not a target.",
             "Collect human-labeled task demonstration episodes after physical safety clearance.",
             "Verify OpenPI SFT and RECAP two-camera loader compatibility.",
         ],
