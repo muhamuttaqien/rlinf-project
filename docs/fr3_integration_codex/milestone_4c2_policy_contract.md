@@ -324,6 +324,68 @@ The `franka_gripper_client.py` and
 `openpi_gripper_bridge.py` files are Franka Hand examples and
 must not be used to command the actual Robotiq.
 
+## Active Robotiq action-controller configuration — November 7, 2026
+
+The operator inspected the **live domain-71** controller parameters and
+URDF from the NUC with read-only ROS commands:
+
+- `/robotiq_gripper_controller`: `gripper_profile=2f_85`,
+  `joint=robotiq_85_left_knuckle_joint`,
+  `gripper_closed_position=0.7929`,
+  `goal_tolerance=0.02`, `max_effort=50.0`,
+  `action_monitor_rate=100.0`, `allow_stalling=true`,
+  `stall_timeout=0.05`, `stall_velocity_threshold=0.001`,
+  and `use_object_status=true`.
+- Controller URDF: `robotiq_85_left_knuckle_joint` is a
+  **revolute** joint with position limits `[0.0, 0.8]` (radians),
+  velocity limit `0.5`, and effort limit `50`.
+  Position is exposed as a ros2_control command and state interface;
+  velocity, motor current, object status, fault and fault severity
+  are exposed as state interfaces.
+- `ros2 action info /robotiq_gripper_controller/gripper_cmd`
+  showed **one action server** (`/robotiq_gripper_controller`)
+  and two advertised action clients
+  (`/robotiq_gripper_controller` and
+  `/robotiq_output_domain71`). The bridge is thus connected to
+  the active, joint-position controller, but this does not establish
+  per-command execution timestamps.
+- A read-only `ros2 topic echo /joint_states --once` printed the
+  named knuckle joint with position
+  **0.7859140969162995 rad** and velocity **0.0**. This is near
+  the `0.7929` rad closed target and within the configured
+  `0.02` rad goal tolerance. However, the sample was not correlated
+  with a particular action goal or completion result.
+- That same topic observation emitted
+  `A message was lost!!! total count change:2`, and its joint
+  `effort` field was `.nan`. The observed position is numeric,
+  but loss warnings require monitoring, and **effort must not be
+  treated as a valid finite gripper state**.
+
+**Resolution:** the observed NUC controller and URDF **confirm that
+the bridge goal position and live knuckle feedback are angular
+joint positions in radians**. The v2 proposed seventh component
+`gripper_target_knuckle_rad` is therefore the appropriate
+*controller-target representation*, rather than
+`gripper_target_width_m`. Physical aperture-width calibration
+is no longer a prerequisite for this *candidate target's units*,
+although it may matter for task geometry/metrics.
+
+**Evidence boundary:** the offline v2 contract report cannot
+automatically verify a live deployed robot, so its
+`goal_unit_and_joint_mapping_verified=false` remains an honest
+fail-closed runtime gate. The observed NUC configuration supplies
+human-audited evidence, not a universal assurance for another
+deployment. Neither successful physical action response nor
+`GripperCommand` goal acceptance/result timestamps were recorded
+here. In particular, with `allow_stalling=true`, action completion
+cannot simply be equated with an unobstructed complete closure or
+successful grasp. Actual training labels and end-to-end timing remain
+unavailable.
+
+The workstation also passed **11/11** focused
+`test_fr3_policy_contract.py` tests for candidate v2
+(0.18 seconds, Python 3.12.3).
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
@@ -331,7 +393,7 @@ must not be used to command the actual Robotiq.
 - [ ] Verify TCP frame id and physical tool offset and quaternion order.
 - [ ] Confirm normalized force and torque semantics and whether torque
       magnitude is useful compared with directional components.
-- [ ] Verify Robotiq gripper-controller joint-position units, physical limits and accepted target mapping; metric aperture width is not established.
+- [x] Read-only NUC controller/URDF verification of knuckle-position goal units and configured limits (0–0.8 rad) completed; command acceptance/execution timestamps and runtime verification in the offline contract remain open.
 - [ ] Choose the actual 7D action source and interval; confirm that
       metrics refer to accepted controller commands, not SpaceMouse intent.
 - [ ] Verify frame/action cross-host timing and documented tolerances.
