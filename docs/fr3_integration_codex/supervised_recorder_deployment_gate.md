@@ -17,3 +17,32 @@ The immediate operator action is to obtain supervisor/lab operator approval for 
 
 ## After approval (not yet executed)
 Prepare a separate approved launch/runtime overlay pointing to the isolated recorder build, a bounded writable JSONL output path, and specific commands to stop, start, validate neutral input, and roll back in the supervised session. Validate that data are truly controller-originated before converting them to any training action labels.
+
+## Runtime overlay preflight (no controller changes)
+
+From the workstation, read the **isolated** ROS package resolution and the active launch/config structure before constructing the approved launch command. Do not stop or swap the active controller at this step.
+
+```bash
+ssh nuc-franka 'bash -s' <<'SH'
+set -eo pipefail
+source /opt/ros/humble/setup.bash
+source "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash"
+source "$HOME/fr3_telemetry_isolated_4c2t7/install/local_setup.bash"
+export LD_LIBRARY_PATH="/opt/openrobots/lib:${LD_LIBRARY_PATH:-}"
+
+P="$(ros2 pkg prefix franka_arm_controllers)"
+EXPECTED="$HOME/fr3_telemetry_isolated_4c2t7/install/franka_arm_controllers"
+printf 'RESOLVED_PACKAGE=%s\n' "$P"
+test "$P" = "$EXPECTED" || { echo "FAIL: original controller overlay selected"; exit 1; }
+echo 'PASS: isolated recorder overlay selected'
+
+LAUNCH="$P/share/franka_arm_controllers/launch/joint_impedance_ik_controller.launch.py"
+YAML="$P/share/franka_arm_controllers/config/controllers.yaml"
+echo '--- launch wiring ---'
+grep -nE 'robot_config_file|controllers.yaml|spawner|controller_manager|package' "$LAUNCH" | head -n 40 || true
+echo '--- controller YAML wiring ---'
+grep -nE 'joint_impedance_ik_controller|ros__parameters|telemetry_jsonl_path|controller_manager' "$YAML" | head -n 50 || true
+SH
+```
+
+The `telemetry_jsonl_path` parameter defaults to empty and must be correctly configured in a **separate** approved launch/config path before any stationary recording is possible. Library loader resolution and mock-controller tests do not demonstrate real hardware safety. A supervised maintenance window, physical workspace isolation, E-stop verification, neutral-input qualification, and a rollback procedure remain prerequisites to restarting or replacing the controller.
