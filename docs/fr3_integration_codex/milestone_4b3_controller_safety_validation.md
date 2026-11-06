@@ -37,6 +37,30 @@ the RLinf raw recorder controls or moves the FR3.
   barriers, collision monitoring, torque saturation, or compliance
   with the workcell's physical safety requirements.
 
+## Additional live ROS diagnostics — November 6, 2026
+
+Read-only commands on NUC after sourcing both ROS Humble and the
+`franka_controller_ws` overlay confirmed:
+
+- `ros2 param get /joint_impedance_ik_controller command_timeout`:
+  `Double value is: 0.25`.
+- Motion command topic `/franka_controller/target_cartesian_velocity_percent`
+  has **one RELIABLE publisher** and **one BEST_EFFORT subscriber**,
+  identified on the NUC as `joint_impedance_ik_controller`.
+  This QoS pairing is compatible; the publisher name was not resolved
+  from the NUC query, but had previously been identified as
+  `spacemouse_publisher` from workstation discovery.
+- `ros2 bag --help` succeeded, confirming bag recording tooling is
+  available.
+- DDS emitted `sequence size exceeds remaining buffer` warnings.
+  Diagnostics returned results, but the warnings' root cause remains
+  unknown and should be monitored during telemetry capture.
+
+**Current state:** read-only diagnostics passed; stationary joint-state
+baseline recording, on-site safety approval, neutral/release test, and
+authorized physical fault-response validation still pending. Do not
+interpret successful ROS discovery as a tested physical safe stop.
+
 ## Must verify before any moving-arm test
 
 The on-site qualified FR3 operator/safety supervisor is responsible
