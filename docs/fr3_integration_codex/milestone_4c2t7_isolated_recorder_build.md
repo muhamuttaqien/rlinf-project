@@ -61,3 +61,9 @@ SH
 ```
 
 The linker path flag addresses the **previous optional-test-only** `libpinocchio` link failure without any global install changes. The mock test may still expose issues; do not claim it passed until its output is observed. Running the test **does not load the controller into the robot's controller manager**. It does not test real-time overhead or live hardware.
+
+## Verified offline controller test — November 7, 2026
+
+Operator completed an isolated NUC build with `BUILD_TESTING=ON`, `LD_LIBRARY_PATH=/opt/openrobots/lib`, and CMake linker rpath-link under `ROS_DOMAIN_ID=213`, localhost only. Reported: `Summary: 1 package finished [9.81s]` and `1/1 Test #1: joint_impedance_ik_controller_test ... Passed 0.90 sec` (`100% tests passed, 0 tests failed`). Only external Pinocchio deprecation warnings were printed.
+
+**Stop repeating offline build/tests.** The real safety gate is still open: this gtest uses fake state/command interfaces and does not establish live controller safety, recorder performance, or time-aligned training labels. Next action is a **read-only inventory of the active NUC controller** on ROS domain 70 before proposing an explicitly supervised deployment and stationary recording plan. Do not load or activate this isolated plugin on real hardware yet.

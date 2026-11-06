@@ -33,7 +33,7 @@
 | 4C.2T.4 — Separate offline controller reference build | **Complete (offline)** (3/3 workstation tests, 0.68 s) |
 | 4C.2T.5 — Isolated actual ROS 2 controller build | **Complete (isolated build)** (NUC: 1 package finished in 0.70 s; BUILD_TESTING=OFF) |
 | 4C.2T.6 — Non-RT JSONL recorder (synthetic) | **Complete (offline)** — 1/1 test passed; standalone demo verified: 2 saved, 1 dropped, 2 JSONL lines |
-| 4C.2T.7 — Non-RT recorder in isolated ROS controller | **Complete (isolated build)** — NUC build, `ldd -r`, and `ctypes.CDLL` load passed; offline mock lifecycle test pending, no robot deployment |
+| 4C.2T.7 — Non-RT recorder in isolated ROS controller | **Complete (offline)** — NUC build passed (9.81 s); `ctest` 1/1 in 0.90 s; link/load verified; no robot deployment |
 | 4C.3/4C.4 — LeRobot export + OpenPI/RECAP data path | **Not started** |
 
 **Bottom line:** Milestones **0–3B are operationally complete**; **Milestone 4 is in progress**; **5 and 6 are not started**. The 4C.2T prototypes are offline only and are **not** deployed on the NUC. No policy-ready 7D action dataset exists yet.
