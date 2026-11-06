@@ -51,4 +51,4 @@ Tests compile C++17 with `g++` in a temporary directory; no ROS installation, ro
 
 ## Milestone acceptance boundary
 
-**4C.2T.2 offline prototype:** implementation and isolated testing complete; user workstation verification pending. **4C.2T.3 / live instrumentation:** not approved or implemented. **4C.2 production action contract:** blocked on accurate controller-reference telemetry, frame/tool calibration, explicit action interval, action-source provenance, cross-domain/host clock mapping and safety-reviewed collection. Existing stationary raw episodes remain non-training data.
+**4C.2T.2 offline prototype:** implementation complete; **3/3 workstation pytest scenarios passed in 0.58 s on November 7, 2026** (Python 3.12.3). **4C.2T.3 / live instrumentation:** not approved or implemented. **4C.2 production action contract:** blocked on accurate controller-reference telemetry, frame/tool calibration, explicit action interval, action-source provenance, cross-domain/host clock mapping and safety-reviewed collection. Existing stationary raw episodes remain non-training data.
