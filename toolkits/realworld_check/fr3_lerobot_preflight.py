@@ -113,6 +113,9 @@ def audit_raw_episode(root: Path) -> tuple[dict, dict[str, np.ndarray]]:
             raise ValueError(f"Raw capture flag {flag} must be false")
     if manifest.get("operator_events_dropped") != 0 or manifest.get("failures"):
         raise ValueError("Raw capture has dropped events or reported failures")
+    if (manifest.get("realworld_episode_success") is not None
+            or manifest.get("label") != "unlabeled_raw_observation"):
+        raise ValueError("Raw capture must have no demonstration success label")
     if not isinstance(manifest.get("task"), str) or not manifest["task"].strip():
         raise ValueError("Missing task text")
 
@@ -156,8 +159,9 @@ def audit_raw_episode(root: Path) -> tuple[dict, dict[str, np.ndarray]]:
             raise ValueError(f"Frame {i}: missing/unexpected raw state fields")
         for name, count in STATE_DIMENSIONS.items():
             _finite_vector(state[name], count, f"Frame {i} {name}")
-        if record.get("training_action") is not None:
-            raise ValueError("Raw capture unexpectedly contains training actions")
+        if (record.get("training_action") is not None
+                or record.get("operator_command_labels") is not None):
+            raise ValueError("Raw capture unexpectedly contains training actions or labels")
         metadata = record.get("source_and_camera_metadata")
         if not isinstance(metadata, dict) or metadata.get("policy_ready") is not False:
             raise ValueError(f"Frame {i}: invalid raw metadata")
