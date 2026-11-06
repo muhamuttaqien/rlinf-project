@@ -153,6 +153,39 @@ timeout, exclusive operator command authority, and safety limit
 configuration before supervised **moving-arm** demonstration capture.
 Do not introduce any additional robot command publisher during audit.
 
+## Controller safety configuration audit — November 6, 2026
+
+**Milestone 4B.3: IN PROGRESS — watchdog implementation not yet verified.**
+
+On NUC ROS domain 70, live arm joint-state feedback was observed at
+approximately 1000 Hz and `ros2 control list_controllers` reported
+three active controllers: `franka_robot_state_broadcaster`,
+`joint_state_broadcaster` and
+`franka_arm_controllers/JointImpedanceIKController`.
+
+A read-only ROS parameter dump from
+`/joint_impedance_ik_controller` reported:
+
+- `arm_id: fr3`
+- `command_timeout: 0.25` seconds
+- `ik_update_rate: 50.0` Hz
+- Seven joints `fr3_joint1` to `fr3_joint7`
+- `load_gripper: 'false'` (the Robotiq has a separate controller)
+
+The NUC source location was found at
+`/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp`.
+`ros2 pkg prefix franka_arm_controllers` returned
+`Package not found` in a shell that had sourced only ROS Humble,
+suggesting the custom controller overlay was not sourced for that query.
+
+The presence of a **0.25-second configured timeout is not proof** of
+safe hold, limit enforcement, or a verified stop on command loss.
+Before moving-arm demonstration capture, inspect the deployed C++
+callback/update path to identify the timeout branch, its exact
+hold/stop semantics, how command timestamps are refreshed, and whether
+the running binary corresponds to the inspected source. No live
+disconnect or stop test has been authorized or performed.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
