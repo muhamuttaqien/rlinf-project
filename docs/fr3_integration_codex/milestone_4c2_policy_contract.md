@@ -114,6 +114,47 @@ Next: inspect actual candidate values and frame-specific semantics,
 verify gripper measurement calibration, and qualify the action
 definition independently of normalized SpaceMouse intent.
 
+## Full 100-frame candidate state projection — November 7, 2026
+
+User independently evaluated `candidate_19d_state` on **all 100**
+real records from `fr3_raw_buttons_20261106_183614`.
+The resulting array had **shape `(100, 19)`** and
+`np.isfinite(states).all() == True`.
+
+Reported feature ranges (rounded as printed):
+
+| Index | Feature | Range |
+| --- | --- | --- |
+| 0 | `tcp_x_m` | 0.50436 to 0.50437 |
+| 1 | `tcp_y_m` | 0.11565 to 0.11569 |
+| 2 | `tcp_z_m` | 0.58937 to 0.58939 |
+| 3 | `tcp_quat_x` | 0.92297 to 0.92298 |
+| 4 | `tcp_quat_y` | 0.36862 to 0.36864 |
+| 5 | `tcp_quat_z` | 0.10818 to 0.10820 |
+| 6 | `tcp_quat_w` | 0.02280 to 0.02281 |
+| 7 | `fr3_joint1_rad` | 0.05049 to 0.05052 |
+| 8 | `fr3_joint2_rad` | -0.22732 to -0.22729 |
+| 9 | `fr3_joint3_rad` | 0.15134 to 0.15139 |
+| 10 | `fr3_joint4_rad` | -1.70710 to -1.70705 |
+| 11 | `fr3_joint5_rad` | 0.02772 to 0.02773 |
+| 12 | `fr3_joint6_rad` | 1.70381 to 1.70385 |
+| 13 | `fr3_joint7_rad` | 0.22661 to 0.22664 |
+| 14 | `wrench_force_x_N` | -1.40366 to -1.01316 |
+| 15 | `wrench_force_y_N` | 0.21502 to 0.40690 |
+| 16 | `wrench_force_z_N` | -1.58367 to -1.04178 |
+| 17 | `robotiq_left_knuckle_rad` | 0.00000 to 0.78591 |
+
+**Feature 18**, `wrench_torque_magnitude_Nm`, was **not in
+the shared terminal excerpt**; its numeric range remains unreported,
+although the combined finite check and shape passed.
+
+Interpretation: the 19D candidate can be constructed for the
+entire 100-frame raw pilot, TCP and joint positions vary minimally,
+and measured gripper knuckle position changes substantially during
+the button pilot. This is offline integrity evidence, **not**
+validation of gripper opening-width calibration, external wrench
+semantics, action mapping, task demonstrations or policy readiness.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
