@@ -158,7 +158,7 @@ def build_isolated(destination: Path, original_ws: Path) -> None:
         "--packages-select franka_arm_controllers "
         f"--build-base {shlex.quote(str(destination / 'build'))} "
         f"--install-base {shlex.quote(str(destination / 'install'))} "
-        "--event-handlers console_direct+"
+        "--cmake-args -DBUILD_TESTING=OFF --event-handlers console_direct+"
     )
     print("Building isolated copy only; no live controller changes.", flush=True)
     subprocess.run(["bash", "-c", cmd], cwd=destination, check=True)

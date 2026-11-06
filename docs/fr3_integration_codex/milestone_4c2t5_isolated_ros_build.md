@@ -26,3 +26,7 @@ ssh nuc-franka 'bash -c '\''set -eo pipefail; source /opt/ros/humble/setup.bash;
 ```
 
 This recompiles only the isolated copy. No installed live binary is overwritten, no ROS node is launched, and no robot motion is commanded.
+
+## November 7 NUC build finding
+
+The isolated controller shared library compiled and linked (77%). The build subsequently failed while linking `joint_impedance_ik_controller_test`: `libpinocchio_parsers.so.4.1.0` and `libpinocchio_default.so.4.1.0` were unresolved through the existing libfranka dependency. This is a **test executable linkage problem**, not a controller source compile failure. The build-only staging script now passes `-DBUILD_TESTING=OFF` to avoid building optional controller tests. It does not resolve or alter system Pinocchio dependencies. Reuse the existing isolated directory and re-run colcon with that flag; no restaging, installation into live ROS workspace, or controller launch.
