@@ -84,6 +84,35 @@ joint velocities were negligible. Analyze the recorded payloads
 without replaying the bag onto a live ROS domain. The watchdog
 stale-nonzero-command branch was not exercised or proven here.
 
+## Stationary baseline payload analysis — November 6, 2026
+
+The operator read the saved rosbag database directly, without replay or
+publishing, and reported the following from the 35.1 s baseline:
+
+| Metric | Observed |
+| --- | --- |
+| Nonzero normalized SpaceMouse `Twist` messages | 0 |
+| Maximum absolute normalized command | 0.0 |
+| Joint 1–4 position range | 0.000013 rad each |
+| Joint 5–6 position range | 0.000009 rad each |
+| Joint 7 position range | 0.000013 rad |
+| Maximum reported joint velocity magnitude | 0.0039049081970006227 rad/s |
+| Nonfinite joint velocities | 0 |
+
+**Assessment: neutral-command stationary baseline observed stable.**
+All joint position excursions were under 0.000014 rad and no
+nonzero SpaceMouse commands were recorded. The maximum instantaneous
+measured velocity may reflect noise/transient effects; this summary
+does not independently prove physical zero motion or meet a previously
+established formal numerical threshold.
+
+This is NOT proof that a nonzero command goes stale safely. The
+controller receives continuous zero commands in this baseline, so
+the nonzero stale-command watchdog branch remains untested.
+Proceed only to an on-site approved, supervised low-speed
+neutral/release assessment and separately approved fault-response
+validation; no ad-hoc disconnection or scripted motion.
+
 ## Must verify before any moving-arm test
 
 The on-site qualified FR3 operator/safety supervisor is responsible
