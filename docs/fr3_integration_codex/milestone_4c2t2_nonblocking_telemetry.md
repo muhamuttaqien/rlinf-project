@@ -75,7 +75,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="$PWD" python -m pytest -q tests/uni
 ```
 
 **2/2 standalone scenarios passed in an isolated Linux C++17 test**.
-User workstation verification is pending.
+**Workstation verified November 7, 2026:** `tests/unit_tests/test_fr3_rt_telemetry_capture.py` — **2 passed in 0.61 s** (Python 3.12.3, pytest 9.2.0).
 
 The deployed `JointImpedanceIKController` source lives in the
 **separate NUC workspace**, not this repository. There is **no live
