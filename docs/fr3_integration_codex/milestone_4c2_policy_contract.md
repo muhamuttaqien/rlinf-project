@@ -79,6 +79,41 @@ The command revalidates the whole raw dataset, creates a **new**
 No `actions` are exported, and the result must not be passed to a
 policy trainer. The original raw capture is untouched.
 
+## Real workstation candidate validation — November 7, 2026
+
+The operator ran focused CPU-only unit suites in the `aist-gamma`
+Python 3.12.3 environment:
+
+- `test_fr3_policy_contract.py`: **11 passed**
+- `test_fr3_lerobot_preflight.py`: **7 passed**
+- `test_franka_pi05_contract.py`: **7 passed**
+- **Total: 25 passed in 0.22 seconds**
+
+The offline candidate CLI successfully revalidated the previously
+recorded `fr3_raw_buttons_20261106_183614` dataset, containing
+**100** genuine raw observations, and created a review-only
+`fr3_robotiq_policy_contract_candidate_v1` report.
+It reported `state_dim=19`, `float32`, and source-header
+`frame_id=base` for both TCP pose and external wrench.
+
+The output also explicitly indicated:
+`status=candidate_requires_review`,
+`action_interval_s=null`, `executed_action_source=null`,
+`gripper_width_calibration_verified=false`,
+`action_labels_available=false`,
+`le_robot_export_ready=false`, `sft_ready=false`, and
+`recap_ready=false`.
+
+**Interpretation:** candidate code and the first-state projection
+are offline validated, but the CLI only projects the first
+observation to 19D; the separate raw preflight checks all 100
+state/image records. Do not claim that a full 100-frame projected
+policy-state dataset or a usable 7D-action training set exists.
+
+Next: inspect actual candidate values and frame-specific semantics,
+verify gripper measurement calibration, and qualify the action
+definition independently of normalized SpaceMouse intent.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
