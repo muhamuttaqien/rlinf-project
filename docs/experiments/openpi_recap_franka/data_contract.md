@@ -36,7 +36,7 @@ RECAP return computation reads `episode_index` and `frame_index`; rollout data a
 
 ## Dataset status
 
-**No human demonstrations or policy rollouts have been recorded.** No normalization statistics, train/validation splits, RECAP returns, or critic checkpoints can be produced from real Franka data yet. First record lossless raw frames and control/state metadata, then generate a compatible LeRobot dataset after the schema gate. See [dataset_collection_plan.md](dataset_collection_plan.md).
+**Two real stationary raw pilots have been recorded (November 6, 2026)** with lossless base/wrist frames, measured FR3/Robotiq state and ROS operator events. These are **not human task demonstrations or policy rollouts**. No success-labeled episodes, training action targets, normalization statistics, train/validation splits, RECAP returns or critic checkpoints exist for real Franka data. Use the offline [Milestone 4C preflight](../../fr3_integration_codex/milestone_4c_lerobot_preflight.md) before developing any schema-approved LeRobot export; raw validation does not make the data training-ready.
 
 ## Proposed non-ROS transport-neutral capture record (for later design)
 
