@@ -190,6 +190,47 @@ timestamp synchronization quality, or gripper end-stop state. Do not
 reinterpret normalized 0/1 button requests as physical width targets
 or train a 7D action channel from these readings alone.
 
+## NUC gripper-client source audit — November 7, 2026
+
+The operator read the following files directly from the NUC controller
+workspace (`~/Desktop/aist-gamma/franka_controller_ws/src`):
+
+- `gripper_manager/gripper_manager/franka_gripper_client.py`
+- `franka_arm_controllers/openpi_gripper_bridge.py`
+
+These sources implement **Franka Hand**, not a calibrated Robotiq
+knuckle-to-aperture mapping:
+
+1. `franka_gripper_client.py` uses `franka_msgs/action/Homing` and
+   `franka_msgs/action/Grasp` with
+   `franka_gripper/joint_states`. Its `_get_max_gripper_width`
+   computes `2 * msg.position[0]` after homing; this is only
+   meaningful for the expected Franka finger-joint representation.
+   It maps normalized `target_gripper_width_percent` to an
+   action target using that width. This is **not evidence of Robotiq
+   metric calibration**.
+2. `openpi_gripper_bridge.py` subscribes to
+   `/franka_gripper/joint_states`, expects both
+   `fr3_finger_joint1` and `fr3_finger_joint2`, and sums their
+   positions for current width. It sends `franka_msgs/action/Move`
+   on `/franka_gripper/move`, with `MAX_WIDTH=0.08` m.
+   No measured `robotiq_85_left_knuckle_joint` conversion is provided.
+3. **Convention mismatch:** the known SpaceMouse ROS publisher emits
+   `1.0` for **open** and `0.0` for **close**; the existing
+   OpenPI bridge computes `width = 0.08 * (1.0 - g)` so it treats
+   `g=1.0` as **close**, `g=0.0` as **open**. These are inverted.
+   Do not activate or reuse the bridge unchanged for the Robotiq.
+4. Reviewing source files does **not** establish whether either
+   Franka Hand node is active in the present ROS domains. The
+   actual Robotiq driver/ROS2 bridge, model calibration, and aperture
+   measurements require separate read-only discovery.
+
+**Gate remains open:** verify the running **Robotiq** software
+and its actual position/width semantics before finalizing the
+seventh action component. Do not infer a Robotiq maximum width
+from `MAX_WIDTH=0.08` or from Franka finger joint names.
+No control topic, controller or gripper action was modified.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
