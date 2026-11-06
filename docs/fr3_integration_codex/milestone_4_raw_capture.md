@@ -73,6 +73,41 @@ lossless camera frames. `operator_events` can be zero while the
 SpaceMouse publisher is stopped; this means operator-command capture
 has **not** been verified yet.
 
+## Verified workstation pilot — November 6, 2026
+
+**Milestone 4A: COMPLETE for a stationary, read-only raw-capture pilot.**
+
+The operator reported **22/22** focused CPU tests passed:
+`test_fr3_raw_capture.py`, `test_fr3_live_qualification.py`,
+and `test_fr3_multimodal.py`.
+
+The real workstation recorder reported:
+
+| Measurement | Result |
+| --- | --- |
+| Status | `raw_recorded` |
+| Accepted raw observation frames | 30 / 30 |
+| Operator ROS events received | 301 |
+| Lost operator events | 0 |
+| Capture failures | none |
+| Duration | 3.005099795 seconds |
+| Observation rate | about 9.98 Hz |
+| Local data path | `/home/muttaqien/fr3_raw_pilot_20261106_183056` |
+
+The local dataset directory was **not independently inspected**
+after the run. The 301 events have not been categorized into
+motion versus button messages, nor have executed arm commands or
+moving-task success labels been validated.
+
+The recorder correctly reports `lerobot_ready: false` and
+`training_action_labels: false`. In particular, normalized
+SpaceMouse ROS values are not metric Cartesian action labels.
+
+**Next gate:** inspect the raw command-event types and recorded
+frame metadata, then separately qualify supervised FR3 motion,
+controller-side command acknowledgement and timeout safety before
+recording labeled teleoperation demonstrations.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
