@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import queue
 import time
 from collections import Counter
 from contextlib import ExitStack
@@ -216,7 +217,7 @@ def main() -> int:
                     if stamp != previous_stamps.get(role):
                         distinct[role] += 1
                         previous_stamps[role] = stamp
-            except (ValueError, RuntimeError, TimeoutError, OSError) as exc:
+            except (ValueError, RuntimeError, TimeoutError, OSError, queue.Empty) as exc:
                 errors[f"{type(exc).__name__}: {exc}"] += 1
             time.sleep(max(0.0, 1.0 / args.fps - (time.monotonic() - tick)))
             if (i + 1) % 15 == 0:
