@@ -231,6 +231,51 @@ seventh action component. Do not infer a Robotiq maximum width
 from `MAX_WIDTH=0.08` or from Franka finger joint names.
 No control topic, controller or gripper action was modified.
 
+## Live domain-71 Robotiq topology — November 7, 2026
+
+On the NUC with `ROS_DOMAIN_ID=71` the operator observed these
+ROS graph nodes:
+
+- `/controller_manager`, `/joint_state_broadcaster`,
+  `/robot_state_publisher`
+- `/robotiq_activation_controller`,
+  `/robotiq_gripper_controller`,
+  `/robotiq_gripper_status_broadcaster`,
+  `/robotiq_normalized_position_broadcaster`
+- `/robotiq_output_domain71`
+
+The process command line showed a real-hardware Robotiq launch:
+
+```text
+ros2 launch robotiq_description robotiq_control.launch.py
+  gripper_model:=2f_85
+  com_port:=/dev/serial/by-id/usb-FTDI_USB_TO_RS-485_DA95C62Y-if00-port0
+  baudrate:=115200
+  use_fake_hardware:=false
+```
+
+The separate cross-domain bridge is running as
+`python3 /tmp/robotiq_cross_domain_bridge.py` (observed PID
+1276031). A domain-71 `ros2 topic info -v /joint_states` showed
+**two RELIABLE publishers**: `joint_state_broadcaster` and
+`robotiq_normalized_position_broadcaster`, and one BEST_EFFORT
+`robot_state_publisher` subscriber.
+
+**Evidence boundary:** The launch arguments verify the configured
+`2f_85` real-hardware driver path and the ROS graph lists gripper
+nodes; this read-only discovery does not establish exact active
+controller states, numerical aperture calibration, joint-state
+publisher payloads, or which outputs the bridge actually forwards.
+The historical raw pilot recorded
+`robotiq_85_left_knuckle_joint` position in radians, but this
+must not be reinterpreted as normalized open fraction or width
+without inspecting the live driver and converter.
+
+**Next non-actuating audit:** inspect the text of the running
+`/tmp/robotiq_cross_domain_bridge.py` script, domain-71 topic
+types/names and a bounded one-message state observation; do not
+relaunch the bridge or create a competing Modbus driver.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
