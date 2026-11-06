@@ -580,6 +580,72 @@ Robotiq goal acceptance/completion and measured response with
 domain clock alignment. **Do not change or restart the running
 real-time controller during this offline audit.**
 
+## Final NUC controller header check — November 7, 2026
+
+The operator searched the deployed NUC
+`franka_arm_controllers/include` tree for
+`q_desired_`, `target_buffer_`, `create_publisher`,
+`RealtimePublisher` and `export_state_interfaces`.
+Only these lines matched:
+
+```text
+joint_impedance_ik_controller.hpp:90:
+  Vector7d q_{Vector7d::Zero()}, dq_{Vector7d::Zero()}, q_desired_{Vector7d::Zero()};
+joint_impedance_ik_controller.hpp:94:
+  realtime_tools::RealtimeBuffer<Target> target_buffer_;
+```
+
+Together with the preceding whole-`.cpp` grep, this
+establishes that **no publisher or state-export interface for
+the controller's `target.q` or `q_desired_` was identified in
+the inspected controller implementation and include tree**.
+The internal target is shared by a realtime buffer; the
+post-limit reference remains internal. This is scoped to the
+inspected custom controller, not an assertion about every
+ROS component or every diagnostic facility on the NUC.
+
+**4C.2 action-source gate: BLOCKED.** Existing robot-state
+broadcaster `desired_joint_states` and `last_desired_pose`
+are not proven equivalent to the custom controller reference;
+normalized SpaceMouse Twist is input intent rather than an
+accepted physical action. Neither can be used as the
+authoritative six-dimensional demonstration label yet.
+
+### Proposed offline telemetry specification (design only)
+
+For a future safety-reviewed instrumented controller, record:
+
+- Controller generation/activation ID and an unambiguous
+  monotonic timestamp domain; source input receive timestamp,
+  sampled robot-state timestamp and IK calculation timestamp.
+- Six normalized operator inputs separately from their scaled,
+  frame-defined Cartesian offset (do not call them metric
+  velocities); IK solve success/failure and joint-limit validity.
+- Seven-element solved IK joint target `target.q` **and**
+  seven-element rate-limited `q_desired_` actually used by
+  the torque update, preserving their difference and update time.
+- Accepted-controller update status, freshness-gate decision,
+  reference frame/tool transform, and source message association.
+- Cross-domain Robotiq goal target, action goal acceptance/result,
+  actual measured knuckle angle, and comparable timestamps.
+- Bounded telemetry rate, nonblocking real-time publisher/recorder
+  design, explicit loss counters and queue-drop behavior,
+  no memory allocation or blocking I/O within the 1 kHz loop.
+
+**Separate decisions still required:** whether the policy's first
+six action dimensions should encode a Cartesian delta relative
+to a clearly defined pose/frame or another controller-level
+action quantity; controller-side pose-target logging alone does
+not prove the actual RT-applied reference. Define conversion and
+action sampling intervals only after comparing recorded
+setpoints with the real controller update sequence.
+
+This section is a **non-actuating offline design**, not approval
+to patch, restart, command, or deploy on the live robot. Real
+controller instrumentation requires an explicit lab safety
+review, staging/offline tests, performance tests, and an
+approved deployment/rollback procedure.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
