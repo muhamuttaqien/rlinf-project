@@ -149,7 +149,7 @@ def build_isolated(destination: Path, original_ws: Path) -> None:
     if not overlay.is_file():
         raise FileNotFoundError(f"Expected ROS overlay not found: {overlay}")
     cmd = (
-        "set -euo pipefail; "
+        "set -eo pipefail; "
         "source /opt/ros/humble/setup.bash; "
         f"source {shlex.quote(str(overlay))}; "
         "colcon "
