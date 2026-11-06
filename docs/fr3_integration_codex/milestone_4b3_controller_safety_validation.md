@@ -113,6 +113,27 @@ Proceed only to an on-site approved, supervised low-speed
 neutral/release assessment and separately approved fault-response
 validation; no ad-hoc disconnection or scripted motion.
 
+## Supervised motion/release rosbag — November 6, 2026
+
+The operator provided `ros2 bag info` for the physical SpaceMouse
+motion/release recording:
+
+- Local NUC bag:
+  `/home/aist-franka/fr3_motion_release_20261106_214925`
+- Duration: **24.620096390 s**
+- SQLite3 bag size: **8.9 MiB**
+- `/franka_controller/target_cartesian_velocity_percent`:
+  **2463** `geometry_msgs/Twist` messages (~100/s)
+- `/franka_robot_state_broadcaster/measured_joint_states`:
+  **23729** `sensor_msgs/JointState` messages (~964/s)
+- Total messages: **26192**
+
+This verifies recording of both topics only. We have not yet
+inspected whether commands were nonzero, whether they returned to
+neutral, joint displacement after release, or independent operator
+observations of the physical arm. It is **not** a passed motion
+release or command-loss safety test merely because the bag exists.
+
 ## Must verify before any moving-arm test
 
 The on-site qualified FR3 operator/safety supervisor is responsible
