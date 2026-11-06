@@ -23,3 +23,14 @@ The file uses schema `fr3_controller_capture_raw_v1` to avoid conflating raw sna
 ## November 7, 2026 workstation verification
 
 The operator ran `tests/unit_tests/test_fr3_telemetry_recorder.py` on the workstation with Python 3.12.3 and pytest 9.2.0: **1 passed in 0.63 s**. This validates the synthetic recorder JSONL test. The separate manually invoked demo command's output has not yet been reported; neither test provides live controller telemetry.
+
+## Standalone demo verified — November 7, 2026
+
+The workstation operator executed `/tmp/fr3_recorder_demo /tmp/fr3_synthetic_telemetry.jsonl` followed by `wc -l`. The observed output was:
+
+```text
+SYNTHETIC OFFLINE RECORDER: saved=2 dropped=1 path=/tmp/fr3_synthetic_telemetry.jsonl
+2 /tmp/fr3_synthetic_telemetry.jsonl
+```
+
+This verifies synthetic JSONL file creation and loss reporting only. It does not mean the isolated ROS 2 controller has a connected consumer or that real robot data have been recorded.
