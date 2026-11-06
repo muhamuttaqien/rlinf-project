@@ -186,6 +186,42 @@ hold/stop semantics, how command timestamps are refreshed, and whether
 the running binary corresponds to the inspected source. No live
 disconnect or stop test has been authorized or performed.
 
+### Inspected C++ watchdog and hold semantics
+
+Read-only source excerpts supplied by the operator from the NUC controller
+implementation establish these **source-level behaviors**:
+
+- The realtime `update()` uses `monotonic_ns()` and rejects intent or
+  IK targets older than `command_timeout_s_` (configured to 0.25 s).
+  The intended target must be valid and belong to the active
+  controller activation generation.
+- When command freshness fails, the controller does **not** advance
+  `q_desired_`; it continues sending finite joint torques using
+  `K * (q_desired - q) - D * dq_filtered + coriolis`.
+  This is a **last-reference impedance hold**, not zero torque,
+  instantaneous braking, or an independently verified safe stop.
+- `spacemouse_callback()` time-stamps receipt on the NUC's monotonic
+  clock, accepts six finite normalized axes only if each magnitude is
+  <= 1, and converts invalid input to zero motion intent.
+- `solve_ik_()` checks freshness of command and robot samples, computes
+  a pose offset of 0.007 m per normalized linear axis and 0.03 rad per
+  normalized angular axis, and rejects nonfinite / out-of-range IK
+  joint solutions. These offsets are **not** SI speed or training
+  action labels.
+- The 1 kHz loop advances each desired joint by at most
+  `velocity_limit * min(period, 0.001)` while commands are fresh.
+  The gain-based torque calculation checks finite output, but the
+  inspected excerpt does not show explicit torque clamping or
+  independent Cartesian workspace/collision limits.
+- On activation, desired joint reference initializes to measured joint
+  positions; a new activation generation invalidates earlier input.
+
+**Unverified:** the loaded executable/plugin's correspondence to this
+source, actual physical response when operator commands cease,
+and the independent hardware safety chain. Do not trigger an
+unsupervised loss-of-command experiment. Verify deployed binary and
+safety equipment before supervised moving-arm demonstrations.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
