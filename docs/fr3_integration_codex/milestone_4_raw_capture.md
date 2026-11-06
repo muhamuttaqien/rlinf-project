@@ -285,6 +285,14 @@ observation preview has been added. See
 [Milestone 4C — raw preflight](milestone_4c_lerobot_preflight.md).
 It is **not** a LeRobot dataset or an approved 19D/7D training schema.
 
+## Milestone 4C.2 offline state/action candidate
+
+A review-only candidate state-vector preview (19D) and future metric
+action schema (7D, **no labels**) are now specified in
+[Milestone 4C.2 contract](milestone_4c2_policy_contract.md).
+This is not an approval or LeRobot dataset; physical control and
+data collection remain unchanged.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
