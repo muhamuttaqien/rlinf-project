@@ -31,3 +31,33 @@ Operator reported: `PASS: Library exists, recorder connected, recording disabled
 ## Runtime dependencies resolved (November 7, 2026)
 
 The operator located `libpinocchio_default.so.4.1.0` and `libpinocchio_parsers.so.4.1.0` under `/opt/openrobots/lib/`. The **read-only** `ldd -r` check for the isolated `libfranka_arm_controllers.so` passed after prefixing `LD_LIBRARY_PATH=/opt/openrobots/lib:${LD_LIBRARY_PATH:-}` for that shell. No global linker configuration, system libraries, or live controller were modified. **Remaining offline validation**: plugin library loadability and recorder lifecycle behavior; these have not been tested, and no hardware deployment is authorized.
+
+## Isolated runtime loader verification — November 7, 2026
+
+The operator ran Python `ctypes.CDLL` against the **isolated** `libfranka_arm_controllers.so`, with `LD_LIBRARY_PATH=/opt/openrobots/lib:...`, and reported `PASS: Isolated FR3 recorder library loaded successfully.` This verifies loadability only; it did not instantiate or activate a ROS controller or test the recorder thread.
+
+## Next action: offline mock-interface lifecycle test
+
+The existing package contains `joint_impedance_ik_controller_test`, a ROS 2 gtest using a synthetic URDF, a mock `franka_hardware::Model`, and fake state/command interfaces; it does not connect to real FR3 hardware. Re-enable **only in isolated directory**:
+
+```bash
+ssh nuc-franka 'bash -s' <<'SH'
+set -eo pipefail
+source /opt/ros/humble/setup.bash
+source "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash"
+export LD_LIBRARY_PATH="/opt/openrobots/lib:${LD_LIBRARY_PATH:-}"
+export ROS_DOMAIN_ID=213
+export ROS_LOCALHOST_ONLY=1
+D="$HOME/fr3_telemetry_isolated_4c2t7"
+colcon --log-base "$D/log" build \
+  --base-paths "$D/src" --packages-select franka_arm_controllers \
+  --build-base "$D/build" --install-base "$D/install" \
+  --cmake-args -DBUILD_TESTING=ON \
+  -DCMAKE_EXE_LINKER_FLAGS=-Wl,-rpath-link,/opt/openrobots/lib \
+  --event-handlers console_direct+
+ctest --test-dir "$D/build/franka_arm_controllers" \
+  -R '^joint_impedance_ik_controller_test$' --output-on-failure
+SH
+```
+
+The linker path flag addresses the **previous optional-test-only** `libpinocchio` link failure without any global install changes. The mock test may still expose issues; do not claim it passed until its output is observed. Running the test **does not load the controller into the robot's controller manager**. It does not test real-time overhead or live hardware.
