@@ -2,7 +2,7 @@
 
 ## Scope and current status
 
-**4C.1 implemented (offline; workstation qualification pending).**
+**4C.1 COMPLETE: CPU-only tests and real 100-frame workstation preflight passed on November 7, 2026.**
 This stage inspects existing 4A/4B raw FR3+Robotiq+two-camera captures;
 it does not communicate with ROS hardware, act on the robot, or claim
 a LeRobot training dataset exists.
@@ -46,6 +46,42 @@ take longer on full-resolution images than the small CPU-only unit
 tests. The output preview is **not** a transform-stage sample:
 `franka_pi05_contract.validate_realworld_pi05_sample` also requires
 a justified 19D state and (N,7) action array.
+
+## Verified real data preflight — November 7, 2026
+
+The operator ran focused tests on the workstation in the
+`aist-gamma` Python 3.12.3 environment:
+
+```text
+19 passed in 0.25s
+```
+
+- `test_fr3_lerobot_preflight.py`: 7 passed
+- `test_fr3_raw_capture.py`: 5 passed
+- `test_franka_pi05_contract.py`: 7 passed
+
+Real source directory:
+`/home/muttaqien/fr3_raw_buttons_20261106_183614`
+
+The 4C preflight returned `raw_capture_valid=true` with **100**
+validated state records, **1008** ROS events (1002 `operator_twist`,
+6 `operator_gripper_request`), unique camera serials
+(`337122075473` base, `218622277827` wrist), base
+640×480 and wrist 848×480 input profiles and
+`rgb8` preview conversion from original `bgr8`.
+
+**Important:** The report explicitly returned
+`is_lerobot_dataset=false`, `sft_export_ready=false`,
+`recap_export_ready=false`, and
+`training_action_labels_available=false`. This is a passing raw
+data integrity preflight only; it does not establish a dataset for
+training. The user's local preview directory was created by the
+preflight, but the images have not been visually inspected by the
+assistant.
+
+**Next gate: 4C.2 — explicitly specify and qualify the 19D state
+and 7D action semantics, including timing; no automatic projection
+of the existing 20D Franka state or normalized SpaceMouse inputs.**
 
 ## Required next work — do not silently guess
 
