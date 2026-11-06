@@ -1,5 +1,7 @@
 # Milestone 2B — Robotiq hardware and DDS qualification
 
+> **Operational roadmap update — November 7, 2026:** **2B Complete for the active Robotiq 2F-85 ROS 2 hardware integration.** Later evidence from the running NUC domain-71 `robotiq_control.launch.py` (`use_fake_hardware:=false`), active `robotiq_gripper_controller`, physical `robotiq_85_left_knuckle_joint` feedback, and Milestone 3B's 60/60 live workstation observations supersedes the old **operational** status. The historical October 27 audit below remains **Partial for the separate standalone vendor FC03 serial-observation bridge**, which did not perform its direct read-only FC03/serial-owner qualification. Do not conflate these two paths; no standalone FC03 success is claimed.
+
 Milestone 2B is **PARTIAL**: the existing NUC bridge passed a bounded serial-disabled runtime test and delivered 180 matching observation messages to the Jazzy workstation. Physical FC03 feedback is **NOT TESTED**, with the physical phase **BLOCKED** by incomplete serial-owner visibility. No physical serial port was opened, no actuation command was issued, and no bridge or FR3 production source was changed.
 
 Date: **2026-10-27 JST**. The measured publication interval was **08:22:06.458183–08:22:24.358317 JST**. This report distinguishes application-topic success, a discovery-metadata incompatibility, and the independent physical-ownership gate. It does not declare the system fully hardware-qualified.

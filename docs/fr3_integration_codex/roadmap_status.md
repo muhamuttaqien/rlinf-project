@@ -7,7 +7,7 @@
 | 0 — Hardware Audit | Workstation, NUC, FR3, cameras, SpaceMouse, Robotiq | **Complete** | — |
 | 1 — System & Interface Audit | RLinf and ROS 2 architecture | **Complete** | — |
 | 2A — Robotiq Observation Bridge | Read-only gripper feedback | **Complete** | — |
-| 2B — Robotiq Hardware & DDS | DDS communication and physical FC03 qualification | **Partial** | Formal FC03/serial-owner qualification not signed off |
+| 2B — Robotiq Hardware & DDS | Operational Robotiq hardware feedback and ROS 2 communication | **Complete** | — (legacy standalone FC03 qualification remains separate) |
 | 2C.1 — Robotiq Commands (Offline) | Command interface and offline tests | **Complete** | — |
 | 2C.2 — Robotiq Commands (Physical) | Supervised gripper operation | **Complete** | — |
 | 3A — Multimodal Observations (Offline) | Arm, gripper and two cameras | **Complete** | — |
@@ -15,6 +15,8 @@
 | 4 — Teleoperation & Dataset Collection | Record and export training-ready demonstrations | **Partial** | Safety-qualified movement, accepted-action capture, clock alignment, real LeRobot dataset |
 | 5 — π0.5 Inference Integration | Policy inference and action adapter | **Not started** | Requires approved action interface and safety gates |
 | 6 — End-to-End Validation | Real manipulation task evaluation | **Not started** | Requires Milestone 5 |
+
+**2B scope clarification (November 7):** The **original October 27 standalone vendor FC03 read-only bridge** was only partially qualified (serial-disabled DDS 180/180; no direct FC03 trial). However, the **active Robotiq 2F-85 ROS 2 hardware driver** is running in real-hardware mode on NUC domain 71, with named knuckle-joint feedback and **60/60 live samples** qualified in Milestone 3B on November 6. Thus **2B is complete for the operational FR3/Robotiq integration used by this roadmap**. This does **not** claim the legacy standalone FC03 experiment passed its own physical serial-owner test.
 
 ## Milestone 4 — What's done
 
@@ -29,4 +31,4 @@
 | 4C.2T.2 — Nonblocking queue prototype | **Complete** (3/3 workstation tests, 0.58 s) |
 | 4C.3/4C.4 — LeRobot export + OpenPI/RECAP data path | **Not started** |
 
-**Bottom line:** Milestones **0–3B** are complete except **2B partial**; **Milestone 4 is in progress**; **5 and 6 are not started**. The 4C.2T prototypes are offline only and are **not** deployed on the NUC. No policy-ready 7D action dataset exists yet.
+**Bottom line:** Milestones **0–3B are operationally complete**; **Milestone 4 is in progress**; **5 and 6 are not started**. The 4C.2T prototypes are offline only and are **not** deployed on the NUC. No policy-ready 7D action dataset exists yet.
