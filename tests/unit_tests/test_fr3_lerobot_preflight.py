@@ -34,6 +34,8 @@ def episode(tmp_path):
         "schema": "fr3_robotiq_raw_capture_v1",
         "status": "raw_recorded",
         "task": "stationary test",
+        "label": "unlabeled_raw_observation",
+        "realworld_episode_success": None,
         "is_lerobot_dataset": False,
         "policy_ready": False,
         "action_targets_7d_available": False,
