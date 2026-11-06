@@ -55,6 +55,21 @@ Optional parser for **future correctly instrumented** JSONL (not the existing st
 python -m toolkits.realworld_check.fr3_target_telemetry_contract --jsonl /path/to/new_proposed_telemetry.jsonl
 ```
 
+## Verified workstation test — November 7, 2026
+
+After a successful `git pull --ff-only origin branch-openpi-recap-franka`,
+the operator ran the focused synthetic-only suite on the workstation
+(`pca03395`, Python 3.12.3, pytest 9.2.0):
+
+```text
+tests/unit_tests/test_fr3_target_telemetry_contract.py ........... [100%]
+11 passed in 0.03s
+```
+
+This verifies the offline validator tests in the operator's checkout;
+**it is not a real-controller telemetry capture, hardware evaluation,
+safety sign-off, or evidence of policy-ready 7D labels**.
+
 ## Follow-up
 
 1. Obtain an approved instrumented controller design and compare logged IK target against the actual post-limit q_desired_ at tick level; do not patch or restart the deployed controller during this offline milestone.
