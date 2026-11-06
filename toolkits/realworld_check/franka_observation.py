@@ -207,11 +207,6 @@ class FrankaObservation:
         max_age_s: float = 0.5,
         max_camera_skew_s: float = 0.1,
     ) -> None:
-        from filelock import FileLock
-
-        from rlinf.robotics.parts.cameras import Camera, CameraInfo
-        from rlinf.robotics.parts.teleop.spacemouse import SpaceMouse
-
         if not base_serial or not wrist_serial or base_serial == wrist_serial:
             raise ValueError("Expected two distinct, explicit camera serial numbers.")
         if fps <= 0 or any(
@@ -221,6 +216,11 @@ class FrankaObservation:
             raise ValueError(
                 "fps, max_age_s and max_camera_skew_s must be positive and finite."
             )
+
+        from filelock import FileLock
+
+        from rlinf.robotics.parts.cameras import Camera, CameraInfo
+        from rlinf.robotics.parts.teleop.spacemouse import SpaceMouse
         self.cameras = {
             name: Camera.of(
                 CameraInfo(
