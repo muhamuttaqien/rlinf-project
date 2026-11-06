@@ -76,7 +76,11 @@ class RosStateSubscriber:
         pose_topic: str,
         wrench_topic: str,
         gripper_topic: str | None = None,
+        domain_id: int = 70,
     ) -> None:
+        if not 0 <= domain_id <= 232:
+            raise ValueError("ROS domain ID must be between 0 and 232.")
+        self.domain_id = domain_id
         self.command = [
             python,
             str(Path(__file__).with_name("franka_ros2_observer.py")),
@@ -98,7 +102,7 @@ class RosStateSubscriber:
         self.ready = threading.Event()
 
     def start(self) -> None:
-        """Start the subscription process using ROS_DOMAIN_ID=70."""
+        """Start the ROS subscriber on its configured domain."""
         if self.process is not None and self.process.poll() is None:
             raise RuntimeError("ROS subscriber is already running.")
         self.ready.clear()
@@ -112,7 +116,7 @@ class RosStateSubscriber:
             bufsize=1,
             env={
                 **os.environ,
-                "ROS_DOMAIN_ID": "70",
+                "ROS_DOMAIN_ID": str(self.domain_id),
                 "RCUTILS_LOGGING_USE_STDOUT": "0",
             },
         )
