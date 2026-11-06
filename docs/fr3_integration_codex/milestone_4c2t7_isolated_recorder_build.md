@@ -23,3 +23,7 @@ This is raw telemetry, not validated training actions. Safety, actual RT overhea
 `Finished <<< franka_arm_controllers [11.2s]` and `Summary: 1 package finished [11.4s]` followed by `ISOLATED RECORDER CONTROLLER BUILD PASSED; live FR3 untouched.` The only reported stderr was an external libfranka/Franka hardware Pinocchio deprecated-method warning, not a compilation failure. This result verifies compilation of the isolated recorder-enabled controller; it does **not** prove recorder runtime behavior, controller lifecycle, real-time safety, or action-label validity.
 
 **Next read-only check:** confirm isolated shared-library presence and that the recorder is explicitly disabled by default (no launch needed).
+
+## Post-build verification (November 7, 2026)
+
+Operator reported: `PASS: Library exists, recorder connected, recording disabled by default.` The read-only check confirmed a nonempty isolated shared library and grepped the isolated source for the JSONL drain and default-empty `telemetry_jsonl_path`. This does **not** validate dynamic linker dependencies, controller lifecycle activation, or capture from hardware. The next action is a read-only dynamic dependency check (`ldd -r`) on the isolated library under the correct ROS overlays.
