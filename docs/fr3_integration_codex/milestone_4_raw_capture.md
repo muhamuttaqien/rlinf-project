@@ -265,6 +265,19 @@ dump alone do not establish binary/source equivalence. Physical watchdog
 behavior also remains unverified. Do not restart either controller or
 change command publishers to perform this read-only audit.
 
+## Milestone 4B.3 supervised safety acceptance
+
+The read-only source and runtime controller audit is documented above,
+including the 250 ms reference-hold watchdog and the loaded custom
+domain-70 plugin. **4B.3 is not yet physically qualified.**
+
+Use [Milestone 4B.3 — controller safety validation](
+milestone_4b3_controller_safety_validation.md) for the explicit
+prerequisites, read-only ROS diagnostics, supervised measurement
+protocol, and acceptance criteria. Do not call this milestone complete
+until the on-site physical fault and stop response is independently
+validated or resolved through the laboratory's safety process.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
