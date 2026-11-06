@@ -108,6 +108,51 @@ frame metadata, then separately qualify supervised FR3 motion,
 controller-side command acknowledgement and timeout safety before
 recording labeled teleoperation demonstrations.
 
+## Verified button-event pilot — November 6, 2026
+
+**Milestone 4B.2: COMPLETE for ROS command publication and raw event capture.**
+
+The operator used `ros2 topic info -v` to observe one
+`spacemouse_publisher` publisher on each of the command interfaces:
+
+- `/franka_controller/target_cartesian_velocity_percent`:
+  `geometry_msgs/msg/Twist`, RELIABLE publisher with a BEST_EFFORT
+  subscriber (QoS compatible).
+- `/gripper_client/target_gripper_width_percent`:
+  `std_msgs/msg/Float32`, RELIABLE publisher and subscriber.
+
+A separate read-only `ros2 topic echo` verified the button
+publisher sent alternating `0.0` and `1.0` requests (four pairs).
+These requests are not by themselves evidence of gripper execution.
+
+The operator then ran a second raw capture. The local output was
+`/home/muttaqien/fr3_raw_buttons_20261106_183614`.
+
+| Measurement | Observed |
+| --- | --- |
+| Recorder result | `raw_recorded` |
+| Raw observation records | 100 / 100 |
+| Total operator events | 1008 |
+| `operator_twist` events | 1002 |
+| `operator_gripper_request` events | 6 |
+| Gripper button sequence | `[1.0, 0.0, 1.0, 0.0, 1.0, 0.0]` |
+| Dropped command events | 0 |
+| Capture failures | none |
+| Elapsed time | 10.011938318013563 seconds |
+| LeRobot readiness / training action labels | false / false |
+
+The user inspected the saved `operator_commands.jsonl` and its
+manifest to confirm the six distinct gripper-request events and zero
+dropped events. This validates asynchronous command event *recording*,
+but does not establish arm motion safety, executed action semantics,
+or measured causal effects of individual button requests.
+
+**Next: Milestone 4B.3, read-only controller safety audit.**
+Identify the deployed arm controller and verify its loss-of-command
+timeout, exclusive operator command authority, and safety limit
+configuration before supervised **moving-arm** demonstration capture.
+Do not introduce any additional robot command publisher during audit.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
