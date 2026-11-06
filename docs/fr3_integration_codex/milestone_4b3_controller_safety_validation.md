@@ -134,6 +134,27 @@ neutral, joint displacement after release, or independent operator
 observations of the physical arm. It is **not** a passed motion
 release or command-loss safety test merely because the bag exists.
 
+## Motion/release rosbag payload analysis — November 6, 2026
+
+The user inspected the saved `fr3_motion_release_20261106_214925`
+database directly. Analysis reported:
+
+| Metric | Observed |
+| --- | --- |
+| Nonzero normalized `Twist` messages | **0 of 2463** |
+| Maximum absolute normalized SpaceMouse axis | **0.0** |
+| Joint 1–7 positional ranges | 0.000014, 0.000013, 0.000011, 0.000014, 0.000009, 0.000010, 0.000012 rad |
+| Final nonzero-to-neutral transition | **None recorded** |
+
+**Result: MOTION/RELEASE NOT TESTED.** This is a second
+stationary/neutral-input dataset, not a validated response to
+nonzero motion or command loss. Do not mark the supervised
+motion/release acceptance item complete. Confirm the operator's
+intended test, inspect publisher deadband/enable/source configuration,
+and require on-site clearance before attempting any physical motion.
+Do not inject synthetic `Twist` commands or start another SpaceMouse
+publisher to force nonzero values.
+
 ## Must verify before any moving-arm test
 
 The on-site qualified FR3 operator/safety supervisor is responsible
