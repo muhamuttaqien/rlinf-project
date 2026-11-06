@@ -477,6 +477,67 @@ If it is not, plan purpose-built read-only target telemetry for
 a separately safety-reviewed future milestone; do not modify the
 running controller or synthesize 7D training actions.
 
+## NUC FR3 controller IK and real-time reference audit — November 7, 2026
+
+The operator inspected the deployed
+`franka_arm_controllers/src/joint_impedance_ik_controller.cpp`
+around real-time `update()`, `spacemouse_callback()`, and
+`solve_ik_()`. The following facts come directly from the pasted
+source excerpts, not from inferred ROS topic semantics:
+
+1. `spacemouse_callback()` stores a monotonic receive timestamp and
+   six normalized Twist axes, rejecting inputs if any is nonfinite or
+   outside [-1,1]; `intent.moving` is true only when at least one
+   accepted axis is nonzero.
+2. `solve_ik_()` samples measured arm joints into `q_init_`, uses
+   KDL forward kinematics to obtain a pose, then applies the rotated
+   normalized linear offset **0.007 m × axis** and local RPY offset
+   **0.03 rad × axis**. The linear axes are rotated using the
+   inverse configured mounting orientation. This is a pose-offset
+   heuristic, not a calibrated SI velocity action.
+3. KDL inverse kinematics computes a candidate `target.q[0:7]`,
+   which must be finite and within configured joint limits.
+   The proposed target records `state_ns`, `command_ns`,
+   `activation_ns` and a validity flag, and is written via
+   `target_buffer_.writeFromNonRT(target)`.
+4. The 1 kHz real-time update integrates `q_desired_` toward
+   `target.q`, **each joint step clamped by**
+   `velocity_limits_[i] * min(period.seconds(), 0.001)`.
+   It only advances on moving intent, fresh intent, valid IK target,
+   matching activation generation, and fresh target state/command
+   timestamps. On any gate failure, it retains the previous
+   `q_desired_` reference.
+5. Joint impedance torque command is computed as
+   `k_gains_ * (q_desired_ - q_) - d_gains_ * dq_filtered_ + coriolis`
+   and written to joint command interfaces. Source excerpt uses
+   `dq_filtered_ = 0.01*dq_filtered_ + 0.99*dq_`.
+6. The pasted function excerpts do not contain a ROS publisher
+   exporting `target.q`, the pose submitted to IK, or the
+   real-time `q_desired_` reference. Earlier grep also did not
+   show a `create_publisher`/`publish(` occurrence in that
+   controller's searched lines, but a whole-file check remains
+   prudent before asserting lack of any exporter.
+
+**Critical semantic difference:** normalized user input,
+FK-relative Cartesian offset, IK-computed seven-joint target,
+rate-limited `q_desired_`, libfranka's
+`franka_robot_state_broadcaster/last_desired_pose` and
+`desired_joint_states`, and measured motion are **distinct
+quantities**. The observed broadcaster topics must not be relabeled
+as accepted controller Cartesian 6D actions without explicit
+provenance proof. A held impedance reference during stale/neutral
+input is not an emergency-stop guarantee.
+
+**Consequence for 4C.2:** Proposed first six action dimensions
+remain **unapproved** despite understanding the code path.
+No replay, ROS command publication, LeRobot export, or training
+label generation is authorized by this audit. Next step:
+a read-only complete-file search for internal-target telemetry
+and joint reference/state export, followed by a minimal offline
+telemetry/label design if none exists. Any future changes to the
+running real-time controller require separate physical safety
+review and deployment approval.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
