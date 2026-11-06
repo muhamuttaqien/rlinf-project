@@ -245,6 +245,26 @@ source. Inspect the running process environment and mapped plugin
 libraries (read only) to establish the deployed plugin path before
 considering any supervised command-loss exercise.
 
+### Loaded plugin process identification
+
+NUC `/proc` inspection of the two live `ros2_control_node`
+processes found:
+
+- PID `1259561` has `ROS_DOMAIN_ID=70` and a mapped library
+  `/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/build/franka_arm_controllers/libfranka_arm_controllers.so`.
+  This confirms the live domain-70 process has loaded the custom FR3
+  controller shared object from the workspace build tree.
+- PID `1274171` has `ROS_DOMAIN_ID=71` and no mapped
+  `franka_arm_controllers` library. Its separate domain is consistent
+  with the Robotiq-side controller configuration, but its purpose is
+  not conclusively identified by these two observations alone.
+
+**Not yet verified:** whether the loaded binary was built from the
+exact inspected C++ source revision; a build-path mapping and parameter
+dump alone do not establish binary/source equivalence. Physical watchdog
+behavior also remains unverified. Do not restart either controller or
+change command publishers to perform this read-only audit.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
