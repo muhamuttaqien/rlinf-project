@@ -538,6 +538,48 @@ telemetry/label design if none exists. Any future changes to the
 running real-time controller require separate physical safety
 review and deployment approval.
 
+## Controller target telemetry search result — November 7, 2026
+
+The operator performed an entire-file grep on the **deployed NUC**
+`franka_arm_controllers/src/joint_impedance_ik_controller.cpp`
+for `create_publisher`, `publish(`, `export_state`,
+`state_interface_configuration`, `target_buffer_` and
+`q_desired_`. Only the following matches appeared:
+
+```text
+41: state_interface_configuration()
+85: target_buffer_.readFromRT()
+92: q_desired_[i] += clamp(target.q[i] - q_desired_[i], -step, step)
+99: k_gains_.cwiseProduct(q_desired_ - q_) ...
+240: q_desired_ = q_
+319: target_buffer_.writeFromNonRT(target)
+```
+
+There is **no explicit ROS publish or state-export call matching
+these patterns in this controller .cpp**. The IK target is exchanged
+through an internal real-time buffer and the velocity-limited
+`q_desired_` is internal to the 1 kHz controller update. Neither
+has an established externally observable, time-stamped topic.
+The previously inspected
+`franka_robot_state_broadcaster/desired_joint_states` and
+`last_desired_pose` cannot be assumed equal to those references.
+
+**Milestone decision:** offline candidate 19D projection and the
+Robotiq joint-position action representation are validated against
+the observed data/configuration, but **4C.2 production 7D action
+contract remains BLOCKED on 6D Cartesian action-source provenance
+and clock alignment**. The current raw stationary pilot is not
+a task-demonstration dataset. No 7D action labels or LeRobot
+export are warranted.
+
+A future approved telemetry design would need to expose both the
+controller's IK target and the actual post-limit `q_desired_`
+with activation generation, timestamp/freshness, validity, and
+association to a specific input intent; and separately log
+Robotiq goal acceptance/completion and measured response with
+domain clock alignment. **Do not change or restart the running
+real-time controller during this offline audit.**
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
