@@ -46,3 +46,9 @@ SH
 ```
 
 The `telemetry_jsonl_path` parameter defaults to empty and must be correctly configured in a **separate** approved launch/config path before any stationary recording is possible. Library loader resolution and mock-controller tests do not demonstrate real hardware safety. A supervised maintenance window, physical workspace isolation, E-stop verification, neutral-input qualification, and a rollback procedure remain prerequisites to restarting or replacing the controller.
+
+## Isolated recorder YAML ready — operator confirmation (November 7, 2026)
+
+The operator reported `PASS: Isolated recorder configuration prepared.` The edited **isolated install only** is `~/fr3_telemetry_isolated_4c2t7/install/franka_arm_controllers/share/franka_arm_controllers/config/controllers.yaml`, with recorder path `~/fr3_telemetry_isolated_4c2t7/recordings/stationary_telemetry.jsonl`. Its original was backed up as `controllers.yaml.before_recorder` in the same directory. ROS 2 YAML contains repeated `/**:` sections, so ordinary whole-file YAML dictionary parsing is inappropriate for verifying all sections. The active live controller has not been restarted or swapped.
+
+**Next: before any physically supervised restart**, inspect current motion-command publisher(s) on ROS domain 70, then have the responsible operator confirm the arm is secured, emergency stop usable, command sources stopped and restart/rollback authorized. Command publisher inspection is read-only and does not satisfy physical safety approval by itself.
