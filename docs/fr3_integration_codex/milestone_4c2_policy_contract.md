@@ -155,6 +155,41 @@ the button pilot. This is offline integrity evidence, **not**
 validation of gripper opening-width calibration, external wrench
 semantics, action mapping, task demonstrations or policy readiness.
 
+## Recorded gripper response and torque-range analysis — November 7, 2026
+
+The operator additionally evaluated the previously omitted projected
+feature 18 over the same 100-frame capture:
+
+- `wrench_torque_magnitude_Nm`: **0.68445885181427 to
+  0.8850111961364746 N·m** (L2 norm, not a signed torque component).
+
+Using workstation monotonic receipt timestamps, the operator compared
+the gripper-request event time to the nearest recorded measured
+Robotiq knuckle angle approximately **0.5 seconds later**:
+
+| Normalized requested open fraction | Knuckle angle ~0.5s later |
+| --- | --- |
+| 1.0 (open) | 0.27594 rad |
+| 0.0 (close) | 0.60777 rad |
+| 1.0 (open) | 0.27594 rad |
+| 0.0 (close) | 0.60777 rad |
+| 1.0 (open) | 0.27594 rad |
+| 0.0 (close) | No recorded measurement within ±0.2s of target |
+
+The first five events show a **repeatable request/feedback association**
+consistent with the expected open/close mapping. The sixth sample is
+**unobserved**, not evidence of success or failure. The check used a
+single nearest measurement with a ±0.2s window around each 0.5s
+post-request target, and does not establish exact actuator response
+latency or causal attribution of each request.
+
+**Not established:** gripper aperture width in metres, physical
+width-vs-knuckle calibration (including linkage nonlinearities),
+command acceptance/execution on the separate domain-71 controller,
+timestamp synchronization quality, or gripper end-stop state. Do not
+reinterpret normalized 0/1 button requests as physical width targets
+or train a 7D action channel from these readings alone.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
