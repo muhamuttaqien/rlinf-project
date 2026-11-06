@@ -427,6 +427,56 @@ with the arm stationary. Do not publish or replay any command,
 modify the running controller, or infer training action labels
 from stationary telemetry.
 
+## Live FR3 desired-state publisher and stationary samples — November 7, 2026
+
+The operator verified two **domain-70** state streams:
+
+| Topic | Type | Publisher | Subscribers at check |
+| --- | --- | --- | --- |
+| `/franka_robot_state_broadcaster/desired_joint_states` | `sensor_msgs/msg/JointState` | `/franka_robot_state_broadcaster` (1) | 0 |
+| `/franka_robot_state_broadcaster/last_desired_pose` | `geometry_msgs/msg/PoseStamped` | `/franka_robot_state_broadcaster` (1) | 0 |
+
+Both advertised RELIABLE, TRANSIENT_LOCAL publisher QoS.
+Read-only `ros2 topic echo --once` produced:
+
+- `desired_joint_states`: `frame_id=base`; seven named
+  `fr3_joint1` through `fr3_joint7` positions:
+  `[0.3601659238, -0.6930229664, -0.1210644022,
+  -2.1624026299, -0.0658097565, 1.4754301310,
+  0.3747886121]` rad; seven zero velocity fields.
+  Timestamp `1793992136.026197322` (ROS message clock).
+- `last_desired_pose`: `frame_id=base`;
+  position `[0.3216817975, 0.0566368997, 0.5374777913]` m;
+  quaternion xyzw `[0.9442261057, 0.3292437794,
+  0.0015154800, -0.0057702735]`.
+  Timestamp `1793992136.952256190` (ROS message clock).
+
+These messages were sampled ~0.926 s apart and must **not** be
+treated as a synchronized joint/pose pair. The echo command for
+each topic printed `sequence size exceeds remaining buffer` and
+`A message was lost!!!` once. This is an important CLI/transport
+observation but, alone, cannot quantify sustained ROS message loss
+or assert that the serialized values are invalid.
+
+**Important provenance boundary:** these topics are emitted by
+`franka_robot_state_broadcaster`, **not demonstrated to be**
+the `q_desired_` computed by custom
+`joint_impedance_ik_controller`, its accepted Cartesian
+setpoints, or executed actions. The publisher naming does not
+prove semantic equivalence with custom controller targets.
+The zero subscriber count at the check means no existing graph
+consumer was detected then; reading the topics via CLI
+temporarily adds a subscriber. These are telemetry candidates,
+not 6D action labels.
+
+**Next non-actuating audit:** inspect the custom controller
+implementation around input twist handling, `solve_ik_()`,
+the per-update reference step, and any state export to establish
+whether its **actual accepted internal target** is observable.
+If it is not, plan purpose-built read-only target telemetry for
+a separately safety-reviewed future milestone; do not modify the
+running controller or synthesize 7D training actions.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
