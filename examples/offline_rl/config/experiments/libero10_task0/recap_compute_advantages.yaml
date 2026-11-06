@@ -1,3 +1,4 @@
+# @package _global_
 defaults:
 - /model/recap_value_model@advantage.model
 advantage:

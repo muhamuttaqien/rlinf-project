@@ -1,3 +1,4 @@
+# @package _global_
 data:
   data_root: null
   train_data_paths:
