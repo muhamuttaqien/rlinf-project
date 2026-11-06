@@ -30,7 +30,7 @@
 | 4C.2T.1 — Offline telemetry contract | **Complete** (11/11 workstation tests) |
 | 4C.2T.2 — Nonblocking queue prototype | **Complete** (3/3 workstation tests, 0.58 s) |
 | 4C.2T.3 — Offline controller telemetry adapter | **Complete (offline)** (2/2 workstation tests, 0.61 s) |
-| 4C.2T.4 — Separate offline controller reference build | **Complete (offline)** (3/3 isolated tests; workstation check pending) |
+| 4C.2T.4 — Separate offline controller reference build | **Complete (offline)** (3/3 workstation tests, 0.68 s) |
 | 4C.3/4C.4 — LeRobot export + OpenPI/RECAP data path | **Not started** |
 
 **Bottom line:** Milestones **0–3B are operationally complete**; **Milestone 4 is in progress**; **5 and 6 are not started**. The 4C.2T prototypes are offline only and are **not** deployed on the NUC. No policy-ready 7D action dataset exists yet.

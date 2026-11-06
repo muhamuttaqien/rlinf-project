@@ -15,6 +15,6 @@ git pull --ff-only origin branch-openpi-recap-franka
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH="$PWD" python -m pytest -q tests/unit_tests/test_fr3_offline_controller_reference.py
 ```
 
-**Isolated Linux test:** 3 passed in 0.78 s (g++ C++17; no ROS required). Workstation results pending.
+**Workstation verified November 7, 2026:** 3/3 tests passed in 0.68 s (Python 3.12.3, pytest 9.2.0). The separate offline C++ controller-reference model is verified; no ROS plugin or hardware build was tested.
 
 **Limits:** The deployed ROS controller's real source/binary was not compiled, instrumented or deployed here. The existing `Target` struct did not expose a separate IK-solve timestamp in the inspected code; the prototype deliberately preserves `ik_solve_ns=0` rather than inventing it. The proposed v1 Python telemetry validator requires positive `ik_solve_ns` and is not wired to this stand-in. A future collector must extend the source telemetry and/or version the schema, and must still verify frame/timing semantics and receive lab safety approval before real-robot telemetry is enabled. No 7D training labels are generated.
