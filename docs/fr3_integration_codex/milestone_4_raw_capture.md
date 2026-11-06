@@ -278,6 +278,13 @@ protocol, and acceptance criteria. Do not call this milestone complete
 until the on-site physical fault and stop response is independently
 validated or resolved through the laboratory's safety process.
 
+## Milestone 4C offline dataset preparation
+
+An offline, fail-closed validator for existing raw episodes and a two-view RGB
+observation preview has been added. See
+[Milestone 4C — raw preflight](milestone_4c_lerobot_preflight.md).
+It is **not** a LeRobot dataset or an approved 19D/7D training schema.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
