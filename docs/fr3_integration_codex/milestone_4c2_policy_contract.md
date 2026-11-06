@@ -386,6 +386,47 @@ The workstation also passed **11/11** focused
 `test_fr3_policy_contract.py` tests for candidate v2
 (0.18 seconds, Python 3.12.3).
 
+## Read-only FR3 desired-pose/joint topic discovery — November 7, 2026
+
+On the NUC, with the custom FR3 controller overlay sourced and
+ROS domain 70, the operator listed ROS topics and found:
+
+- `/franka_controller/target_cartesian_velocity_percent`:
+  `geometry_msgs/msg/Twist` (normalized SpaceMouse intent)
+- `/franka_robot_state_broadcaster/current_pose`:
+  `geometry_msgs/msg/PoseStamped`
+- `/franka_robot_state_broadcaster/last_desired_pose`:
+  `geometry_msgs/msg/PoseStamped`
+- `/franka_robot_state_broadcaster/desired_joint_states`:
+  `sensor_msgs/msg/JointState`
+- `/franka_robot_state_broadcaster/measured_joint_states`:
+  `sensor_msgs/msg/JointState`
+
+A grep of the locally deployed
+`franka_arm_controllers/src/joint_impedance_ik_controller.cpp`
+found the internal reference update
+`q_desired_[i] += clamp(target.q[i]-q_desired_[i], -step, step)`,
+the impedance torque calculation and callbacks for SpaceMouse
+input and `solve_ik_()`. The searched excerpt did not show a
+`create_publisher` or `publish(` call inside this controller.
+This is limited code-search evidence; it does not establish whether
+other controller code can export internal target values.
+
+**Potential but not confirmed:** the broadcaster desired-joint and
+last-desired-pose streams may expose robot-side desired/reference
+states. They must **not** be labeled as the controller's accepted
+Cartesian 6D policy actions without checking publisher provenance,
+reference-frame definitions, sample timing and numerical behavior
+during authorized teleoperation. Robot-side desired states, the
+controller's internal `q_desired_`, the IK target and measured robot
+pose are distinct notions until equivalence is demonstrated.
+
+**Next safe step:** check publisher ownership/QoS and inspect one
+message each from `desired_joint_states` and `last_desired_pose`
+with the arm stationary. Do not publish or replay any command,
+modify the running controller, or infer training action labels
+from stationary telemetry.
+
 ## Approval gates before 4C.2 can be marked complete
 
 - [ ] Human selection or revision of candidate 19D feature names,
