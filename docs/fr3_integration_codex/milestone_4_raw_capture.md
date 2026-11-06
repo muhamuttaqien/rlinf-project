@@ -222,6 +222,29 @@ and the independent hardware safety chain. Do not trigger an
 unsupervised loss-of-command experiment. Verify deployed binary and
 safety equipment before supervised moving-arm demonstrations.
 
+### Controller workspace and process discovery
+
+The operator sourced
+`/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/install/setup.bash`
+on the NUC; `ros2 pkg prefix franka_arm_controllers` then resolved to
+`/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/install/franka_arm_controllers`.
+
+A read-only process listing showed two distinct ROS 2 Humble
+`ros2_control_node` processes:
+
+- PID `1259561` has a command line referencing the installed
+  `franka_arm_controllers/config/controllers.yaml` plus launch parameter
+  files; this is consistent with the FR3 arm controller process.
+- PID `1274171` has only temporary launch parameter files in its
+  command line; its identity and ROS domain have **not** yet been
+  established.
+
+Package resolution and process discovery do not prove that the loaded
+controller shared library corresponds byte-for-byte to the inspected
+source. Inspect the running process environment and mapped plugin
+libraries (read only) to establish the deployed plugin path before
+considering any supervised command-loss exercise.
+
 ## Still needed to complete Milestone 4
 
 1. Confirm source ROS command topic names and observe actual, supervised
