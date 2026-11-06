@@ -61,6 +61,29 @@ baseline recording, on-site safety approval, neutral/release test, and
 authorized physical fault-response validation still pending. Do not
 interpret successful ROS discovery as a tested physical safe stop.
 
+## Stationary baseline rosbag — November 6, 2026
+
+The operator ran a read-only `ros2 bag record` on the NUC and stopped
+it cleanly with Ctrl+C. Result:
+
+- Local path:
+  `/home/aist-franka/fr3_safety_baseline_20261106_213212`
+- Storage: SQLite3 (`.db3`), bag size **12.9 MiB**
+- Duration **35.099927539 s**, **37,724 messages** total
+- `/franka_robot_state_broadcaster/measured_joint_states`:
+  **34,213** joint-state messages (approx. **975/s**)
+- `/franka_controller/target_cartesian_velocity_percent`:
+  **3,511** `Twist` messages (approx. **100/s**)
+- Both subscriptions succeeded; recorder closed normally.
+  A DDS `sequence size exceeds remaining buffer` warning appeared.
+
+**Telemetry collection is validated; stationary safety behavior is not
+yet validated.** Bag metadata does not reveal whether normalized
+SpaceMouse commands stayed at zero, joint positions drifted, or
+joint velocities were negligible. Analyze the recorded payloads
+without replaying the bag onto a live ROS domain. The watchdog
+stale-nonzero-command branch was not exercised or proven here.
+
 ## Must verify before any moving-arm test
 
 The on-site qualified FR3 operator/safety supervisor is responsible
