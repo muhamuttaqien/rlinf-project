@@ -146,14 +146,23 @@ database directly. Analysis reported:
 | Joint 1–7 positional ranges | 0.000014, 0.000013, 0.000011, 0.000014, 0.000009, 0.000010, 0.000012 rad |
 | Final nonzero-to-neutral transition | **None recorded** |
 
-**Result: MOTION/RELEASE NOT TESTED.** This is a second
-stationary/neutral-input dataset, not a validated response to
-nonzero motion or command loss. Do not mark the supervised
-motion/release acceptance item complete. Confirm the operator's
-intended test, inspect publisher deadband/enable/source configuration,
-and require on-site clearance before attempting any physical motion.
-Do not inject synthetic `Twist` commands or start another SpaceMouse
-publisher to force nonzero values.
+**Operator clarification (November 6, 2026):** the SpaceMouse
+was intentionally **not moved** during this recording. The observed
+all-zero commands and stationary robot state are therefore expected
+and this is **VALID as a second stationary baseline**. The operator
+also attests that physical SpaceMouse teleoperation works from their
+own experience. Do not infer a publisher deadzone/failure from
+this session.
+
+**Evidence boundary:** Operator testimony is accepted as confirmation
+of routine manual teleoperation functionality, but the recorded bag
+does not demonstrate a nonzero-to-neutral transition or a physical
+command-loss/watchdog response. Keep the supervised
+motion/release and formal fault-response safety acceptance items
+open until the workcell's approved evidence or explicit local safety
+sign-off is available. This is not a blocking requirement for
+offline dataset schema/code work; it gates moving-arm data collection
+and autonomous execution.
 
 ## Must verify before any moving-arm test
 
