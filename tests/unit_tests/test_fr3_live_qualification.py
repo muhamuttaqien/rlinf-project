@@ -19,6 +19,7 @@ from collections import Counter
 import pytest
 
 from toolkits.realworld_check.fr3_live_qualification import summarize_qualification
+from toolkits.realworld_check.franka_ros2_observer import extract_gripper_joint_state
 
 
 def counts(value=58):
@@ -67,3 +68,29 @@ def test_live_acceptance_rejects_invalid_options():
             samples=0, valid=0, distinct={}, skews=[],
             errors=Counter(), elapsed_s=1
         )
+
+
+def test_gripper_observer_ignores_unmeasured_nan_velocity_and_effort():
+    raw = {
+        "header": {"stamp": {"sec": 100, "nanosec": 42}},
+        "name": ["some_joint", "robotiq_85_left_knuckle_joint"],
+        "position": [float("nan"), 0.7754],
+        "velocity": [float("nan"), float("nan")],
+        "effort": [float("nan"), float("nan")],
+    }
+    result = extract_gripper_joint_state(raw)
+    assert result["name"] == ["robotiq_85_left_knuckle_joint"]
+    assert result["position"] == pytest.approx([0.7754])
+    assert result["header"] == raw["header"]
+
+
+def test_gripper_observer_rejects_invalid_target_joint_position():
+    raw = {"name": ["robotiq_85_left_knuckle_joint"], "position": [float("nan")]}
+    with pytest.raises(ValueError, match="not finite"):
+        extract_gripper_joint_state(raw)
+
+
+def test_gripper_observer_does_not_invent_missing_joint():
+    assert extract_gripper_joint_state(
+        {"name": ["other"], "position": [0.1]}
+    ) is None

@@ -16,11 +16,46 @@
 
 import argparse
 import json
+import math
 import os
 import signal
 import sys
 import threading
 import time
+from collections.abc import Mapping
+from typing import Any
+
+
+GRIPPER_JOINT = "robotiq_85_left_knuckle_joint"
+
+
+def extract_gripper_joint_state(message: Mapping[str, Any]) -> dict | None:
+    """Preserve measured Robotiq joint angle, not unrelated NaN placeholders.
+
+    A ROS JointState may publish NaN for unknown velocity or effort. Those
+    optional fields are not gripper-position measurements. A missing target
+    joint is ignored; an invalid measured position always raises.
+    """
+    names = message.get("name", [])
+    if not isinstance(names, (list, tuple)) or GRIPPER_JOINT not in names:
+        return None
+    if names.count(GRIPPER_JOINT) != 1:
+        raise ValueError(f"Duplicate gripper joint: {GRIPPER_JOINT}")
+    index = names.index(GRIPPER_JOINT)
+    positions = message.get("position", [])
+    if not isinstance(positions, (list, tuple)) or len(positions) <= index:
+        raise ValueError("Missing Robotiq knuckle position")
+    try:
+        value = float(positions[index])
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ValueError("Robotiq knuckle position is not numeric") from exc
+    if not math.isfinite(value):
+        raise ValueError("Robotiq knuckle position is not finite")
+    return {
+        "header": message.get("header"),
+        "name": [GRIPPER_JOINT],
+        "position": [value],
+    }
 
 
 def main() -> None:
@@ -54,9 +89,16 @@ def main() -> None:
         start_parameter_services=False,
     )
 
+    reported_errors: set[str] = set()
+
     def subscribe(name: str, topic: str, message_type: type) -> None:
         def receive(message: object) -> None:
             try:
+                payload = message_to_ordereddict(message)
+                if name == "gripper_state":
+                    payload = extract_gripper_joint_state(payload)
+                    if payload is None:
+                        return
                 emit(
                     {
                         "event": "state",
@@ -78,14 +120,17 @@ def main() -> None:
                             "external_wrench": {"force": "N", "torque": "N*m"},
                             "gripper_state": {"position": "source_joint_definition"},
                         }[name],
-                        "message": message_to_ordereddict(message),
+                        "message": payload,
                         "received_monotonic_ns": time.monotonic_ns(),
                         "received_unix_ns": time.time_ns(),
                     }
                 )
             except (TypeError, ValueError) as error:
-                node.get_logger().error(f"Invalid {topic} state: {error}")
-                emit({"event": "error", "error": f"Invalid state on {topic}: {error}"})
+                # One fatal diagnostic per source; avoid log floods at 500 Hz.
+                if name not in reported_errors:
+                    reported_errors.add(name)
+                    node.get_logger().error(f"Invalid {topic} state: {error}")
+                    emit({"event": "error", "error": f"Invalid state on {topic}: {error}"})
 
         node.create_subscription(message_type, topic, receive, qos_profile_sensor_data)
 

@@ -70,3 +70,35 @@ joint angle, not calibrated jaw width.
 The tool writes a JSON report but does not save camera frames or
 demonstrations. Hardware control remains entirely with its existing
 controllers.
+
+
+## Diagnostics: environment and exclusive camera ownership
+
+The RLinf live runner opens its **own** RealSense SDK camera pipelines.
+It cannot open a camera simultaneously owned by a `realsense2_camera` ROS
+publisher. Stop only the two camera ROS launches using Ctrl+C before running
+the SDK-based qualifier. Leave the Franka and Robotiq controllers running.
+Do not force-kill camera processes or modify device permissions.
+
+Test with a compatible project Python environment without allowing ROS
+Jazzy's Python 3.12 `launch_testing` pytest plugin to autoload into the
+project's Python 3.11 `.venv`:
+
+```bash
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=. python -m pytest -q \
+  tests/unit_tests/test_fr3_live_qualification.py \
+  tests/unit_tests/test_fr3_multimodal.py \
+  tests/unit_tests/test_franka_observation.py \
+  tests/unit_tests/test_franka_pi05_contract.py
+```
+
+Camera profiles observed in the November 6 ROS RealSense launches:
+D435i `337122075473`: 640x480x30; D405 `218622277827`:
+848x480x30. The qualifier defaults to base 640x480x30 and wrist
+848x480x30 with a 15 Hz sample loop. If the physical camera roles
+are reversed, swap serials **and** width/height arguments accordingly.
+
+The `/joint_states` gripper reader now selects the physical Robotiq
+knuckle joint position and preserves its ROS header. NaN placeholders
+for unmeasured velocity/effort of other joints no longer cause JSON
+serialization errors; a nonfinite Robotiq position still fails closed.

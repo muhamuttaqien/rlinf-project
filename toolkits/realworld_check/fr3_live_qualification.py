@@ -94,8 +94,12 @@ def read_camera_pair(cameras: dict, *, max_age_s: float, max_skew_s: float) -> d
         stamp, frame = camera.get_frame_with_timestamp(
             timeout=max(0.0, deadline - time.monotonic()), max_age=age
         )
-        if frame.shape != (480, 640, 3) or frame.dtype != np.uint8:
-            raise ValueError(f"{name} camera expected uint8 (480,640,3); got {frame.shape}, {frame.dtype}")
+        width, height = camera.camera_info.resolution
+        if frame.shape != (height, width, 3) or frame.dtype != np.uint8:
+            raise ValueError(
+                f"{name} camera expected uint8 {(height, width, 3)}; "
+                f"got {frame.shape}, {frame.dtype}"
+            )
         records[name] = {
             "frame": frame,
             "serial_number": camera.camera_info.serial_number,
@@ -133,13 +137,20 @@ def main() -> int:
     parser.add_argument("--wrench-topic", default=BROADCASTER + "/external_wrench_in_base_frame")
     parser.add_argument("--gripper-topic", default="/joint_states")
     parser.add_argument("--samples", type=int, default=60)
-    parser.add_argument("--fps", type=int, default=15)
+    parser.add_argument("--fps", type=int, default=15, help="Qualification sample rate")
+    parser.add_argument("--camera-fps", type=int, default=30)
+    parser.add_argument("--base-width", type=int, default=640)
+    parser.add_argument("--base-height", type=int, default=480)
+    parser.add_argument("--wrist-width", type=int, default=848)
+    parser.add_argument("--wrist-height", type=int, default=480)
     parser.add_argument("--max-age-s", type=float, default=0.5)
     parser.add_argument("--max-skew-s", type=float, default=0.1)
     parser.add_argument("--summary-json", type=Path, required=True)
     args = parser.parse_args()
-    if args.samples < 20 or args.fps < 1:
-        parser.error("--samples must be >=20 and --fps must be >=1")
+    if args.samples < 20 or args.fps < 1 or args.camera_fps < 1:
+        parser.error("--samples must be >=20, and FPS values must be >=1")
+    if min(args.base_width, args.base_height, args.wrist_width, args.wrist_height) < 1:
+        parser.error("Camera image dimensions must be positive")
     if not args.base_serial or not args.wrist_serial or args.base_serial == args.wrist_serial:
         parser.error("base and wrist must be different physical camera serials")
     if any(not math.isfinite(x) or x <= 0 for x in (args.max_age_s, args.max_skew_s)):
@@ -166,10 +177,14 @@ def main() -> int:
         ),
     }
     cameras = {
-        name: Camera.of(CameraInfo(
-            name=name, serial_number=serial, resolution=(640, 480), fps=args.fps
-        ))
-        for name, serial in (("base", args.base_serial), ("wrist", args.wrist_serial))
+        "base": Camera.of(CameraInfo(
+            name="base", serial_number=args.base_serial,
+            resolution=(args.base_width, args.base_height), fps=args.camera_fps
+        )),
+        "wrist": Camera.of(CameraInfo(
+            name="wrist", serial_number=args.wrist_serial,
+            resolution=(args.wrist_width, args.wrist_height), fps=args.camera_fps
+        )),
     }
     # No SpaceMouse, gripper serial, robot action or FR3 control APIs are opened.
     distinct = Counter()
@@ -234,6 +249,14 @@ def main() -> int:
         "domain_ids": {"fr3": 70, "robotiq": 71},
         "camera_serials": {
             "base": args.base_serial, "wrist": args.wrist_serial
+        },
+        "camera_profiles": {
+            name: {
+                "width": camera.camera_info.resolution[0],
+                "height": camera.camera_info.resolution[1],
+                "fps": camera.camera_info.fps,
+            }
+            for name, camera in cameras.items()
         },
         "topics": {
             "joint_state": args.joint_topic,
