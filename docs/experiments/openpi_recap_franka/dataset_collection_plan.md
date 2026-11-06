@@ -1,4 +1,4 @@
-# Dataset collection plan — currently zero episodes
+# Dataset collection plan — stationary pilots exist, zero labeled demonstrations
 
 The experiment requires **two distinct camera views** (base and wrist) and **SpaceMouse EE-space teleoperation**, with all peripherals plugged into the GPU Workstation. NUC hosts the Franka arm, **Robotiq gripper**, and safety controller. There is **no dataset yet**, so SFT and RECAP training are blocked.
 
