@@ -70,6 +70,13 @@ This verifies the offline validator tests in the operator's checkout;
 **it is not a real-controller telemetry capture, hardware evaluation,
 safety sign-off, or evidence of policy-ready 7D labels**.
 
+## Milestone 4C.2T.2 — Offline nonblocking queue prototype
+
+An isolated C++17, bounded single-producer/single-consumer queue and
+synthetic concurrency tests are available in
+[Milestone 4C.2T.2](milestone_4c2t2_nonblocking_telemetry.md).
+This is **design-stage software only**; the running NUC controller
+still has no verified external target telemetry.
 ## Follow-up
 
 1. Obtain an approved instrumented controller design and compare logged IK target against the actual post-limit q_desired_ at tick level; do not patch or restart the deployed controller during this offline milestone.
