@@ -38,6 +38,19 @@ RECAP return computation reads `episode_index` and `frame_index`; rollout data a
 
 **Two real stationary raw pilots have been recorded (November 6, 2026)** with lossless base/wrist frames, measured FR3/Robotiq state and ROS operator events. These are **not human task demonstrations or policy rollouts**. No success-labeled episodes, training action targets, normalization statistics, train/validation splits, RECAP returns or critic checkpoints exist for real Franka data. Use the offline [Milestone 4C preflight](../../fr3_integration_codex/milestone_4c_lerobot_preflight.md) before developing any schema-approved LeRobot export; raw validation does not make the data training-ready.
 
+## Candidate 4C.2 representation (not approved)
+
+An explicit experimental 19D projection has been implemented as an
+offline **preview only**, with 7 TCP pose values, 7 measured joint
+positions, 3 measured external force components, 1 Robotiq knuckle
+angle and 1 external torque magnitude. These selections intentionally
+lose torque direction and omit joint velocity/effort; the frame and
+calibration assumptions remain unverified. Proposed 7D future targets
+are Cartesian delta translation (m), delta rotation vector (rad), and
+Robotiq width target (m). **No metric action labels are generated.**
+See [Milestone 4C.2 contract](../../fr3_integration_codex/milestone_4c2_policy_contract.md).
+Do not treat this candidate as an approved SFT / RECAP schema.
+
 ## Proposed non-ROS transport-neutral capture record (for later design)
 
 - Source-timestamped camera frames, camera IDs, and capture-time metadata from Workstation.
