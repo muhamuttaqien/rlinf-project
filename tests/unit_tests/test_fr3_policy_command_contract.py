@@ -132,3 +132,12 @@ def test_no_inferred_ros_interface_import():
     assert not hasattr(contract, "create_twist")
     assert not hasattr(contract, "gripper_goal")
     assert "rclpy" not in contract.__dict__
+
+
+def test_invalid_limit_types_fail_closed_not_crash():
+    action, kwargs = fixture()
+    bad = replace(kwargs["limits"], max_observation_age_ns="unknown")
+    report = review_candidate_action(action, **{**kwargs, "limits": bad})
+    assert not report["review_checks_passed"]
+    assert "Invalid explicit review limits" in report["review_rejections"]
+    assert_blocked(report)

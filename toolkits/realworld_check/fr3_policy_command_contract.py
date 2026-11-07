@@ -122,6 +122,7 @@ def review_candidate_action(
     if values.shape != (7,) or not np.isfinite(values).all():
         reasons.append("Expected seven finite candidate channel values")
 
+    limits_valid = False
     if limits is None:
         reasons.append("Explicit review-only bounds required; no default limits")
     else:
@@ -145,7 +146,8 @@ def review_candidate_action(
             )
         except (TypeError, ValueError):
             positive = False
-        if not positive:
+        limits_valid = bool(positive)
+        if not limits_valid:
             reasons.append("Invalid explicit review limits")
         elif values.shape == (7,) and np.isfinite(values).all():
             if float(np.linalg.norm(values[:3])) > limits.max_translation_delta_m:
@@ -167,7 +169,7 @@ def review_candidate_action(
         and action.action_interval_ns > 0
     ):
         reasons.append("Observation/issue time invalid, future-dated or non-monotonic")
-    elif limits is not None:
+    elif limits_valid:
         if now_monotonic_ns - action.source_observation_monotonic_ns > limits.max_observation_age_ns:
             reasons.append("Observation too old")
         if now_monotonic_ns - action.issued_monotonic_ns > limits.max_request_age_ns:
