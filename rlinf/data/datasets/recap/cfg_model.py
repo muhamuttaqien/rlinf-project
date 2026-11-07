@@ -39,12 +39,21 @@ class AdvantagePreservingDataset:
         base_dataset: Any,
         transformed_dataset: Any,
         advantages_lookup: dict[tuple[int, int], bool] | None = None,
+        force_positive: bool = False,
     ):
         self._transformed_dataset = transformed_dataset
-        self._advantage_by_index = self._build_advantage_index(
-            base_dataset, advantages_lookup
+        # Expert SFT demonstrations are positive by definition; they do not
+        # need a 1.56M-frame-style advantage sidecar or scalar video lookups.
+        self._force_positive = force_positive
+        self._advantage_by_index = (
+            None if force_positive
+            else self._build_advantage_index(base_dataset, advantages_lookup)
         )
-        self._base_dataset = base_dataset if self._advantage_by_index is None else None
+        self._base_dataset = (
+            base_dataset
+            if not force_positive and self._advantage_by_index is None
+            else None
+        )
 
     @staticmethod
     def _get_hf_dataset(dataset: Any) -> Any:
@@ -107,7 +116,9 @@ class AdvantagePreservingDataset:
     def __getitem__(self, idx: int) -> dict[str, Any]:
         sample = self._transformed_dataset[idx]
 
-        if self._advantage_by_index is not None:
+        if self._force_positive:
+            sample["advantage"] = True
+        elif self._advantage_by_index is not None:
             if idx not in self._advantage_by_index:
                 raise KeyError(
                     f"[AdvantagePreservingDataset] Index {idx} not found in advantage index. "
