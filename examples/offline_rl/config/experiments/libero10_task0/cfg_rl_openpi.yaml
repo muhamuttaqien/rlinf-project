@@ -18,21 +18,25 @@ runner:
   logger:
     log_path: ../results
     project_name: rlinf
-    experiment_name: cfg_sft
+    experiment_name: recap_libero10_task0_cfg
     logger_backends:
     - tensorboard
   max_epochs: 30000
-  max_steps: -1
+  max_steps: 30000
   val_check_interval: -1
   save_interval: 3000
 data:
   num_workers: 8
   advantage_tag: libero10_task0_recap
-  balance_dataset_weights: true
+  # Equal probability per source, not proportional to 8k vs 1.56M frames.
+  balance_dataset_weights: false
   seed: 42
   train_data_paths:
   - dataset_path: /data1/Muttaqien/rlinf_data/recap_libero10_task0/libero10_task0_sft
     type: sft
+    weight: 1.0
+  - dataset_path: /data1/Muttaqien/rlinf_data/recap_libero10_task0/libero10_task0_train
+    type: rollout
     weight: 1.0
 algorithm:
   adv_type: gae
@@ -43,8 +47,8 @@ actor:
   global_batch_size: 512
   seed: 0
   model:
-    precision: null
-    model_path: /path/to/pi05_base_pytorch
+    precision: bf16
+    model_path: /data1/Muttaqien/rlinf_data/checkpoints/torch/pi05_base_rlinf
     model_type: cfg_model
     add_value_head: false
     openpi:
