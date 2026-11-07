@@ -1,0 +1,8 @@
+robotiq_observation:
+  ros__parameters:
+    enabled: false
+    serial_port: /dev/serial/by-id/usb-FTDI_USB_TO_RS-485_DA95C62Y-if00-port0
+    serial_timeout_ms: 100
+    poll_hz: 5.0
+    max_age_s: 0.5
+    reconnect_s: 1.0

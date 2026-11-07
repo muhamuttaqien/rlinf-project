@@ -216,6 +216,29 @@ class BaseCamera(Camera, ABC):
                 or zero consumes the next queued frame. A missing or stale cached
                 frame follows the normal timeout and reconnect behavior.
 
+        An exhausted read propagates ``queue.Empty``.
+        """
+        _, frame = self.get_frame_with_timestamp(
+            timeout, attempts, wait, max_age=max_age
+        )
+        return frame
+
+    def get_frame_with_timestamp(
+        self,
+        timeout: float = 5,
+        attempts: int = 1,
+        wait: float = 0.0,
+        *,
+        max_age: Optional[float] = None,
+    ) -> tuple[float, np.ndarray]:
+        """Return host monotonic receipt time and frame using get_frame's policy.
+
+        The timestamp is taken after the driver returns a frame, not at sensor
+        exposure. Cached frames retain their original timestamp and are copied.
+
+        Returns:
+            Host monotonic seconds and the original driver frame.
+
         Raises:
             queue.Empty: If no attempt produced a frame.
         """
@@ -233,7 +256,7 @@ class BaseCamera(Camera, ABC):
                 and latest is not None
                 and time.monotonic() - latest[0] <= max_age
             ):
-                return latest[1].copy()
+                return latest[0], latest[1].copy()
         for attempt in range(1, max(attempts, 1) + 1):
             try:
                 deadline = time.monotonic() + timeout
@@ -242,7 +265,7 @@ class BaseCamera(Camera, ABC):
                         timeout=max(0.0, deadline - time.monotonic())
                     )
                     if max_age is None or time.monotonic() - captured_at <= max_age:
-                        return frame
+                        return captured_at, frame
             except queue.Empty:
                 get_logger().warning(
                     "Camera %s produced no frame within %.2fs "

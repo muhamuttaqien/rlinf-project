@@ -1,0 +1,10 @@
+# Grant/revoke one short lease for the configured owner on the current connection.
+bool enable
+string<=64 owner
+# Empty when requesting a grant; required for revocation.
+string<=32 authorization_id
+uint32 lease_ms
+---
+bool success
+string<=32 authorization_id
+string reason
