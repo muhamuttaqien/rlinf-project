@@ -872,10 +872,23 @@ class OpenPi0ForCFGActionPrediction(BasePolicy, PI0Pytorch):
                 params.requires_grad = False
 
     def _preprocess_observation(self, observation, *, train=True):
-        """Helper method to preprocess observation."""
-        part_observation = _preprocessing.preprocess_observation_pytorch(
-            observation, train=train
-        )
+        """Preprocess images in fp32 before the BF16 model forward.
+
+        OpenPI creates the random-rotation grid in float32. Under mixed
+        precision the input images can be bfloat16, but CUDA grid_sample
+        requires image and grid tensors to have the same dtype. Keep the
+        geometric/color augmentations in fp32, then let the outer autocast
+        handle model inference as usual.
+        """
+        fp32_images = {
+            key: image.float() if image.is_floating_point() else image
+            for key, image in observation.images.items()
+        }
+        fp32_observation = observation.replace(images=fp32_images)
+        with torch.autocast(device_type=observation.state.device.type, enabled=False):
+            part_observation = _preprocessing.preprocess_observation_pytorch(
+                fp32_observation, train=train
+            )
         setattr(
             part_observation,
             "tokenized_positive_guidance_prompt",
