@@ -104,10 +104,12 @@ def discovery_report(
         ),
         "command_query_errors": errors,
         "graph_discovery_complete": (
-            not errors and topic["message_type"] is not None
+            not errors and topic["message_type"] == "geometry_msgs/msg/Twist"
             and topic["publishers"] is not None
             and topic["subscriptions"] is not None
+            and topic["subscriptions"] >= 1
             and timeout is not None
+            and actions.get(GRIPPER_ACTION) == expected_action_type
         ),
         "policy_action_mapping_verified": False,
         "independent_controller_safety_verified": False,
