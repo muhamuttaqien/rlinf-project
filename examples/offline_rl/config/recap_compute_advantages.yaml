@@ -8,10 +8,11 @@ defaults:
 
 advantage:
   value_checkpoint: /data1/Muttaqien/rlinf_data/recap_value_sft_full/libero10_task0_value_sft_full/checkpoints/global_step_8000/actor/model_state_dict/full_weights.pt
-  batch_size: 256
+  batch_size: 64
   flush_interval: 256
-  num_dataloader_workers_per_gpu: 12
+  num_dataloader_workers_per_gpu: 8
   prefetch_factor: 2
+  batch_video_decode: true  # group sequential frames by episode
   discount_next_value: true
   positive_quantile: 0.3
   tag: libero10_task0_recap
@@ -32,7 +33,7 @@ data:
   train_data_paths:
     - dataset_path: "/data1/Muttaqien/rlinf_data/recap_libero10_task0/libero10_task0_train"
       robot_type: "libero"
-      type: "sft"
+      type: "rl"  # rollout data: keep computed advantage labels
       weight: 1.0
 
   advantage_lookahead_step: 10
