@@ -166,6 +166,12 @@ def run_once(raw: Path, checkpoint: Path, *, num_steps: int = 2,
         raise ValueError(f"Unexpected raw π0.5 output tensor shape {shape}")
     output = predicted.detach().float().cpu().numpy()[0, :, :7]
     audit = audit_prediction_chunk(output)
+    from toolkits.realworld_check.fr3_pi05_action_boundary import (
+        quarantine_pi05_prediction,
+    )
+    quarantine = quarantine_pi05_prediction(
+        output, checkpoint=str(checkpoint), source_episode=str(raw)
+    )
 
     return {
         "status": "checkpoint_math_smoke_passed",
@@ -183,6 +189,7 @@ def run_once(raw: Path, checkpoint: Path, *, num_steps: int = 2,
         "pi05_forward_executed": True,
         "raw_output_shape": shape,
         "decoded_first_seven": audit,
+        "output_action_quarantine": quarantine,
         "fr3_action_semantics_verified": False,
         "robot_commands_sent": False,
         "physical_execution_approved": False,
