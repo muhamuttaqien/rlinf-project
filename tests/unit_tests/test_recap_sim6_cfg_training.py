@@ -89,3 +89,9 @@ def test_sim6_config_points_to_both_sources():
     assert cfg.data.advantage_tag == "libero10_task0_recap"
     assert cfg.actor.model.openpi.config_name == "pi05_libero"
     assert "pi05_base_rlinf" in cfg.actor.model.model_path
+    # OpenPI owns its internal precision. Forcing FSDP BF16 breaks
+    # backward propagation (Found dtype Float but expected BFloat16).
+    assert cfg.actor.model.precision is None
+    assert cfg.actor.fsdp_config.mixed_precision.param_dtype is None
+    assert cfg.actor.fsdp_config.mixed_precision.reduce_dtype is None
+    assert cfg.actor.fsdp_config.mixed_precision.buffer_dtype is None
