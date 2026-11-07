@@ -7,21 +7,21 @@ defaults:
   - model/recap_value_model@advantage.model
 
 advantage:
-  value_checkpoint: /path/to/value_checkpoint
-  batch_size: 1024
+  value_checkpoint: /data1/Muttaqien/rlinf_data/recap_value_sft_full/libero10_task0_value_sft_full/checkpoints/global_step_8000/actor/model_state_dict/full_weights.pt
+  batch_size: 256
   flush_interval: 256
   num_dataloader_workers_per_gpu: 12
   prefetch_factor: 2
   discount_next_value: true
   positive_quantile: 0.3
-  tag: null
-  returns_tag: null
+  tag: libero10_task0_recap
+  returns_tag: libero10_task0_recap
 
   model:
     critic_expert_variant: "gemma_1m"
-    tokenizer_path: /path/to/gemma-3-270m
-    siglip_path: /path/to/siglip2-so400m-patch14-224
-    gemma3_path: /path/to/gemma-3-270m
+    tokenizer_path: /data1/Muttaqien/rlinf_data/models/gemma-3-270m
+    siglip_path: /data1/Muttaqien/rlinf_data/models/siglip2-so400m-patch14-224
+    gemma3_path: /data1/Muttaqien/rlinf_data/models/gemma-3-270m
 
 data:
   # openpi variant the value model was trained with ("pi0" / "pi05"). Must
@@ -30,7 +30,7 @@ data:
   model_type: "pi05"
 
   train_data_paths:
-    - dataset_path: "/path/to/sft_dataset"
+    - dataset_path: "/data1/Muttaqien/rlinf_data/recap_libero10_task0/libero10_task0_train"
       robot_type: "libero"
       type: "sft"
       weight: 1.0

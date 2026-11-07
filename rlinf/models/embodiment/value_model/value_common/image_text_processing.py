@@ -98,15 +98,31 @@ def resize_with_pad(
 
     # ``F.interpolate(mode="bilinear")`` does not support uint8 tensors, so
     # interpolate in float and cast back to the original dtype below.
-    interpolation_input = (
-        images.to(torch.float32) if images.dtype == torch.uint8 else images
-    )
-    resized_images = F.interpolate(
-        interpolation_input,
-        size=(resized_height, resized_width),
-        mode=mode,
-        align_corners=False if mode == "bilinear" else None,
-    )
+    if (
+        images.device.type == "cpu"
+        and images.dtype == torch.uint8
+        and mode == "bilinear"
+    ):
+        import cv2
+        import numpy as np
+
+        arr = images.permute(0, 2, 3, 1).contiguous().numpy()
+        resized = np.stack([
+            cv2.resize(im, (resized_width, resized_height),
+                       interpolation=cv2.INTER_LINEAR)
+            for im in arr
+        ])
+        resized_images = torch.from_numpy(resized).permute(0, 3, 1, 2)
+    else:
+        interpolation_input = (
+            images.to(torch.float32) if images.dtype == torch.uint8 else images
+        )
+        resized_images = F.interpolate(
+            interpolation_input,
+            size=(resized_height, resized_width),
+            mode=mode,
+            align_corners=False if mode == "bilinear" else None,
+        )
 
     if images.dtype == torch.uint8:
         resized_images = torch.round(resized_images).clamp(0, 255).to(torch.uint8)
