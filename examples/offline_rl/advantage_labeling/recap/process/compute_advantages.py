@@ -375,6 +375,7 @@ class ValueInferenceDataset(torch.utils.data.Dataset):
         input_transform=None,
         prepare_observation_cpu=None,
         returns_sidecar: dict[int, dict[str, np.ndarray]] | None = None,
+        batch_video_decode: bool = True,
     ):
         self.dataset = lerobot_dataset
         self.robot_type = robot_type
@@ -382,12 +383,79 @@ class ValueInferenceDataset(torch.utils.data.Dataset):
         self.input_transform = input_transform
         self.prepare_observation_cpu = prepare_observation_cpu
         self.returns_sidecar = returns_sidecar
+        self.batch_video_decode = batch_video_decode
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        sample = self.dataset[idx]
+        return self._process_sample(self.dataset[idx], idx)
+
+    def __getitems__(self, indices: list[int]) -> list[dict]:
+        """Decode the video frames for a DataLoader batch together.
+
+        LeRobot's scalar __getitem__ seeks into each compressed video once per
+        frame and camera.  Contiguous DataLoader batches can instead request all
+        timestamps for an episode in one decoder call per camera.  Preserve the
+        original path for datasets with temporal windows or image transforms.
+        """
+        if not indices:
+            return []
+        ds = self.dataset
+        if (
+            not self.batch_video_decode
+            or getattr(ds, "delta_indices", None) is not None
+            or getattr(ds, "image_transforms", None) is not None
+            or not hasattr(ds, "_query_videos")
+            or not hasattr(ds, "hf_dataset")
+            or not hasattr(ds, "meta")
+        ):
+            return [self[i] for i in indices]
+
+        # HF's batched lookup preserves index order and applies its existing
+        # hf_transform_to_torch transformation, but does not decode videos.
+        columns = ds.hf_dataset[list(indices)]
+        samples = [
+            {key: values[pos] for key, values in columns.items()}
+            for pos in range(len(indices))
+        ]
+
+        video_keys = list(ds.meta.video_keys)
+        if video_keys:
+            by_episode = {}
+            for pos, sample in enumerate(samples):
+                ep_idx = int(to_scalar(sample["episode_index"]))
+                timestamp = float(to_scalar(sample["timestamp"]))
+                by_episode.setdefault(ep_idx, []).append((pos, timestamp))
+
+            for ep_idx, entries in by_episode.items():
+                timestamps = [timestamp for _, timestamp in entries]
+                # Reuse LeRobot's decoder, tolerance checks and video layout.
+                decoded = ds._query_videos(
+                    {key: timestamps for key in video_keys}, ep_idx
+                )
+                for key, frames in decoded.items():
+                    # LeRobot squeezes the batch dimension for a single frame.
+                    if frames.ndim == 3:
+                        frames = frames.unsqueeze(0)
+                    if len(frames) != len(entries):
+                        raise RuntimeError(
+                            f"Video batch size mismatch for {key}: "
+                            f"{len(frames)} != {len(entries)}"
+                        )
+                    for (pos, _), frame in zip(entries, frames):
+                        # Same precedence as LeRobot: raw HF columns win.
+                        samples[pos].setdefault(key, frame)
+
+        for sample in samples:
+            task_idx = int(to_scalar(sample["task_index"]))
+            sample["task"] = ds.meta.tasks[task_idx]
+        return [
+            self._process_sample(sample, idx)
+            for sample, idx in zip(samples, indices)
+        ]
+
+    def _process_sample(self, sample: dict, idx: int) -> dict:
         ep_idx = int(to_scalar(sample["episode_index"]))
         frame_idx = int(to_scalar(sample["frame_index"]))
 
@@ -632,9 +700,14 @@ def compute_advantages_for_dataset(
         input_transform=value_model._input_transform if cpu_prep_in_workers else None,
         prepare_observation_cpu=worker_cpu_prep if cpu_prep_in_workers else None,
         returns_sidecar=returns_sidecar,
+        batch_video_decode=cfg.advantage.get("batch_video_decode", True),
     )
     extended_indices = list(range(shard_start, extended_end))
     extended_dataset = torch.utils.data.Subset(advantage_dataset, extended_indices)
+    if rank == 0:
+        logger.info(
+            f"  Batched video decoding: {advantage_dataset.batch_video_decode}"
+        )
 
     dataloader = torch.utils.data.DataLoader(
         extended_dataset,
