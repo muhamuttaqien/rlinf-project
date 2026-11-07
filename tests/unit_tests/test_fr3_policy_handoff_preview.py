@@ -14,7 +14,7 @@ from toolkits.realworld_check.fr3_policy_handoff_preview import (
 
 def setup_preview():
     limits = ReviewLimits(
-        max_translation_delta_m=0.005, max_rotation_delta_rad=0.02,
+        max_translation_delta_m=0.01, max_rotation_delta_rad=0.05,
         gripper_min_candidate_rad=0.0, gripper_max_candidate_rad=0.8,
         max_observation_age_ns=200_000_000,
         max_request_age_ns=100_000_000,
