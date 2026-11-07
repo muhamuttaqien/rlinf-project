@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+from pathlib import Path
 import openpi.models.model as _model
 import openpi.shared.normalize as normalize
 import openpi.training.data_loader as _data_loader
@@ -106,6 +107,7 @@ def create_rlds_dataloader(
 def main(
     config_name: str,
     repo_id: str,
+    output_dir: str | None = None,
 ):
     dataset_root = resolve_lerobot_dataset_root(repo_id)
     if not (dataset_root / "meta" / "info.json").is_file():
@@ -143,7 +145,22 @@ def main(
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    output_path = config.assets_dirs / data_config.repo_id
+    # Explicit output avoids Path(base) / absolute_local_dataset silently
+    # escaping the intended assets directory. Never overwrite real stats.
+    if output_dir is None:
+        if Path(repo_id).expanduser().is_absolute():
+            raise ValueError(
+                "A local absolute LeRobot dataset requires --output-dir for "
+                "its dedicated normalization assets. Do not reuse Panda stats."
+            )
+        output_path = config.assets_dirs / data_config.repo_id
+    else:
+        output_path = Path(output_dir).expanduser().resolve()
+        if output_path.exists():
+            raise FileExistsError(
+                f"Normalization output already exists: {output_path}"
+            )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
 

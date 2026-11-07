@@ -55,6 +55,11 @@ actor:
       discrete_state_input: false
       num_images_in_input: 2
       detach_critic_input: true
+    # REQUIRED for a real FR3 run. Generate with the matching
+    # pi05_franka_pnp dataconfig AFTER collecting verified labeled actions.
+    # This must be FR3-specific, never the StackCube Panda norm_stats.json.
+    openpi_data:
+      norm_stats_path: /path/to/fr3_pi05_norm_assets/norm_stats.json
   optim:
     lr: 2.5e-5
     adam_beta1: 0.9
