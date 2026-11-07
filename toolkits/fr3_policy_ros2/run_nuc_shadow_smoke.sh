@@ -12,8 +12,8 @@ source /opt/ros/humble/setup.bash
 export ROS_DOMAIN_ID=220
 export RLINF_FR3_SHADOW_ONLY=1
 # No controller-manager calls, robot topics or active overlay sourced.
-colcon build --base-paths "$ROOT/src" --packages-select rlinf_fr3_policy_bridge \
-  --build-base "$ROOT/build" --install-base "$ROOT/install" --log-base "$ROOT/log" \
+colcon --log-base "$ROOT/log" build --base-paths "$ROOT/src" --packages-select rlinf_fr3_policy_bridge \
+  --build-base "$ROOT/build" --install-base "$ROOT/install" \
   --event-handlers console_direct+
 source "$ROOT/install/local_setup.bash"
 set -u
