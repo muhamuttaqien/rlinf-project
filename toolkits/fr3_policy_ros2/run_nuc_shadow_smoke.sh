@@ -9,7 +9,6 @@ if [ ! -f "$PKG/package.xml" ]; then
   echo "Missing staged package at $PKG" >&2; exit 3
 fi
 source /opt/ros/humble/setup.bash
-set -u
 export ROS_DOMAIN_ID=220
 export RLINF_FR3_SHADOW_ONLY=1
 # No controller-manager calls, robot topics or active overlay sourced.
@@ -17,6 +16,7 @@ colcon build --base-paths "$ROOT/src" --packages-select rlinf_fr3_policy_bridge 
   --build-base "$ROOT/build" --install-base "$ROOT/install" --log-base "$ROOT/log" \
   --event-handlers console_direct+
 source "$ROOT/install/local_setup.bash"
+set -u
 ros2 run rlinf_fr3_policy_bridge fr3_policy_shadow >"$ROOT/shadow_node.log" 2>&1 &
 NODE_PID=$!
 trap 'kill "$NODE_PID" 2>/dev/null || true; wait "$NODE_PID" 2>/dev/null || true' EXIT
