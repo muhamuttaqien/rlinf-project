@@ -167,6 +167,24 @@ class FSDPCfgWorker(FSDPSftWorker):
 
         model_transforms = self._build_model_transforms(data_config)
         norm_stats = data_config.norm_stats or {}
+        if openpi_cfg.config_name == "pi05_libero":
+            # Base pi05 statistics may be for a 9/8-dim robot, unlike
+            # LIBERO's 8-dim state / 7-dim action normalization.
+            state_stats = norm_stats.get("state")
+            action_stats = norm_stats.get("actions")
+            state_dim = (
+                len(state_stats.mean) if state_stats is not None else None
+            )
+            action_dim = (
+                len(action_stats.mean) if action_stats is not None else None
+            )
+            if (state_dim, action_dim) != (8, 7):
+                raise ValueError(
+                    "LIBERO normalization mismatch: "
+                    f"state={state_dim}, actions={action_dim}; expected (8, 7). "
+                    "Provide actor.model.openpi_data.norm_stats_path "
+                    "pointing to the LIBERO norm_stats.json."
+                )
 
         datasets_with_weights = []
         for ds_config in datasets_config:
