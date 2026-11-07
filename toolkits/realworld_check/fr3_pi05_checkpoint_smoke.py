@@ -7,9 +7,9 @@
 """OFFLINE computational pi0.5 checkpoint smoke against recorded FR3 frames.
 
 Loads a user-provided *simulation-trained* checkpoint and evaluates the
-network once using actual recorded two-camera/robot state and ONE fixed valid
-placeholder language token. It does NOT test real text conditioning, model
-normalization, calibration, controller safety or real robot actions.
+network once using recorded two-camera/robot state and official locally cached
+PaliGemma tokenization. Simulation normalization is audited but NEVER applied
+to FR3. Does not validate robot safety, real-world policy or actions.
 No ROS imports, no policy server, no robot connections or publishers.
 """
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -38,8 +39,68 @@ def resolve_checkpoint(path: Path) -> Path:
     raise FileNotFoundError(f"No RLinf full_weights.pt under {p}")
 
 
+def official_tokenizer_cache_path() -> Path:
+    """Expected official OpenPI PaliGemma tokenizer cache, no network."""
+    home = Path(os.environ.get("OPENPI_DATA_HOME", "~/.cache/openpi")).expanduser()
+    return home / "big_vision" / "paligemma_tokenizer.model"
+
+
+def tokenize_prompt_offline(prompt: str) -> tuple[np.ndarray, np.ndarray]:
+    cache = official_tokenizer_cache_path()
+    if not cache.is_file():
+        raise FileNotFoundError(
+            f"Missing OpenPI PaliGemma tokenizer at {cache}. "
+            "Do not substitute Gemma-3-270m or SigLIP2 tokenizers. "
+            "No implicit download attempted."
+        )
+    from openpi.models.tokenizer import PaligemmaTokenizer
+    ids, mask = PaligemmaTokenizer(max_len=200).tokenize(prompt, state=None)
+    ids = np.asarray(ids, dtype=np.int64)
+    mask = np.asarray(mask, dtype=np.bool_)
+    if ids.shape != (200,) or mask.shape != (200,):
+        raise ValueError("Unexpected OpenPI tokenizer shapes")
+    n = int(mask.sum())
+    if n < 1 or n >= 200 or not np.array_equal(
+        mask, np.arange(200) < n
+    ):
+        raise ValueError("Invalid or truncated PaliGemma token sequence")
+    return ids[:n].copy(), mask[:n].copy()
+
+
+def audit_sim_norm_stats(path: Path) -> dict:
+    """Inspect dimensionality; simulation stats are NEVER applied to FR3."""
+    raw = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+    raw = raw.get("norm_stats", raw)
+    if not isinstance(raw, dict):
+        raise ValueError("Expected norm stats object")
+    dims = {}
+    for key in ("state", "actions", "action"):
+        item = raw.get(key)
+        if not isinstance(item, dict):
+            continue
+        values = item.get("mean", item.get("q01"))
+        array = np.asarray(values, dtype=np.float64)
+        if array.ndim != 1 or array.size == 0 or not np.isfinite(array).all():
+            raise ValueError(f"Invalid norm stats {key}")
+        dims[key] = int(array.size)
+    return {
+        "observed_dimensions": dims,
+        "required_state_dim": 19,
+        "required_action_dim": 7,
+        "dimension_match": (
+            dims.get("state") == 19 and
+            dims.get("actions", dims.get("action")) == 7
+        ),
+        "applied_to_inference": False,
+        "approved_for_FR3": False,
+        "reason": "StackCube simulation stats do not calibrate real FR3",
+    }
+
+
 def run_once(raw: Path, checkpoint: Path, *, num_steps: int = 2,
-             horizon: int = 10, device: str = "cuda:0") -> dict:
+             horizon: int = 10, device: str = "cuda:0",
+             prompt: str = "pick up the object",
+             norm_stats: Path | None = None) -> dict:
     if num_steps < 1 or num_steps > 10:
         raise ValueError("Set num_steps between 1 and 10 for an offline smoke")
     if horizon < 1 or horizon > 50:
@@ -58,7 +119,8 @@ def run_once(raw: Path, checkpoint: Path, *, num_steps: int = 2,
     from rlinf.models.embodiment.openpi.pi0_config import Pi0Config
     from rlinf.models.embodiment.openpi.policies.realworld_policy import RealworldInputs
 
-    raw_obs = load_recorded_observation(raw, 0, "SYNTHETIC TOKEN - offline smoke")
+    raw_obs = load_recorded_observation(raw, 0, prompt)
+    tokens, token_masks = tokenize_prompt_offline(prompt)
     converted = RealworldInputs(action_dim=32, model_type=ModelType.PI05)(raw_obs)
 
     def to_image(value):
@@ -68,16 +130,17 @@ def run_once(raw: Path, checkpoint: Path, *, num_steps: int = 2,
         return (torch.from_numpy(np.ascontiguousarray(arr))
                 .to(device=device, dtype=torch.float32).unsqueeze(0) / 127.5 - 1.0)
 
-    # Critical: fixed token is a syntactically valid embedding index, NOT the
-    # prompt encoding. This only proves checkpoint+vision+state forward.
+    # Official locally cached PaliGemma tokenizer, not a placeholder token.
     observation = Observation(
         images={name: to_image(arr) for name, arr in converted["image"].items()},
         image_masks={name: torch.tensor([bool(mask)], dtype=torch.bool, device=device)
                      for name, mask in converted["image_mask"].items()},
         state=torch.as_tensor(np.asarray(converted["state"]),
                               dtype=torch.float32, device=device).reshape(1, 32),
-        tokenized_prompt=torch.ones((1, 1), dtype=torch.long, device=device),
-        tokenized_prompt_mask=torch.ones((1, 1), dtype=torch.bool, device=device),
+        tokenized_prompt=torch.as_tensor(tokens[None, :].copy(),
+                                         dtype=torch.long, device=device),
+        tokenized_prompt_mask=torch.as_tensor(token_masks[None, :].copy(),
+                                              dtype=torch.bool, device=device),
     )
 
     # Model dimensions mirror the existing StackCube pi0.5 setup, but they are
@@ -111,9 +174,11 @@ def run_once(raw: Path, checkpoint: Path, *, num_steps: int = 2,
         "source_raw": str(raw),
         "input_two_real_camera_frames": True,
         "input_candidate_19d_state": True,
-        "input_text_tokenization_verified": False,
-        "language_token": "synthetic placeholder, not prompt tokenization",
+        "input_text_tokenization_verified": True,
+        "language_token": "official cached OpenPI PaliGemma tokenizer",
+        "prompt_token_count": int(tokens.size),
         "policy_normalization_verified": False,
+        "sim_norm_audit": audit_sim_norm_stats(norm_stats) if norm_stats else None,
         "model_weight_load_success": True,
         "pi05_forward_executed": True,
         "raw_output_shape": shape,
@@ -131,6 +196,9 @@ def main() -> int:
     parser.add_argument("--checkpoint", type=Path, required=True,
                         help="Local RLinf StackCube full_weights.pt or step folder")
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--prompt", default="pick up the object")
+    parser.add_argument("--norm-stats", type=Path, default=None,
+                        help="Read-only audit; simulator stats are NEVER applied")
     parser.add_argument("--num-steps", type=int, default=2)
     parser.add_argument("--horizon", type=int, default=10,
                         help="Network action horizon; default StackCube candidate 10")
@@ -138,6 +206,7 @@ def main() -> int:
     result = run_once(
         args.raw, args.checkpoint, device=args.device,
         num_steps=args.num_steps, horizon=args.horizon,
+        prompt=args.prompt, norm_stats=args.norm_stats,
     )
     print(json.dumps(result, indent=2))
     return 0
