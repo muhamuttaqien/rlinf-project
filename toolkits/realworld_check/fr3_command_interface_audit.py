@@ -138,17 +138,18 @@ def _read_only_query(
     if ssh_host is not None:
         if not re.fullmatch(r"[A-Za-z0-9._-]+", ssh_host):
             raise ValueError("SSH host must be a simple configured host alias")
-        remote_script = (
-            "set -e\\n"
-            "unset PYTHONPATH PYTHONHOME VIRTUAL_ENV\\n"
-            "source /opt/ros/humble/setup.bash\\n"
-            'if [ -f "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash" ]; then\\n'
-            '  source "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash"\\n'
-            "fi\\n"
-            f"export ROS_DOMAIN_ID={domain}\\n"
-            "export RMW_IMPLEMENTATION=rmw_fastrtps_cpp\\n"
-            f"{shlex.join(args)}\\n"
-        ).replace("\\\\n", "\\n")
+        remote_script = "\n".join([
+            "set -e",
+            "unset PYTHONPATH PYTHONHOME VIRTUAL_ENV",
+            "source /opt/ros/humble/setup.bash",
+            'if [ -f "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash" ]; then',
+            '  source "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash"',
+            "fi",
+            f"export ROS_DOMAIN_ID={domain}",
+            "export RMW_IMPLEMENTATION=rmw_fastrtps_cpp",
+            shlex.join(args),
+            "",
+        ])
         command = [
             "ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
             ssh_host, "bash", "-s",
