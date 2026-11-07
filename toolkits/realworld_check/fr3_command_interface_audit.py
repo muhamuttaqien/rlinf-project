@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 from typing import Any
 
@@ -124,30 +125,65 @@ def discovery_report(
     }
 
 
-def _read_only_query(args: list[str], domain: int, timeout_s: int) -> str:
+def _read_only_query(
+    args: list[str], domain: int, timeout_s: int, ssh_host: str | None = None,
+) -> str:
+    # The three permitted args lists are fixed by main(), not user input.
+    # SSH is used to query the ROS Humble installation on the NUC instead
+    # of the Jazzy CLI whose metadata import failed in the workstation env.
     env = os.environ.copy()
     env["ROS_DOMAIN_ID"] = str(domain)
-    # Only ROS CLI introspection, no services that alter controllers.
+    command = args
+    options: dict[str, Any] = {"env": env}
+    if ssh_host is not None:
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", ssh_host):
+            raise ValueError("SSH host must be a simple configured host alias")
+        remote_script = (
+            "set -e\\n"
+            "unset PYTHONPATH PYTHONHOME VIRTUAL_ENV\\n"
+            "source /opt/ros/humble/setup.bash\\n"
+            'if [ -f "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash" ]; then\\n'
+            '  source "$HOME/Desktop/aist-gamma/franka_controller_ws/install/setup.bash"\\n'
+            "fi\\n"
+            f"export ROS_DOMAIN_ID={domain}\\n"
+            "export RMW_IMPLEMENTATION=rmw_fastrtps_cpp\\n"
+            f"{shlex.join(args)}\\n"
+        ).replace("\\\\n", "\\n")
+        command = [
+            "ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+            ssh_host, "bash", "-s",
+        ]
+        options["input"] = remote_script
     try:
         result = subprocess.run(
-            args, env=env, capture_output=True, text=True,
-            timeout=timeout_s, check=False,
+            command, capture_output=True, text=True,
+            timeout=timeout_s, check=False, **options,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError("ros2 CLI not found; source ROS 2 setup") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"ROS domain {domain} query timed out") from exc
-    if result.returncode != 0:
         raise RuntimeError(
-            f"ROS domain {domain} query failed ({result.returncode}): "
-            f"{result.stderr.strip()[:250]}"
+            "SSH or ros2 command not found; check local PATH/SSH alias"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"ROS domain {domain} query timed out"
+            + (" via SSH" if ssh_host else "")
+        ) from exc
+    if result.returncode != 0:
+        # Preserve the useful END of traceback (PackageNotFoundError etc)
+        # instead of the original first 250 characters.
+        error_tail = (result.stderr or result.stdout).strip()[-1800:]
+        raise RuntimeError(
+            f"ROS domain {domain} query failed ({result.returncode})"
+            f"{' via SSH' if ssh_host else ''}: {error_tail}"
         )
     return result.stdout
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--timeout-seconds", type=int, default=12)
+    parser.add_argument("--timeout-seconds", type=int, default=20)
+    parser.add_argument("--ssh-host", default=None,
+                        help="Run read-only ROS Humble discovery on NUC via SSH alias")
     args = parser.parse_args()
     if args.timeout_seconds < 1 or args.timeout_seconds > 60:
         parser.error("timeout-seconds must be between 1 and 60")
@@ -163,7 +199,9 @@ def main() -> int:
     errors = {}
     for name, (argv, domain) in queries.items():
         try:
-            output[name] = _read_only_query(argv, domain, args.timeout_seconds)
+            output[name] = _read_only_query(
+                argv, domain, args.timeout_seconds, ssh_host=args.ssh_host
+            )
         except RuntimeError as exc:
             output[name] = ""
             errors[name] = str(exc)

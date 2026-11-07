@@ -37,3 +37,29 @@ If your ROS domain 71 is not reachable from the workstation, `gripper_actions` w
 ## Milestone 5 remaining gate
 
 No physical policy interface exists yet. Before building any actuation bridge, inspect the **current deployed NUC source**, agree on real policy action frames, units and gripper semantics, independent controller-enforced limits/authority/freshness, rollout failure handling and supervised go/no-go. Do not convert raw π0.5 channels to normalized SpaceMouse commands simply to make data flow. Physical evaluation belongs to Milestone 6.
+
+## Workstation ROS2 CLI metadata failure — corrected run route (November 7, 2026)
+
+Operator ran the initial workstation ROS Jazzy CLI audit from a Python 3.11
+virtual environment. **All three CLI invocations failed inside
+`/usr/lib/python3.12/importlib/metadata` before ROS discovery.** The first
+250 characters of the traceback were insufficient to confirm its precise
+root cause. Consequently topic/action null values and a false discovery
+flag mean *CLI unavailable*, NOT confirmed hardware/topic absence.
+
+The tool now accepts `--ssh-host nuc-franka`, which invokes the **read-only**
+ROS Humble CLI on the NUC via the existing SSH alias, clears contaminating
+virtual-environment Python variables on the remote side and sources the
+installed ROS Humble/controller overlay. It does not run ROS locally and
+cannot publish, call an action or change a controller.
+
+```bash
+cd ~/Desktop/AIST-Tokyo/gamma/rlinf-project
+git pull --ff-only origin branch-openpi-recap-franka
+python -m toolkits.realworld_check.fr3_command_interface_audit --ssh-host nuc-franka
+```
+
+The script now preserves the **last 1800 characters** of error output, so
+remaining failures can be diagnosed without guessing. **Remote audit has not
+yet been run**; source-level controller semantics and physical policy
+authorization remain independent concerns.

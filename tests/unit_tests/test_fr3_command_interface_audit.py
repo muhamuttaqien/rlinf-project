@@ -59,3 +59,36 @@ def test_query_failure_is_not_readiness():
     )
     assert report["graph_discovery_complete"] is False
     assert report["physical_execution_approved"] is False
+
+def test_ssh_execution_sources_nuc_humble_only(monkeypatch):
+    """Remote discovery executes only one ROS CLI read-only query."""
+    from toolkits.realworld_check.fr3_command_interface_audit import _read_only_query
+
+    captured = {}
+
+    def stub_run(args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+        class Result:
+            returncode = 0
+            stdout = "Type: geometry_msgs/msg/Twist\\n"
+            stderr = ""
+        return Result()
+
+    monkeypatch.setattr(
+        "toolkits.realworld_check.fr3_command_interface_audit.subprocess.run",
+        stub_run,
+    )
+    result = _read_only_query(
+        ["ros2", "topic", "info", "-v",
+         "/franka_controller/target_cartesian_velocity_percent"],
+        70, 20, ssh_host="nuc-franka",
+    )
+    assert result.startswith("Type:")
+    assert captured["args"][-3:] == ["nuc-franka", "bash", "-s"]
+    sent = captured["kwargs"]["input"]
+    assert "source /opt/ros/humble/setup.bash" in sent
+    assert "export ROS_DOMAIN_ID=70" in sent
+    assert "ros2 topic info -v" in sent
+    assert "ros2 topic pub" not in sent
