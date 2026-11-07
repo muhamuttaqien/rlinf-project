@@ -161,6 +161,7 @@ class FSDPCfgWorker(FSDPSftWorker):
             model_path=self.cfg.actor.model.model_path,
             batch_size=self.cfg.actor.micro_batch_size * self._world_size,
             repo_id=first_path,
+            data_kwargs=self.cfg.actor.model.get("openpi_data", None),
         )
         data_config = config.data.create(config.assets_dirs, config.model)
 
@@ -214,22 +215,35 @@ class FSDPCfgWorker(FSDPSftWorker):
                 base_dataset, transforms_list
             )
 
-            advantages_lookup = self._load_advantages_lookup(data_path, advantage_tag)
+            # Expert demonstrations are always positive. Rollouts require
+            # the actual advantage labels computed in SIM-5.
+            is_sft = str(ds_config.get("type", "rollout")).lower() == "sft"
+            advantages_lookup = (
+                None if is_sft
+                else self._load_advantages_lookup(data_path, advantage_tag)
+            )
             if self._rank == 0:
-                adv_filename = (
-                    f"advantages_{advantage_tag}.parquet"
-                    if advantage_tag
-                    else "advantages.parquet"
-                )
-                self.log_info(
-                    f"Loaded advantages from "
-                    f"meta/{adv_filename} ({len(advantages_lookup)} entries)"
-                )
+                if is_sft:
+                    self.log_info(
+                        f"Expert SFT dataset: all {len(base_dataset)} "
+                        "samples labeled positive"
+                    )
+                else:
+                    adv_filename = (
+                        f"advantages_{advantage_tag}.parquet"
+                        if advantage_tag
+                        else "advantages.parquet"
+                    )
+                    self.log_info(
+                        f"Loaded advantages from meta/{adv_filename} "
+                        f"({len(advantages_lookup)} entries)"
+                    )
 
             final_dataset = AdvantagePreservingDataset(
                 base_dataset=base_dataset,
                 transformed_dataset=transformed_dataset,
                 advantages_lookup=advantages_lookup,
+                force_positive=is_sft,
             )
 
             datasets_with_weights.append((final_dataset, weight))
