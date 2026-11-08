@@ -177,9 +177,15 @@ def new_to_old_state_dict(
 
     rlinf_key = "llm.embedder.embedding.weight"
     if rlinf_key in openpi_state_dict:
-        openpi_pytorch_state_dict["paligemma_with_expert.paligemma.lm_head.weight"] = (
-            openpi_state_dict[rlinf_key]
-        )
+        embed_weight = openpi_state_dict[rlinf_key]
+        # OpenPI PyTorch PaliGemma keeps both tied language embedding and
+        # LM-head keys in its state dict. Both use the RLinf token embedding.
+        openpi_pytorch_state_dict[
+            "paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight"
+        ] = embed_weight
+        openpi_pytorch_state_dict[
+            "paligemma_with_expert.paligemma.lm_head.weight"
+        ] = embed_weight
 
     for key, tensor in openpi_state_dict.items():
         if key.startswith(
