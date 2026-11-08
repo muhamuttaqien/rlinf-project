@@ -63,6 +63,7 @@ def _repair_libero_paths(task, output_dir: Path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default=None, help="Checkpoint global_step_N directory")
+    parser.add_argument("--model-path", default=None, help="Pretrained/SFT model directory for baseline")
     parser.add_argument("--trials", type=int, default=10)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--video-count", type=int, default=3)
@@ -76,7 +77,13 @@ def main():
         config_dir=str(repo_path / "examples/offline_rl/config"),
     ):
         cfg = compose(config_name="experiments/libero10_task0/cfg_rl_openpi")
-    model = get_model(cfg.actor.model)  # Load pretrained base AND its LIBERO norm stats.
+    if args.model_path:
+        cfg.actor.model.model_path = str(Path(args.model_path).expanduser().resolve())
+    if not args.checkpoint:
+        # An SFT baseline has not learned an "Advantage: positive" CFG prompt.
+        # Evaluate it with its original task instruction (no guidance).
+        cfg.actor.model.openpi.guidance_type = "no_guide"
+    model = get_model(cfg.actor.model)  # Load the correct checkpoint and LIBERO norm stats.
     if args.checkpoint:
         ckpt = Path(args.checkpoint).expanduser().resolve()
         weights_path = ckpt / "actor/model_state_dict/full_weights.pt"
