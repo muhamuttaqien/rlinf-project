@@ -51,4 +51,10 @@ def validate_libero_norm_stats(norm_stats) -> tuple[int, int]:
             )
         widths[key] = width
 
-    return widths["state"], widths["actions"]
+    widths_pair = (widths["state"], widths["actions"])
+    if widths_pair not in ((8, 7), (32, 32)):
+        raise ValueError(
+            f"LIBERO normalization mixed-width layout {widths_pair}; "
+            "expected (8, 7) or (32, 32)"
+        )
+    return widths_pair
