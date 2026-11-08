@@ -48,7 +48,9 @@ actor:
   seed: 0
   model:
     precision: null  # OpenPI CFG requires no forced FSDP BF16 parameter casting
-    model_path: /data1/Muttaqien/rlinf_data/checkpoints/torch/pi05_base_rlinf
+    model_path: /data1/Muttaqien/rlinf_data/checkpoints/torch/pi05_libero_sft_rlinf
+    openpi_data:
+      norm_stats_path: /data1/Muttaqien/rlinf_data/checkpoints/torch/pi05_libero_sft_rlinf/physical-intelligence/libero/norm_stats.json
     model_type: cfg_model
     add_value_head: false
     openpi:
