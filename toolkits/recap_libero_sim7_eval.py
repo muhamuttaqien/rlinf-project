@@ -7,6 +7,7 @@ Run without --checkpoint for the pretrained pi0.5 baseline.
 import argparse
 import collections
 import os
+import random
 from pathlib import Path
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -25,6 +26,15 @@ from toolkits.standalone_eval_scripts.openpi.libero_eval import (
     LIBERO_DUMMY_ACTION, LIBERO_ENV_RESOLUTION, _get_libero_env, _quat2axisangle,
 )
 
+
+
+def _seed_episode(seed):
+    """Seed each rollout independently for repeatable and paired evaluations."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def _repair_libero_paths(task, output_dir: Path):
@@ -112,7 +122,9 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     successes = 0
     for episode in range(args.trials):
-        env, description = _get_libero_env(task, LIBERO_ENV_RESOLUTION, args.seed)
+        episode_seed = args.seed + episode
+        _seed_episode(episode_seed)
+        env, description = _get_libero_env(task, LIBERO_ENV_RESOLUTION, episode_seed)
         try:
             env.reset()
             obs = env.set_init_state(initial_states[episode])
