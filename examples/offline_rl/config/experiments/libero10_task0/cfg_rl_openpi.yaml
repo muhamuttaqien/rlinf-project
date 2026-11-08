@@ -21,6 +21,7 @@ runner:
     experiment_name: recap_libero10_task0_cfg
     logger_backends:
     - tensorboard
+    - wandb
   max_epochs: 30000
   max_steps: 30000
   val_check_interval: -1
