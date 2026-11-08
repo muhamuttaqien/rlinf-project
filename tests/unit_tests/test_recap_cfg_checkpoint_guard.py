@@ -70,3 +70,35 @@ def test_rlinf_token_embedding_maps_to_paligemma_input_and_head():
         converted["paligemma_with_expert.paligemma.lm_head.weight"],
         weight,
     )
+
+
+def test_cfg_restore_tied_embedding_alias():
+    from rlinf.models.embodiment.openpi_cfg import (
+        _PALIGEMMA_INPUT_EMBED,
+        _PALIGEMMA_LM_HEAD,
+        _restore_tied_paligemma_weights,
+    )
+
+    shared = torch.ones(5, 3)
+    expected = {_PALIGEMMA_INPUT_EMBED: shared, _PALIGEMMA_LM_HEAD: shared}
+    saved = {_PALIGEMMA_LM_HEAD: shared.clone()}
+    restored = _restore_tied_paligemma_weights(expected, saved, "sft.safetensors")
+    assert set(restored) == set(expected)
+    assert torch.equal(restored[_PALIGEMMA_INPUT_EMBED], saved[_PALIGEMMA_LM_HEAD])
+
+
+def test_cfg_refuse_tied_embedding_alias_if_model_weights_are_not_tied():
+    from rlinf.models.embodiment.openpi_cfg import (
+        _PALIGEMMA_INPUT_EMBED,
+        _PALIGEMMA_LM_HEAD,
+        _restore_tied_paligemma_weights,
+    )
+
+    expected = {
+        _PALIGEMMA_INPUT_EMBED: torch.ones(5, 3),
+        _PALIGEMMA_LM_HEAD: torch.ones(5, 3),
+    }
+    with pytest.raises(RuntimeError, match="does not share"):
+        _restore_tied_paligemma_weights(
+            expected, {_PALIGEMMA_LM_HEAD: torch.ones(5, 3)}, "invalid.safetensors"
+        )
