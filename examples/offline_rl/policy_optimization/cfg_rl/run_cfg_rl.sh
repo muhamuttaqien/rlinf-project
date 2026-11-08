@@ -1,4 +1,5 @@
 #!/bin/bash
+set -o pipefail  # Propagate Ray/Python failures through grep | tee.
 
 # CFG RL Training Launch Script
 # Example: bash examples/offline_rl/policy_optimization/cfg_rl/run_cfg_rl.sh cfg_rl_openpi
