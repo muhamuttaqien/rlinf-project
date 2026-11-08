@@ -48,3 +48,8 @@ def test_rejects_missing_statistics():
     stats["state"].q01 = None
     with pytest.raises(ValueError, match="state.q01"):
         validate_libero_norm_stats(stats)
+
+
+def test_rejects_mixed_width_layout():
+    with pytest.raises(ValueError, match="mixed-width"):
+        validate_libero_norm_stats(_make_stats(8, 32))
