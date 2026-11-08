@@ -40,6 +40,37 @@ def _validate_cfg_checkpoint_keys(model, checkpoint_keys, checkpoint_path):
 # not logits from this language head.
 _UNUSED_EXPERT_LM_HEAD = "paligemma_with_expert.gemma_expert.lm_head.weight"
 
+_PALIGEMMA_INPUT_EMBED = (
+    "paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight"
+)
+_PALIGEMMA_LM_HEAD = "paligemma_with_expert.paligemma.lm_head.weight"
+
+
+def _restore_tied_paligemma_weights(expected, state_dict, checkpoint_path):
+    """Restore a weight alias that safetensors may omit for tied PaliGemma weights."""
+    aliases = (_PALIGEMMA_INPUT_EMBED, _PALIGEMMA_LM_HEAD)
+    missing = [key for key in aliases if key in expected and key not in state_dict]
+    present = [key for key in aliases if key in state_dict]
+    if len(missing) == 1 and len(present) == 1:
+        missing_key, source_key = missing[0], present[0]
+        if (
+            source_key not in expected
+            or expected[missing_key].shape != state_dict[source_key].shape
+            or expected[missing_key].data_ptr() != expected[source_key].data_ptr()
+        ):
+            raise RuntimeError(
+                f"Cannot restore tied PaliGemma weight in {checkpoint_path}: "
+                "model does not share the expected embedding/head storage or "
+                "tensor shapes do not match."
+            )
+        state_dict = dict(state_dict)
+        state_dict[missing_key] = state_dict[source_key]
+        print(
+            f"Restored tied PaliGemma weight: {missing_key} <- {source_key}",
+            flush=True,
+        )
+    return state_dict
+
 
 def _prepare_cfg_checkpoint_state_dict(model, state_dict, checkpoint_path):
     """Convert RLinf Pi0 weights to OpenPI PyTorch CFG layout and validate all used weights."""
@@ -54,6 +85,7 @@ def _prepare_cfg_checkpoint_state_dict(model, state_dict, checkpoint_path):
         print(f"Converted RLinf Pi0 checkpoint for CFG: {checkpoint_path}", flush=True)
 
     expected = model.state_dict()
+    state_dict = _restore_tied_paligemma_weights(expected, state_dict, checkpoint_path)
     missing = set(expected) - set(state_dict)
     unexpected = set(state_dict) - set(expected)
     shape_mismatches = [
