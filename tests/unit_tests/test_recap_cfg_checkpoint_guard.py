@@ -51,3 +51,22 @@ def test_cfg_state_dict_permits_only_unused_expert_lm_head_missing():
     incomplete = {"action_in_proj.weight": model.action_in_proj.weight.detach()}
     with pytest.raises(RuntimeError, match="incompatible parameters"):
         _prepare_cfg_checkpoint_state_dict(model, incomplete, "incomplete.pt")
+
+
+def test_rlinf_token_embedding_maps_to_paligemma_input_and_head():
+    from rlinf.utils.ckpt_convertor.openpi.openpi_to_openpi_pytorch import (
+        new_to_old_state_dict,
+    )
+
+    weight = torch.ones(3, 4)
+    converted = new_to_old_state_dict({"llm.embedder.embedding.weight": weight})
+    assert torch.equal(
+        converted[
+            "paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight"
+        ],
+        weight,
+    )
+    assert torch.equal(
+        converted["paligemma_with_expert.paligemma.lm_head.weight"],
+        weight,
+    )
