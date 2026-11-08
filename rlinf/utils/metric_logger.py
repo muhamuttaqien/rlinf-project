@@ -84,6 +84,7 @@ class MetricLogger:
 
         self.wandb_proxy = logger_cfg.get("wandb_proxy", None)
         self.wandb_entity = logger_cfg.get("wandb_entity", None)
+        self.wandb_base_url = logger_cfg.get("wandb_base_url", None)
         self.swanlab_mode = logger_cfg.get("swanlab_mode", "cloud")
         if len(self.logger_backends) > 0:
             assert all(
@@ -110,8 +111,13 @@ class MetricLogger:
             os.makedirs(wandb_log_path, exist_ok=True)
 
             settings = None
-            if self.wandb_proxy:
-                settings = wandb.Settings(https_proxy=self.wandb_proxy)
+            if self.wandb_proxy or self.wandb_base_url:
+                settings_kwargs = {}
+                if self.wandb_proxy:
+                    settings_kwargs["https_proxy"] = self.wandb_proxy
+                if self.wandb_base_url:
+                    settings_kwargs["base_url"] = self.wandb_base_url
+                settings = wandb.Settings(**settings_kwargs)
             wandb.init(
                 entity=self.wandb_entity,
                 project=self.project_name,
