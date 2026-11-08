@@ -17,6 +17,24 @@ import torch
 from omegaconf import DictConfig
 
 
+def _validate_cfg_checkpoint_keys(model, checkpoint_keys, checkpoint_path):
+    """Fail fast when a CFG policy would silently skip most pretrained weights."""
+    expected = set(model.state_dict())
+    observed = set(checkpoint_keys)
+    matching = expected & observed
+    coverage = len(matching) / max(len(expected), 1)
+    if coverage < 0.95:
+        raise RuntimeError(
+            f"Incompatible CFG policy checkpoint at {checkpoint_path}: "
+            f"only {len(matching)}/{len(expected)} model tensors have matching names "
+            f"({coverage:.1%}). The new RLinf Pi0 format (img.*, llm.*) is "
+            "not directly loadable into the legacy OpenPI PyTorch CFG model "
+            "(paligemma_with_expert.*). Using strict=False would silently "
+            "initialize nearly the whole policy randomly. Supply a compatible "
+            "OpenPI PyTorch checkpoint; do not train with this checkpoint."
+        )
+
+
 def get_model(cfg: DictConfig, torch_dtype=None):
     import glob
 
@@ -55,16 +73,20 @@ def get_model(cfg: DictConfig, torch_dtype=None):
         model.freeze_vlm()
 
     if os.path.exists(full_weights_path):
-        model_state_dict = torch.load(full_weights_path, map_location="cpu")
+        model_state_dict = torch.load(full_weights_path, map_location="cpu", weights_only=False)
+        _validate_cfg_checkpoint_keys(model, model_state_dict, full_weights_path)
         model.load_state_dict(model_state_dict, strict=False)
     elif os.path.exists(actor_full_weights_path):
-        model_state_dict = torch.load(actor_full_weights_path, map_location="cpu")
+        model_state_dict = torch.load(actor_full_weights_path, map_location="cpu", weights_only=False)
+        _validate_cfg_checkpoint_keys(model, model_state_dict, actor_full_weights_path)
         model.load_state_dict(model_state_dict, strict=False)
     else:
         weight_paths = sorted(glob.glob(os.path.join(checkpoint_dir, "*.safetensors")))
         if not weight_paths:
             weight_paths = [os.path.join(checkpoint_dir, "model.safetensors")]
         for weight_path in weight_paths:
+            with safetensors.safe_open(weight_path, framework="pt", device="cpu") as reader:
+                _validate_cfg_checkpoint_keys(model, reader.keys(), weight_path)
             safetensors.torch.load_model(model, weight_path, strict=False)
 
     model.paligemma_with_expert.to_bfloat16_for_selected_params("bfloat16")
