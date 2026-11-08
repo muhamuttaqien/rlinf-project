@@ -35,6 +35,45 @@ def _validate_cfg_checkpoint_keys(model, checkpoint_keys, checkpoint_path):
         )
 
 
+# OpenPI's PyTorch action-expert language head is absent from the RLinf
+# inference-focused Pi0 format. CFG predicts actions from hidden states,
+# not logits from this language head.
+_UNUSED_EXPERT_LM_HEAD = "paligemma_with_expert.gemma_expert.lm_head.weight"
+
+
+def _prepare_cfg_checkpoint_state_dict(model, state_dict, checkpoint_path):
+    """Convert RLinf Pi0 weights to OpenPI PyTorch CFG layout and validate all used weights."""
+    if any(key.startswith(("img.", "llm.")) for key in state_dict):
+        from rlinf.utils.ckpt_convertor.openpi.openpi_to_openpi_pytorch import (
+            new_to_old_state_dict,
+        )
+
+        state_dict = new_to_old_state_dict(
+            state_dict, action_expert_uses_adarms=bool(model.config.pi05)
+        )
+        print(f"Converted RLinf Pi0 checkpoint for CFG: {checkpoint_path}", flush=True)
+
+    expected = model.state_dict()
+    missing = set(expected) - set(state_dict)
+    unexpected = set(state_dict) - set(expected)
+    shape_mismatches = [
+        key for key in expected.keys() & state_dict.keys()
+        if expected[key].shape != state_dict[key].shape
+    ]
+    if missing - {_UNUSED_EXPERT_LM_HEAD} or unexpected or shape_mismatches:
+        raise RuntimeError(
+            f"CFG checkpoint {checkpoint_path} has incompatible parameters: "
+            f"missing={sorted(missing)[:8]}, unexpected={sorted(unexpected)[:8]}, "
+            f"shape_mismatches={sorted(shape_mismatches)[:8]}. "
+            "Do not train or evaluate until checkpoint conversion matches."
+        )
+    if missing:
+        print("CFG: leaving unused action-expert language head at initialization", flush=True)
+    print(f"CFG checkpoint validated: {len(expected) - len(missing)}/{len(expected)} "
+          "model tensors matched", flush=True)
+    return state_dict
+
+
 def get_model(cfg: DictConfig, torch_dtype=None):
     import glob
 
@@ -74,20 +113,24 @@ def get_model(cfg: DictConfig, torch_dtype=None):
 
     if os.path.exists(full_weights_path):
         model_state_dict = torch.load(full_weights_path, map_location="cpu", weights_only=False)
-        _validate_cfg_checkpoint_keys(model, model_state_dict, full_weights_path)
+        model_state_dict = _prepare_cfg_checkpoint_state_dict(
+            model, model_state_dict, full_weights_path
+        )
         model.load_state_dict(model_state_dict, strict=False)
     elif os.path.exists(actor_full_weights_path):
         model_state_dict = torch.load(actor_full_weights_path, map_location="cpu", weights_only=False)
-        _validate_cfg_checkpoint_keys(model, model_state_dict, actor_full_weights_path)
+        model_state_dict = _prepare_cfg_checkpoint_state_dict(
+            model, model_state_dict, actor_full_weights_path
+        )
         model.load_state_dict(model_state_dict, strict=False)
     else:
         weight_paths = sorted(glob.glob(os.path.join(checkpoint_dir, "*.safetensors")))
         if not weight_paths:
             weight_paths = [os.path.join(checkpoint_dir, "model.safetensors")]
         for weight_path in weight_paths:
-            with safetensors.safe_open(weight_path, framework="pt", device="cpu") as reader:
-                _validate_cfg_checkpoint_keys(model, reader.keys(), weight_path)
-            safetensors.torch.load_model(model, weight_path, strict=False)
+            state_dict = safetensors.torch.load_file(weight_path, device="cpu")
+            state_dict = _prepare_cfg_checkpoint_state_dict(model, state_dict, weight_path)
+            model.load_state_dict(state_dict, strict=False)
 
     model.paligemma_with_expert.to_bfloat16_for_selected_params("bfloat16")
     data_config = actor_train_config.data.create(
