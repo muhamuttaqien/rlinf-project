@@ -18,3 +18,36 @@ def test_cfg_checkpoint_keys_reject_unmatched_format():
             ["img.stem.weight", "llm.layers.0.attn.q_proj.0.weight"],
             "new_openpi.safetensors",
         )
+
+
+def test_cfg_state_dict_requires_matching_keys():
+    from rlinf.models.embodiment.openpi_cfg import (
+        _prepare_cfg_checkpoint_state_dict,
+    )
+
+    model = torch.nn.Linear(3, 2)
+    valid = model.state_dict()
+    assert _prepare_cfg_checkpoint_state_dict(model, valid, "valid.pt") == valid
+    with pytest.raises(RuntimeError, match="incompatible parameters"):
+        _prepare_cfg_checkpoint_state_dict(model, {"img.stem.weight": torch.zeros(2)}, "invalid.pt")
+
+
+def test_cfg_state_dict_permits_only_unused_expert_lm_head_missing():
+    from rlinf.models.embodiment.openpi_cfg import (
+        _prepare_cfg_checkpoint_state_dict,
+        _UNUSED_EXPERT_LM_HEAD,
+    )
+
+    class ToyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.action_in_proj = torch.nn.Linear(2, 2)
+            self.register_parameter(
+                "dummy_unused", torch.nn.Parameter(torch.zeros(1))
+            )
+
+    model = ToyModel()
+    # Missing a required key must never be silently ignored.
+    incomplete = {"action_in_proj.weight": model.action_in_proj.weight.detach()}
+    with pytest.raises(RuntimeError, match="incompatible parameters"):
+        _prepare_cfg_checkpoint_state_dict(model, incomplete, "incomplete.pt")
