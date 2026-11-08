@@ -17,7 +17,9 @@ runner:
   task_type: sft
   logger:
     log_path: ../results
-    project_name: rlinf
+    project_name: rlinf-openpi-recap
+    wandb_entity: muhamuttaqien
+    wandb_base_url: https://api.forge.coreweave.com
     experiment_name: recap_libero10_task0_cfg
     logger_backends:
     - tensorboard
