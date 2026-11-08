@@ -26,6 +26,40 @@ from toolkits.standalone_eval_scripts.openpi.libero_eval import (
 )
 
 
+
+def _repair_libero_paths(task, output_dir: Path):
+    """Use installed LIBERO resources if ~/.libero/config.yaml points to an old checkout."""
+    import yaml
+    import libero.libero as libero_paths
+
+    config_path = Path(libero_paths.config_file)
+    config = yaml.safe_load(config_path.read_text())
+    installed_root = Path(libero_paths.__file__).resolve().parent
+    resources = {
+        "init_states": ("init_files", task.init_states_file),
+        "bddl_files": ("bddl_files", task.bddl_file),
+    }
+    changed = False
+    for key, (subdir, filename) in resources.items():
+        location = Path(config[key]) / task.problem_folder / filename
+        if location.is_file():
+            continue
+        installed_location = installed_root / subdir / task.problem_folder / filename
+        if not installed_location.is_file():
+            raise FileNotFoundError(
+                f"LIBERO {key} missing at {location} and {installed_location}. "
+                "Install LIBERO's init_files and bddl_files resources."
+            )
+        config[key] = str(installed_root / subdir)
+        changed = True
+        print(f"Using installed LIBERO {key}: {config[key]}", flush=True)
+    if changed:
+        # Avoid changing the user's global ~/.libero/config.yaml.
+        output_dir.mkdir(parents=True, exist_ok=True)
+        fixed_config = output_dir / "libero_eval_config.yaml"
+        fixed_config.write_text(yaml.safe_dump(config))
+        libero_paths.config_file = str(fixed_config)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default=None, help="Checkpoint global_step_N directory")
@@ -63,10 +97,11 @@ def main():
     model = model.to("cuda").eval()
     suite = benchmark.get_benchmark_dict()["libero_10"]()
     task = suite.get_task(0)
+    out_dir = Path(args.output)
+    _repair_libero_paths(task, out_dir)
     initial_states = suite.get_task_init_states(0)
     if args.trials > len(initial_states):
         parser.error(f"Requested {args.trials} trials but only {len(initial_states)} init states exist")
-    out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
     successes = 0
     for episode in range(args.trials):
