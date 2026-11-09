@@ -55,3 +55,20 @@ def test_wrong_action_dimension_fails():
 def test_wrong_model_type_is_refused():
     with pytest.raises(ValueError, match="PI0.5"):
         Fr3PegProxyInputs(model_type=_model.ModelType.PI0)(_data())
+
+
+def test_normalized_float_chw_images_from_lerobot():
+    data = _data()
+    data["observation/image"] = np.full((3, 480, 640), 0.5, dtype=np.float32)
+    data["observation/wrist_image"] = np.ones((3, 480, 848), dtype=np.float32)
+    out = Fr3PegProxyInputs()(data)
+    assert out["image"]["base_0_rgb"].dtype == np.uint8
+    assert out["image"]["base_0_rgb"][0, 0, 0] == 128
+    assert out["image"]["left_wrist_0_rgb"][0, 0, 0] == 255
+
+
+def test_reject_out_of_range_normalized_image():
+    data = _data()
+    data["observation/image"] = np.full((3, 480, 640), 2.0, dtype=np.float32)
+    with pytest.raises(ValueError, match="in \\[0, 1\\]"):
+        Fr3PegProxyInputs()(data)
