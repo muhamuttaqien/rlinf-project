@@ -23,6 +23,7 @@ from toolkits.realworld_check.fr3_data_collect import (
     capture_episode,
     prepare_session,
     session_progress,
+    warn_if_outside_data_root,
 )
 
 
@@ -130,3 +131,12 @@ def test_control_c_preserves_interrupted_attempt(tmp_path):
     assert report["stop_reason"] == "keyboard_interrupt"
     manifest = json.loads((tmp_path / "episode_0001/manifest.json").read_text())
     assert manifest["status"] == "interrupted"
+
+def test_storage_warning_is_nonblocking_and_checks_resolved_paths(tmp_path, capsys):
+    data_root = tmp_path / "data1"
+    data_root.mkdir()
+    assert not warn_if_outside_data_root(data_root / "fr3_peg_100", data_root)
+    assert capsys.readouterr().err == ""
+    outside = tmp_path / "home" / "fr3_peg_100"
+    assert warn_if_outside_data_root(outside, data_root)
+    assert "WARNING" in capsys.readouterr().err
