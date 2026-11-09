@@ -25,8 +25,16 @@ def _image_hwc(value: object, name: str) -> np.ndarray:
         raise ValueError(f"{name} must have 3 dimensions")
     if image.shape[0] == 3 and image.shape[-1] != 3:
         image = np.transpose(image, (1, 2, 0))
-    if image.shape[-1] != 3 or image.dtype != np.uint8:
-        raise ValueError(f"{name} must be CHW or HWC uint8 RGB")
+    if image.shape[-1] != 3:
+        raise ValueError(f"{name} must be CHW or HWC RGB")
+    if np.issubdtype(image.dtype, np.floating):
+        # LeRobot returns normalized float32 images in [0, 1], often CHW.
+        # Convert explicitly to uint8 without silently accepting bad scales.
+        if not np.isfinite(image).all() or image.min() < 0 or image.max() > 1:
+            raise ValueError(f"{name} float RGB values must be finite and in [0, 1]")
+        image = np.rint(image * 255).astype(np.uint8)
+    elif image.dtype != np.uint8:
+        raise ValueError(f"{name} must be uint8 or normalized float RGB")
     return np.ascontiguousarray(image)
 
 
