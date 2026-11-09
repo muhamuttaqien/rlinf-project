@@ -179,6 +179,25 @@ def _run_evaluator(
     suite: str = "libero_10",
     task_index: int = 0,
 ) -> None:
+    module_path = repo_root / "toolkits" / "recap_libero_sim7_eval.py"
+    if not module_path.is_file():
+        raise FileNotFoundError(
+            f"LIBERO evaluator module missing: {module_path}. "
+            "Run 'git status --short -- toolkits/recap_libero_sim7_eval.py'; "
+            "restore only that file from origin/branch-openpi-recap-sim if deleted. "
+            "Completed rollout videos are preserved and can be reused with --resume."
+        )
+    # Cheap preflight with the exact interpreter and working directory that
+    # the GPU evaluator will use. Catch missing or unimportable modules BEFORE
+    # starting the next batch of expensive rollouts.
+    import_check = [
+        sys.executable, "-c",
+        "import importlib.util; "
+        "spec = importlib.util.find_spec('toolkits.recap_libero_sim7_eval'); "
+        "assert spec is not None and spec.origin, "
+        "'Could not resolve toolkits.recap_libero_sim7_eval'",
+    ]
+    subprocess.run(import_check, cwd=repo_root, check=True)
     command = [
         sys.executable, "-m", "toolkits.recap_libero_sim7_eval",
         "--model-path", str(model_path),
