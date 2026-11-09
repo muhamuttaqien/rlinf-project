@@ -9,14 +9,13 @@
 #   bash run_compute_returns.sh compute_returns data.data_root=/path/to/data
 #   bash run_compute_returns.sh compute_returns data.dataset_path=/path/to/dataset data.dataset_type=sft
 
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HOME}/.cache/huggingface/datasets}"
-export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HOME}/.cache/transformers}"
 set -e
 
 source switch_env openpi 2>/dev/null || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_PATH=$(dirname $(dirname $(dirname $(dirname $(dirname "$SCRIPT_DIR")))))
+source "${REPO_PATH}/scripts/rlinf_storage_env.sh" || exit 1
 export OFFLINE_RL_CONFIG="${REPO_PATH}/examples/offline_rl/config"
 export PYTHONPATH=${REPO_PATH}:${LIBERO_REPO_PATH}:$PYTHONPATH
 cd "$SCRIPT_DIR"
