@@ -60,11 +60,11 @@ def _font(size: int) -> ImageFont.ImageFont:
         return ImageFont.load_default()
 
 
-def _episode_video(folder: Path, episode: int) -> tuple[Path, bool]:
-    candidates = list(folder.glob(f"task0_episode{episode}_*.mp4"))
+def _episode_video(folder: Path, episode: int, task_index: int = 0) -> tuple[Path, bool]:
+    candidates = list(folder.glob(f"task{task_index}_episode{episode}_*.mp4"))
     exact = [
         path for path in candidates
-        if re.fullmatch(rf"task0_episode{episode}_(success|failure)\.mp4", path.name)
+        if re.fullmatch(rf"task{task_index}_episode{episode}_(success|failure)\.mp4", path.name)
     ]
     if len(exact) != 1:
         raise RuntimeError(
@@ -176,6 +176,8 @@ def _run_evaluator(
     seed: int,
     value_observations: bool = False,
     episode_indices: list[int] | None = None,
+    suite: str = "libero_10",
+    task_index: int = 0,
 ) -> None:
     command = [
         sys.executable, "-m", "toolkits.recap_libero_sim7_eval",
@@ -183,6 +185,8 @@ def _run_evaluator(
         "--trials", str(episodes),
         "--video-count", str(episodes),
         "--seed", str(seed),
+        "--suite", suite,
+        "--task-index", str(task_index),
         "--output", str(output.resolve()),
     ]
     if checkpoint is not None:
@@ -196,23 +200,23 @@ def _run_evaluator(
 
 
 
-def _matching_files(folder: Path, episode: int) -> list[Path]:
+def _matching_files(folder: Path, episode: int, task_index: int = 0) -> list[Path]:
     """Return all episode-specific artifacts, including interrupted/partial outputs."""
     return sorted(
-        list(folder.glob(f"task0_episode{episode}_*.mp4"))
-        + list(folder.glob(f"wrist_task0_episode{episode}_*.mp4"))
-        + ([folder / f"state_task0_episode{episode}.npz"]
-           if (folder / f"state_task0_episode{episode}.npz").exists() else [])
+        list(folder.glob(f"task{task_index}_episode{episode}_*.mp4"))
+        + list(folder.glob(f"wrist_task{task_index}_episode{episode}_*.mp4"))
+        + ([folder / f"state_task{task_index}_episode{episode}.npz"]
+           if (folder / f"state_task{task_index}_episode{episode}.npz").exists() else [])
     )
 
 
-def _valid_existing_episode(folder: Path, episode: int, seed: int, value_observations: bool) -> bool:
+def _valid_existing_episode(folder: Path, episode: int, seed: int, value_observations: bool, task_index: int = 0) -> bool:
     """Only reuse COMPLETE recordings; never infer success from a partial MP4."""
-    files = _matching_files(folder, episode)
+    files = _matching_files(folder, episode, task_index)
     if not files:
         return False
     front = [p for p in files
-             if re.fullmatch(rf"task0_episode{episode}_(success|failure)\.mp4", p.name)]
+             if re.fullmatch(rf"task{task_index}_episode{episode}_(success|failure)\.mp4", p.name)]
     if len(front) != 1 or not front[0].is_file():
         return False
     try:
@@ -220,8 +224,8 @@ def _valid_existing_episode(folder: Path, episode: int, seed: int, value_observa
         if not value_observations:
             return bool(baseline)
         suffix = "success" if front[0].stem.endswith("_success") else "failure"
-        wrist = folder / f"wrist_task0_episode{episode}_{suffix}.mp4"
-        state = folder / f"state_task0_episode{episode}.npz"
+        wrist = folder / f"wrist_task{task_index}_episode{episode}_{suffix}.mp4"
+        state = folder / f"state_task{task_index}_episode{episode}.npz"
         if not wrist.is_file() or not state.is_file():
             return False
         wrist_frames = _frames(wrist)
@@ -244,14 +248,15 @@ def _valid_existing_episode(folder: Path, episode: int, seed: int, value_observa
 def _recover_policy(
     folder: Path, policy: str, episodes: int, seed: int, value_observations: bool,
     backup_root: Path,
+    task_index: int = 0,
 ) -> list[int]:
     """Preserve interrupted artifacts, then return only missing episode numbers."""
     missing = []
     for episode in range(1, episodes + 1):
-        if _valid_existing_episode(folder, episode, seed + episode - 1, value_observations):
+        if _valid_existing_episode(folder, episode, seed + episode - 1, value_observations, task_index):
             print(f"Reusing complete {policy} episode {episode}/{episodes}", flush=True)
             continue
-        leftovers = _matching_files(folder, episode)
+        leftovers = _matching_files(folder, episode, task_index)
         if leftovers:
             dest = backup_root / policy
             dest.mkdir(parents=True, exist_ok=True)
@@ -318,6 +323,8 @@ def main() -> None:
     parser.add_argument("--model-path", type=Path, default=Path(DEFAULT_SFT))
     parser.add_argument("--episodes", type=int, default=5, help="Number of paired rollouts (default 5)")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--suite", default="libero_10", choices=["libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90"])
+    parser.add_argument("--task-index", type=int, default=0)
     parser.add_argument("--output", type=Path, default=Path("logs/cfg_rl/recap_sim7_video_comparison"))
     parser.add_argument("--compose-only", action="store_true", help="Reuse existing baseline/recap MP4s")
     parser.add_argument("--resume", action="store_true", help="Recover complete existing episodes; preserve incomplete recordings and rerun only missing episodes")
@@ -328,8 +335,8 @@ def main() -> None:
     parser.add_argument("--reference-trials", type=int, help="Optional historical total episode count")
     args = parser.parse_args()
 
-    if args.episodes < 1:
-        parser.error("--episodes must be positive")
+    if args.episodes < 1 or args.task_index < 0:
+        parser.error("--episodes must be positive and --task-index nonnegative")
     ref_args = (args.reference_baseline, args.reference_recap, args.reference_trials)
     if any(v is not None for v in ref_args) and not all(v is not None for v in ref_args):
         parser.error("Specify all three reference counts together")
@@ -357,15 +364,18 @@ def main() -> None:
             "seed": args.seed, "episodes": args.episodes,
             "model_path": str(model_path), "checkpoint": str(checkpoint),
             "value_observations": args.value_observations,
+            "suite": args.suite, "task_index": args.task_index,
         }
         if manifest_path.is_file():
             original = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if any(original.get(key) != value for key, value in manifest.items()):
+            if any((original.get(key, "libero_10" if key == "suite" else 0) if key in ("suite", "task_index") else original.get(key)) != value for key, value in manifest.items()):
                 parser.error("Existing run_config.json does not match this experiment. Use a new --output.")
         else:
             if any(baseline_dir.glob("*.mp4")) or any(recap_dir.glob("*.mp4")):
                 if not args.resume:
                     parser.error(f"Existing rollout MP4s found in {output}; use --resume to inspect and recover them, or a new --output")
+                if args.suite != "libero_10" or args.task_index != 0:
+                    parser.error("Cannot safely recover pre-manifest recordings for non-legacy tasks; use a fresh --output")
                 print("WARNING: Existing recordings have no run manifest. The episode seeds and video completeness can be validated, but the original model checkpoint cannot be proven from those files. --resume explicitly accepts this limitation.", flush=True)
             output.mkdir(parents=True, exist_ok=True)
             pending_manifest = manifest_path.with_suffix(".json.tmp")
@@ -376,27 +386,29 @@ def main() -> None:
         if args.resume:
             backup_root = output / "interrupted_backup" / (datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{os.getpid()}")
             missing_baseline = _recover_policy(
-                baseline_dir, "baseline", args.episodes, args.seed, args.value_observations, backup_root,
+                baseline_dir, "baseline", args.episodes, args.seed, args.value_observations, backup_root, args.task_index,
             )
             missing_recap = _recover_policy(
-                recap_dir, "recap", args.episodes, args.seed, args.value_observations, backup_root,
+                recap_dir, "recap", args.episodes, args.seed, args.value_observations, backup_root, args.task_index,
             )
         else:
             missing_baseline = list(range(1, args.episodes + 1))
             missing_recap = list(range(1, args.episodes + 1))
         if missing_baseline:
-            _run_evaluator(repo_root, model_path, None, baseline_dir, args.episodes, args.seed, args.value_observations, missing_baseline)
+            _run_evaluator(repo_root, model_path, None, baseline_dir, args.episodes, args.seed, args.value_observations, missing_baseline, args.suite, args.task_index)
         if missing_recap:
-            _run_evaluator(repo_root, model_path, checkpoint, recap_dir, args.episodes, args.seed, args.value_observations, missing_recap)
+            _run_evaluator(repo_root, model_path, checkpoint, recap_dir, args.episodes, args.seed, args.value_observations, missing_recap, args.suite, args.task_index)
         # Verify every episode before composing outcome files. Do not report incomplete jobs as success.
         for folder, policy in ((baseline_dir, "baseline"), (recap_dir, "recap")):
             for episode in range(1, args.episodes + 1):
-                if not _valid_existing_episode(folder, episode, args.seed + episode - 1, args.value_observations):
+                if not _valid_existing_episode(folder, episode, args.seed + episode - 1, args.value_observations, args.task_index):
                     raise RuntimeError(f"Recorded {policy} episode {episode} is incomplete; do not compose misleading results")
     else:
         if manifest_path.is_file():
             original = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if original.get("seed") != args.seed or original.get("episodes") != args.episodes:
+            if (original.get("seed") != args.seed or original.get("episodes") != args.episodes
+                or original.get("suite", "libero_10") != args.suite
+                or int(original.get("task_index", 0)) != args.task_index):
                 parser.error("--seed/--episodes differ from run_config.json; use recorded settings")
         else:
             parser.error("--compose-only requires run_config.json to verify matching seeds and episodes")
@@ -405,8 +417,8 @@ def main() -> None:
     montage = output / "comparison_all_episodes.mp4"
     with imageio.get_writer(str(montage), fps=VIDEO_FPS) as montage_writer:
         for episode in range(1, args.episodes + 1):
-            baseline_file, baseline_ok = _episode_video(baseline_dir, episode)
-            recap_file, recap_ok = _episode_video(recap_dir, episode)
+            baseline_file, baseline_ok = _episode_video(baseline_dir, episode, args.task_index)
+            recap_file, recap_ok = _episode_video(recap_dir, episode, args.task_index)
             paired_name = f"comparison_episode{episode:02d}.mp4"
             count = _compose_episode(
                 baseline_file, recap_file, baseline_ok, recap_ok,
