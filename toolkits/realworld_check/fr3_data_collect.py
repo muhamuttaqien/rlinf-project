@@ -46,6 +46,23 @@ SESSION_SCHEMA = "fr3_manual_episode_session_v1"
 REVIEW_SCHEMA = "fr3_operator_episode_review_v1"
 EPISODE_NAME = re.compile(r"episode_(\d{4,})$")
 
+DEFAULT_DATA_ROOT = Path("/data1/Muttaqien")
+
+
+def warn_if_outside_data_root(output: Path, data_root: Path = DEFAULT_DATA_ROOT) -> bool:
+    """Warn about large camera recordings outside the workstation data volume."""
+    resolved = output.expanduser().resolve()
+    allowed = data_root.expanduser().resolve()
+    if resolved == allowed or allowed in resolved.parents:
+        return False
+    print(
+        f"WARNING: Large FR3 recordings are outside {allowed}: {resolved}. "
+        "Prefer --output-root /data1/Muttaqien/fr3_peg_100.",
+        file=sys.stderr, flush=True,
+    )
+    return True
+
+
 
 def prepare_session(root: Path, settings: dict[str, Any]) -> None:
     """Create a session or resume only with its original capture contract."""
@@ -206,6 +223,7 @@ def main() -> int:
         "camera_profiles": profiles, "topics": topic_names,
     }
     root = args.output_root.expanduser()
+    warn_if_outside_data_root(root)
     prepare_session(root, settings)
     index, successes = session_progress(root)
     print(f"Existing reviewed successes: {successes}/{args.target_successes}")
