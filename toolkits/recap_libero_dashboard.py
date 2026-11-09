@@ -121,6 +121,8 @@ def _prepare_videos(output: Path, args: argparse.Namespace) -> None:
         "--model-path", str(args.model_path.expanduser().resolve()),
         "--value-observations",
     ]
+    if args.resume:
+        command.append("--resume")
     if args.reference_baseline is not None:
         command.extend(["--reference-baseline", str(args.reference_baseline),
                         "--reference-recap", str(args.reference_recap),
@@ -578,6 +580,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--prepare", action="store_true", help="Record synchronized front/wrist/state LIBERO rollouts (no retraining)")
+    parser.add_argument("--resume", action="store_true", help="Resume interrupted paired recordings, preserving invalid partial files in a backup directory")
     parser.add_argument("--score-values", action="store_true", help="Compute actual V(s) for evaluation recordings using SIM-4 critic")
     parser.add_argument("--prepare-only", action="store_true",
                         help="Record/score videos without opening the GUI (safe over plain SSH)")
@@ -593,6 +596,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.episodes < 1 or args.value_batch_size < 1:
         parser.error("--episodes and --value-batch-size must be >= 1")
+    if args.resume and not args.prepare:
+        parser.error("--resume requires --prepare")
     if args.prepare_only and not (args.prepare or args.score_values):
         parser.error("--prepare-only needs --prepare and/or --score-values")
     ref_tuple = (args.reference_baseline, args.reference_recap, args.reference_trials)
