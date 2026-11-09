@@ -162,10 +162,10 @@ def keyboard_stop() -> bool:
 
 def prompt_outcome() -> str:
     while True:
-        value = input("Outcome [s]uccess / [f]ailure / [a]borted: ").strip().lower()
-        if value in {"s", "f", "a"}:
-            return {"s": "success", "f": "failure", "a": "aborted"}[value]
-        print("Please enter s, f, or a.")
+        value = input("Outcome [Enter/s]uccess / [f]ailure / [a]borted: ").strip().lower()
+        if value in {"", "s", "f", "a"}:
+            return {"": "success", "s": "success", "f": "failure", "a": "aborted"}[value]
+        print("Please press Enter or enter s, f, or a.")
 
 
 def main() -> int:
