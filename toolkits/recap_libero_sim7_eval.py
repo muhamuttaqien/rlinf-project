@@ -74,6 +74,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default=None, help="Checkpoint global_step_N directory")
     parser.add_argument("--model-path", default=None, help="Pretrained/SFT model directory for baseline")
+    parser.add_argument("--suite", default="libero_10", choices=[
+        "libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90",
+    ], help="LIBERO evaluation task suite")
+    parser.add_argument("--task-index", type=int, default=0, help="Zero-based task index in selected suite")
     parser.add_argument("--trials", type=int, default=10)
     parser.add_argument("--episode-indices", default=None,
                         help="Optional comma-separated 1-based episodes to evaluate; --trials sets suite size")
@@ -127,11 +131,14 @@ def main():
         print("Evaluating pretrained pi0.5 baseline", flush=True)
 
     model = model.to("cuda").eval()
-    suite = benchmark.get_benchmark_dict()["libero_10"]()
-    task = suite.get_task(0)
+    suite = benchmark.get_benchmark_dict()[args.suite]()
+    if args.task_index < 0 or args.task_index >= suite.get_num_tasks():
+        parser.error(f"Invalid --task-index {args.task_index} for {args.suite}; expected 0..{suite.get_num_tasks()-1}")
+    task = suite.get_task(args.task_index)
+    print(f"Evaluating {args.suite} task {args.task_index}: {getattr(task, 'language', task.name)}", flush=True)
     out_dir = Path(args.output)
     _repair_libero_paths(task, out_dir)
-    initial_states = suite.get_task_init_states(0)
+    initial_states = suite.get_task_init_states(args.task_index)
     if args.trials > len(initial_states):
         parser.error(f"Requested {args.trials} trials but only {len(initial_states)} init states exist")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -186,17 +193,17 @@ def main():
                   f"({successes}/{episode + 1}, {100 * successes/(episode + 1):.1f}%)", flush=True)
             if frames:
                 suffix = "success" if done else "failure"
-                video = out_dir / f"task0_episode{episode + 1}_{suffix}.mp4"
+                video = out_dir / f"task{args.task_index}_episode{episode + 1}_{suffix}.mp4"
                 imageio.mimwrite(video, frames[::10], fps=3)
                 if args.value_observations:
                     if len(wrist_frames) != len(frames) or len(states) != len(frames):
                         raise RuntimeError("Value observations not aligned with video frames")
                     imageio.mimwrite(
-                        out_dir / f"wrist_task0_episode{episode + 1}_{suffix}.mp4",
+                        out_dir / f"wrist_task{args.task_index}_episode{episode + 1}_{suffix}.mp4",
                         wrist_frames[::10], fps=3,
                     )
                     np.savez_compressed(
-                        out_dir / f"state_task0_episode{episode + 1}.npz",
+                        out_dir / f"state_task{args.task_index}_episode{episode + 1}.npz",
                         states=np.asarray(states[::10], dtype=np.float32),
                         prompt=np.array(str(description)),
                         seed=np.array(episode_seed),
@@ -205,7 +212,7 @@ def main():
         finally:
             env.close()
     evaluated = len(selected_episodes)
-    print(f"LIBERO-10 Task 0 selected-episode success rate: {successes}/{evaluated} "
+    print(f"{args.suite} task {args.task_index} selected-episode success rate: {successes}/{evaluated} "
           f"= {100 * successes / evaluated:.1f}%", flush=True)
     print(f"Videos: {out_dir.resolve()}", flush=True)
 
