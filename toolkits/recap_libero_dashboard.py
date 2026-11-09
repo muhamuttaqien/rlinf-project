@@ -19,9 +19,10 @@ If a display server is unavailable (e.g. plain SSH), create a static overview::
     MPLBACKEND=Agg python -m toolkits.recap_libero_dashboard \
       --episodes 20 --save-summary summary.png
 
-Buttons: previous / next episode, play / pause; sliders: episode and playback.
-Keyboard: space play/pause, left/right seek, up/down switch evaluation episode,
-a/d switch training-label episode. The shortened rollout holds its final frame.
+Main window: two independently decoded robot rollout videos and simple controls.
+Training advantage labels open in a separate optional window.
+Keyboard: space play/pause, left/right seek, up/down evaluation episode.
+Shorter rollout holds its final frame to preserve aligned playback.
 """
 
 from __future__ import annotations
@@ -180,11 +181,13 @@ def _set_axis_style(ax, grid: bool = False) -> None:
 
 
 class Dashboard:
+    """Simplified paired video player. Training labels open in a separate window."""
+
     def __init__(self, rows, advantages, train_episodes, reference=None):
         import matplotlib.pyplot as plt
+        from matplotlib.widgets import Button, Slider
         from matplotlib.colors import ListedColormap
         from matplotlib.patches import Rectangle
-        from matplotlib.widgets import Button, Slider
 
         self.plt = plt
         self.rows = rows
@@ -198,165 +201,180 @@ class Dashboard:
         self.recap = []
         self.playing = False
         self._updating_progress = False
+        self.adv_fig = None
 
-        self.fig = plt.figure(figsize=(15.2, 9.0), facecolor=BG)
+        self.fig = plt.figure(figsize=(14.8, 8.7), facecolor=BG)
         try:
-            self.fig.canvas.manager.set_window_title("RECAP • LIBERO interactive comparison")
+            self.fig.canvas.manager.set_window_title("RECAP | Robot performance")
         except AttributeError:
             pass
-        layout = self.fig.add_gridspec(
-            3, 2, left=0.06, right=0.97, top=0.865, bottom=0.22,
-            wspace=0.13, hspace=0.44,
-            height_ratios=(3.7, 1.05, 0.95),
-        )
-        self.ax_b = self.fig.add_subplot(layout[0, 0])
-        self.ax_r = self.fig.add_subplot(layout[0, 1])
-        adv_grid = layout[1, :].subgridspec(1, 2, width_ratios=(3.5, 1.15), wspace=.16)
-        self.ax_adv = self.fig.add_subplot(adv_grid[0, 0])
-        self.ax_adv_dist = self.fig.add_subplot(adv_grid[0, 1])
-        self.ax_results = self.fig.add_subplot(layout[2, :])
-        for ax in [self.ax_b, self.ax_r, self.ax_adv, self.ax_adv_dist, self.ax_results]:
-            _set_axis_style(ax)
+        self.fig.text(.055, .968, "Robot performance  |  SFT vs SFT + RECAP",
+                      color=INK, fontsize=19, weight="bold", va="top")
+        self.subtitle = self.fig.text(.055, .923, "", color=SECONDARY,
+                                      fontsize=11, va="top")
+
+        # Actual separately recorded SFT and RECAP MP4 frames (not illustrations).
+        self.ax_b = self.fig.add_axes([.055, .325, .43, .515], facecolor=PANEL)
+        self.ax_r = self.fig.add_axes([.515, .325, .43, .515], facecolor=PANEL)
         for ax in (self.ax_b, self.ax_r):
+            _set_axis_style(ax)
             ax.set_xticks([])
             ax.set_yticks([])
+            ax.set_aspect("equal", adjustable="box")
         blank = np.zeros((256, 256, 3), dtype=np.uint8)
         self.artist_b = self.ax_b.imshow(blank, interpolation="nearest")
         self.artist_r = self.ax_r.imshow(blank, interpolation="nearest")
-        self.ax_b.set_title("π₀.₅ SFT BASELINE   ·   no CFG", fontsize=14, color=INK, pad=12)
-        self.ax_r.set_title("π₀.₅ SFT + RECAP   ·   positive CFG", fontsize=14, color=INK, pad=12)
-        self.status_b = self.ax_b.text(.03, .04, "", transform=self.ax_b.transAxes,
-                                      color=INK, fontsize=12, fontweight="bold", bbox=dict(facecolor=BG, alpha=.82, edgecolor="none", pad=5))
-        self.status_r = self.ax_r.text(.03, .04, "", transform=self.ax_r.transAxes,
-                                      color=INK, fontsize=12, fontweight="bold", bbox=dict(facecolor=BG, alpha=.82, edgecolor="none", pad=5))
+        self.ax_b.set_title("SFT BASELINE", fontsize=15, color=INK, weight="bold", pad=10)
+        self.ax_r.set_title("SFT + RECAP", fontsize=15, color=INK, weight="bold", pad=10)
+        self.status_b = self.ax_b.text(
+            .03, .04, "", transform=self.ax_b.transAxes, color=INK,
+            fontsize=12, weight="bold",
+            bbox=dict(facecolor=BG, alpha=.9, edgecolor=GRID, pad=6))
+        self.status_r = self.ax_r.text(
+            .03, .04, "", transform=self.ax_r.transAxes, color=INK,
+            fontsize=12, weight="bold",
+            bbox=dict(facecolor=BG, alpha=.9, edgecolor=GRID, pad=6))
 
-        self.heading = self.fig.text(.06, .967, "RECAP / LIBERO-10  ·  Robot policy comparison",
-                                     color=INK, fontsize=20, weight="bold", va="top")
-        self.subheading = self.fig.text(.06, .934, "", color=SECONDARY, fontsize=11, va="top")
-        self.ax_results.set_title("PAIRED EVALUATION OUTCOMES   ·   green = success, red = failure", loc="left", color=INK, fontsize=11, pad=9)
-        outcome = np.array([[x["baseline_success"] for x in rows], [x["recap_success"] for x in rows]])
-        self.ax_results.imshow(outcome, aspect="auto", interpolation="nearest", vmin=0, vmax=1,
-                               extent=(.5, len(rows) + .5, 1.5, -.5), cmap=ListedColormap([RED, GREEN]))
-        self.ax_results.set_yticks([0, 1], ["SFT", "RECAP"])
-        self.ax_results.set_xticks(np.arange(1, len(rows) + 1))
-        self.ax_results.set_xlabel("Evaluation episode", color=SECONDARY, fontsize=9)
-        self.result_outline = Rectangle((.5, -.5), 1, 2, fill=False, edgecolor=BLUE, linewidth=2.4)
-        self.ax_results.add_patch(self.result_outline)
-        self.ax_results.set_xlim(.5, len(rows) + .5)
-        self.ax_results.set_ylim(1.5, -.5)
+        self.summary = self.fig.text(.055, .297, "", color=INK,
+                                     fontsize=11, weight="bold")
+        self.fig.text(.055, .261, "Episodes  |  Green = success     Red = failure",
+                      color=SECONDARY, fontsize=9.5)
 
-        # Matplotlib buttons and sliders are native desktop GUI controls.
-        self.button_prev = Button(self.fig.add_axes([.06, .143, .085, .042]), "◀ Prev", color=PANEL, hovercolor=GRID)
-        self.button_play = Button(self.fig.add_axes([.151, .143, .095, .042]), "Play", color=PANEL, hovercolor=GRID)
-        self.button_next = Button(self.fig.add_axes([.252, .143, .085, .042]), "Next ▶", color=PANEL, hovercolor=GRID)
-        self.button_prev.on_clicked(lambda _: self.switch_episode(-1))
-        self.button_play.on_clicked(lambda _: self.toggle_play())
-        self.button_next.on_clicked(lambda _: self.switch_episode(1))
-        for button in (self.button_prev, self.button_play, self.button_next):
+        # Simple 20-episode outcome strip; robot videos stay the main feature.
+        self.ax_outcomes = self.fig.add_axes([.13, .175, .81, .072], facecolor=PANEL)
+        _set_axis_style(self.ax_outcomes)
+        outcome = np.asarray([
+            [int(x["baseline_success"]) for x in rows],
+            [int(x["recap_success"]) for x in rows],
+        ])
+        self.ax_outcomes.imshow(
+            outcome, cmap=ListedColormap([RED, GREEN]),
+            vmin=0, vmax=1, interpolation="nearest", aspect="auto",
+            extent=(.5, len(rows) + .5, 1.5, -.5))
+        self.ax_outcomes.set_yticks([0, 1], ["SFT", "RECAP"])
+        self.ax_outcomes.tick_params(axis="y", length=0, pad=10)
+        ticks = list(range(1, len(rows) + 1)) if len(rows) <= 25 else list(np.linspace(1, len(rows), 10, dtype=int))
+        self.ax_outcomes.set_xticks(ticks)
+        self.ax_outcomes.tick_params(axis="x", length=0, pad=4)
+        self.ax_outcomes.set_xlim(.5, len(rows) + .5)
+        self.ax_outcomes.set_ylim(1.5, -.5)
+        self.outline = Rectangle((.5, -.5), 1, 2, fill=False,
+                                 edgecolor=BLUE, linewidth=2.7)
+        self.ax_outcomes.add_patch(self.outline)
+
+        self.prev = Button(self.fig.add_axes([.055, .09, .093, .046]),
+                           "< Previous", color=PANEL, hovercolor=GRID)
+        self.play = Button(self.fig.add_axes([.156, .09, .088, .046]),
+                           "Play", color=PANEL, hovercolor=GRID)
+        self.next = Button(self.fig.add_axes([.252, .09, .093, .046]),
+                           "Next >", color=PANEL, hovercolor=GRID)
+        self.labels_button = Button(self.fig.add_axes([.793, .09, .15, .046]),
+                                    "Training labels", color=PANEL, hovercolor=GRID)
+        for button in (self.prev, self.play, self.next, self.labels_button):
             button.label.set_color(INK)
             button.label.set_fontsize(10)
-        slider_axis = self.fig.add_axes([.425, .153, .53, .025], facecolor=BG)
-        self.progress = Slider(slider_axis, "Frame", 0, 1000, valinit=0, valstep=1, color=BLUE)
-        self.progress.label.set_color(INK)
+        self.prev.on_clicked(lambda _: self.switch_episode(-1))
+        self.play.on_clicked(lambda _: self.toggle_play())
+        self.next.on_clicked(lambda _: self.switch_episode(1))
+        self.labels_button.on_clicked(lambda _: self.show_advantages())
+
+        progress_ax = self.fig.add_axes([.426, .107, .325, .017], facecolor=BG)
+        self.progress = Slider(progress_ax, "Frame", 0, 1000, valinit=0,
+                               valstep=1, color=BLUE)
+        self.progress.label.set_color(SECONDARY)
         self.progress.valtext.set_color(SECONDARY)
         self.progress.on_changed(self._seek)
+        if reference is not None:
+            rb, rr, rt = reference
+            self.fig.text(.055, .052,
+                          f"Previous {rt}-episode benchmark (separate run): "
+                          f"SFT {rb}/{rt}  vs  RECAP {rr}/{rt}",
+                          fontsize=9, color=SECONDARY)
+        self.fig.text(.055, .025,
+                      "Matched start and seed  |  Playback aligned by simulator step, not real time",
+                      fontsize=9, color=SECONDARY)
 
-        self.training_info = self.fig.text(.06, .091, "", color=SECONDARY, fontsize=9)
-        self.button_train_prev = Button(self.fig.add_axes([.06, .031, .085, .04]), "Train −", color=PANEL, hovercolor=GRID)
-        self.button_train_next = Button(self.fig.add_axes([.151, .031, .085, .04]), "Train +", color=PANEL, hovercolor=GRID)
-        self.button_train_prev.on_clicked(lambda _: self.switch_training_episode(-1))
-        self.button_train_next.on_clicked(lambda _: self.switch_training_episode(1))
-        for button in (self.button_train_prev, self.button_train_next):
-            button.label.set_color(INK)
-            button.label.set_fontsize(10)
-        if train_episodes is None or len(train_episodes) == 0:
-            self.button_train_prev.ax.set_visible(False)
-            self.button_train_next.ax.set_visible(False)
-
-        self.footer = self.fig.text(.28, .052,
-            "Video: paired evaluation  •  Advantage labels: independent SIM-5 TRAINING rollouts  •  Space: play/pause",
-            color=SECONDARY, fontsize=9)
-        self.timer = self.fig.canvas.new_timer(interval=int(1000 / FPS))
+        self.timer = self.fig.canvas.new_timer(interval=round(1000 / FPS))
         self.timer.add_callback(self._tick)
         self.fig.canvas.mpl_connect("key_press_event", self._on_key)
+        self.fig.canvas.mpl_connect("close_event", lambda _: self.timer.stop())
         self.switch_episode(0)
-        self._draw_advantages()
-        self.fig.canvas.draw_idle()
 
-    def _update_frame(self) -> None:
+    def _update_frame(self):
+        """Update both video images at the same sampled simulator step."""
+        if not self.baseline or not self.recap:
+            return
         i = self.frame_idx
         self.artist_b.set_data(self.baseline[min(i, len(self.baseline) - 1)])
         self.artist_r.set_data(self.recap[min(i, len(self.recap) - 1)])
-        b_done = i >= len(self.baseline)
-        r_done = i >= len(self.recap)
         row = self.rows[self.episode]
-        self.status_b.set_text(("SUCCESS" if row["baseline_success"] else "FAIL") + ("  ·  ENDED" if b_done else ""))
-        self.status_r.set_text(("SUCCESS" if row["recap_success"] else "FAIL") + ("  ·  ENDED" if r_done else ""))
-        self.status_b.set_color(GREEN if row["baseline_success"] else RED)
-        self.status_r.set_color(GREEN if row["recap_success"] else RED)
-        max_len = max(len(self.baseline), len(self.recap))
-        self.subheading.set_text(
-            f"Episode {self.episode+1:02d}/{len(self.rows)}  •  Seed {row['seed']}  •  "
-            f"Recorded frame {self.frame_idx+1}/{max_len}  •  sampled simulator step ≈ {10+self.frame_idx*10}"
+        for status, success, ended in (
+            (self.status_b, row["baseline_success"], i >= len(self.baseline)),
+            (self.status_r, row["recap_success"], i >= len(self.recap)),
+        ):
+            status.set_text(("SUCCESS" if success else "FAIL") + ("  |  Finished" if ended else ""))
+            status.set_color(GREEN if success else RED)
+        count = max(len(self.baseline), len(self.recap))
+        self.subtitle.set_text(
+            f"LIBERO-10 Task 0  |  Episode {row['episode']}/{len(self.rows)}  |  "
+            f"Seed {row['seed']}  |  Frame {i + 1}/{count}"
         )
-        self.result_outline.set_x(self.episode + .5)
+        self.outline.set_x(self.episode + .5)
         self.fig.canvas.draw_idle()
 
-    def _set_frame(self, index: int) -> None:
+    def _set_frame(self, index):
         count = max(len(self.baseline), len(self.recap))
-        self.frame_idx = max(0, min(int(index), count-1))
-        pct = round(1000*self.frame_idx/max(1, count-1))
+        self.frame_idx = max(0, min(int(index), count - 1))
         self._updating_progress = True
         try:
-            self.progress.set_val(pct)
+            self.progress.set_val(round(1000 * self.frame_idx / max(1, count - 1)))
         finally:
             self._updating_progress = False
         self._update_frame()
 
-    def _seek(self, value: float) -> None:
+    def _seek(self, value):
         if self._updating_progress or not self.baseline or not self.recap:
             return
         count = max(len(self.baseline), len(self.recap))
-        index = round(float(value) * max(0, count-1) / 1000)
-        self.frame_idx = int(index)
+        self.frame_idx = round(float(value) * max(0, count - 1) / 1000)
         self._update_frame()
 
-    def switch_episode(self, delta: int) -> None:
-        next_idx = max(0, min(self.episode + delta, len(self.rows)-1))
-        if self.baseline and next_idx == self.episode:
+    def switch_episode(self, delta):
+        next_episode = max(0, min(self.episode + delta, len(self.rows) - 1))
+        if self.baseline and next_episode == self.episode:
             return
         if self.playing:
             self.toggle_play()
-        self.episode = next_idx
+        self.episode = next_episode
         row = self.rows[self.episode]
-        print(f"Loading paired episode {row['episode']:02d} (seed={row['seed']})", flush=True)
-        # Only one pair lives in memory at a time (20 videos need not fit in RAM).
-        baseline = _read_video(row["baseline_video"])
-        recap = _read_video(row["recap_video"])
-        self.baseline = baseline
-        self.recap = recap
+        print(f"Loading paired episode {row['episode']}/{len(self.rows)} "
+              f"(seed={row['seed']})", flush=True)
+        self.baseline = _read_video(row["baseline_video"])
+        self.recap = _read_video(row["recap_video"])
         self._set_frame(0)
-        b = sum(x["baseline_success"] for x in self.rows)
-        r = sum(x["recap_success"] for x in self.rows)
-        summary = f"{len(self.rows)}-episode paired sample: SFT {b}/{len(self.rows)} ({b/len(self.rows):.1%}), RECAP {r}/{len(self.rows)} ({r/len(self.rows):.1%})"
-        if self.reference:
-            rb, rr, total = self.reference
-            summary += f"  |  Previous {total}-episode results: {rb}/{total} vs {rr}/{total}"
-        self.ax_results.set_title(summary, loc="left", color=INK, fontsize=11, pad=9)
+        b = sum(r["baseline_success"] for r in self.rows)
+        c = sum(r["recap_success"] for r in self.rows)
+        self.summary.set_text(
+            f"This {len(self.rows)}-episode comparison: "
+            f"SFT {b}/{len(self.rows)} ({b / len(self.rows):.0%})  vs  "
+            f"RECAP {c}/{len(self.rows)} ({c / len(self.rows):.0%})"
+        )
         self.fig.canvas.draw_idle()
 
-    def toggle_play(self) -> None:
+    def toggle_play(self):
+        if not self.baseline or not self.recap:
+            return
         self.playing = not self.playing
-        self.button_play.label.set_text("Pause" if self.playing else "Play")
+        self.play.label.set_text("Pause" if self.playing else "Play")
         if self.playing:
-            if self.frame_idx == max(len(self.baseline), len(self.recap)) - 1:
+            if self.frame_idx >= max(len(self.baseline), len(self.recap)) - 1:
                 self._set_frame(0)
             self.timer.start()
         else:
             self.timer.stop()
         self.fig.canvas.draw_idle()
 
-    def _tick(self) -> None:
+    def _tick(self):
         if not self.playing:
             return
         count = max(len(self.baseline), len(self.recap))
@@ -365,81 +383,110 @@ class Dashboard:
         else:
             self._set_frame(self.frame_idx + 1)
 
-    def switch_training_episode(self, delta: int) -> None:
-        if self.train_episodes is None or not len(self.train_episodes):
+    def show_advantages(self):
+        """Separate window for SIM-5 TRAINING labels, not eval-video values."""
+        import matplotlib.pyplot as plt
+        from matplotlib.widgets import Button
+        if self.adv_fig is not None and plt.fignum_exists(self.adv_fig.number):
+            self._draw_advantages()
+            try:
+                self.adv_fig.canvas.manager.show()
+            except AttributeError:
+                pass
             return
-        self.train_idx = max(0, min(self.train_idx+delta, len(self.train_episodes)-1))
+        self.adv_fig = plt.figure(figsize=(10.5, 6.2), facecolor=BG)
+        try:
+            self.adv_fig.canvas.manager.set_window_title("RECAP | SIM-5 training labels")
+        except AttributeError:
+            pass
+        self.adv_fig.text(.07, .96, "SIM-5 training advantage labels", fontsize=18,
+                          color=INK, weight="bold", va="top")
+        self.adv_fig.text(.07, .90,
+                          "Positive/negative TRAINING labels, not advantage estimates for the evaluation videos.",
+                          fontsize=10, color=SECONDARY)
+        self.adv_info = self.adv_fig.text(.07, .82, "", fontsize=11, color=INK)
+        self.ax_adv = self.adv_fig.add_axes([.09, .41, .85, .34], facecolor=PANEL)
+        self.ax_distribution = self.adv_fig.add_axes([.09, .18, .85, .14], facecolor=PANEL)
+        self.adv_prev = Button(self.adv_fig.add_axes([.09, .045, .18, .067]),
+                               "< Train episode", color=PANEL, hovercolor=GRID)
+        self.adv_next = Button(self.adv_fig.add_axes([.28, .045, .18, .067]),
+                               "Train episode >", color=PANEL, hovercolor=GRID)
+        for button in (self.adv_prev, self.adv_next):
+            button.label.set_color(INK)
+            button.label.set_fontsize(10)
+        self.adv_prev.on_clicked(lambda _: self.switch_training_episode(-1))
+        self.adv_next.on_clicked(lambda _: self.switch_training_episode(1))
+        self.adv_fig.canvas.mpl_connect("key_press_event", self._on_adv_key)
+        self.adv_fig.canvas.mpl_connect("close_event", lambda _: setattr(self, "adv_fig", None))
         self._draw_advantages()
-        self.fig.canvas.draw_idle()
+        self.adv_fig.show()
 
-    def _draw_advantages(self) -> None:
+    def switch_training_episode(self, delta):
+        if self.train_episodes is None or len(self.train_episodes) == 0:
+            return
+        self.train_idx = max(0, min(self.train_idx + delta, len(self.train_episodes) - 1))
+        if self.adv_fig is not None:
+            self._draw_advantages()
+
+    def _draw_advantages(self):
+        if self.adv_fig is None:
+            return
         ax = self.ax_adv
-        dist = self.ax_adv_dist
+        rate_ax = self.ax_distribution
         ax.clear()
-        dist.clear()
+        rate_ax.clear()
         _set_axis_style(ax, grid=True)
-        _set_axis_style(dist, grid=True)
-        if self.advantages is None or self.train_episodes is None:
-            ax.set_title("SIM-5 ADVANTAGE LABELS  ·  unavailable", loc="left", color=INK, fontsize=11, pad=8)
-            ax.text(.5, .5, "No training advantage sidecar available; evaluation videos remain usable.",
-                    color=SECONDARY, ha="center", va="center", transform=ax.transAxes, fontsize=11)
+        _set_axis_style(rate_ax, grid=True)
+        if self.advantages is None or self.train_episodes is None or len(self.train_episodes) == 0:
+            self.adv_info.set_text("SIM-5 training labels unavailable. Robot playback is unaffected.")
+            ax.text(.5, .5, "No advantage-label sidecar found", transform=ax.transAxes,
+                    ha="center", va="center", color=SECONDARY, fontsize=12)
             ax.set_xticks([])
             ax.set_yticks([])
-            dist.set_title("Per-episode positive rate", color=INK, fontsize=10)
-            dist.text(.5, .5, "No labels", color=SECONDARY, ha="center", va="center", transform=dist.transAxes)
-            dist.set_xticks([])
-            dist.set_yticks([])
-            self.training_info.set_text("SIM-5 advantage sidecar not found (pass --advantage-parquet to load labels).")
+            rate_ax.set_xticks([])
+            rate_ax.set_yticks([])
+            self.adv_fig.canvas.draw_idle()
             return
-        ep_id = int(self.train_episodes[self.train_idx])
-        subset = self.advantages.loc[self.advantages["episode_index"] == ep_id]
-        x = subset["frame_index"].to_numpy(dtype=int)
-        y = subset["advantage"].to_numpy(dtype=int)
-        green = (y == 1)
-        red = ~green
-        ax.scatter(x[green], np.ones(int(green.sum())), s=16, color=GREEN, marker="s", label="positive")
-        ax.scatter(x[red], np.zeros(int(red.sum())), s=16, color=RED, marker="s", label="negative")
-        if len(y) > 1:
-            import pandas as pd
-            rolling = pd.Series(y).rolling(min(50, len(y)), min_periods=1).mean().to_numpy()
-            ax.plot(x, rolling, color=BLUE, linewidth=1.5, alpha=.9,
-                    label=f"positive-label fraction (rolling {min(50,len(y))} frames)")
-        ax.set_ylim(-.22, 1.22)
+        training_episode = int(self.train_episodes[self.train_idx])
+        records = self.advantages.loc[self.advantages["episode_index"] == training_episode]
+        frames = records["frame_index"].to_numpy(dtype=int)
+        labels = records["advantage"].to_numpy(dtype=int)
+        good = labels == 1
+        ax.scatter(frames[good], labels[good], s=13, marker="s", color=GREEN, label="Positive")
+        ax.scatter(frames[~good], labels[~good], s=13, marker="s", color=RED, label="Negative")
+        ax.set_ylim(-.3, 1.3)
         ax.set_yticks([0, 1], ["Negative", "Positive"])
-        ax.set_title(f"SIM-5 TRAINING ADVANTAGE LABELS  ·  episode {ep_id}  ·  {len(y)} frames  ·  {y.mean():.1%} positive",
-                     loc="left", color=INK, fontsize=11, pad=8)
-        ax.legend(loc="upper right", facecolor=PANEL, edgecolor=GRID, labelcolor=INK, fontsize=8, framealpha=.95)
+        ax.set_xlabel("Frame in SIM-5 training rollout", color=SECONDARY, fontsize=9)
+        ax.legend(loc="upper right", facecolor=PANEL, labelcolor=INK, fontsize=10)
         rates = self.advantages.groupby("episode_index", sort=True)["advantage"].mean().to_numpy(dtype=float)
-        positions = np.arange(len(rates))
-        dist.bar(positions, rates, color=GREEN, width=.85)
-        dist.axhline(float(self.advantages["advantage"].mean()), color=BLUE,
-                     linestyle="--", linewidth=1.2, alpha=.9)
-        dist.axvline(self.train_idx, color=INK, linewidth=1.4, alpha=.9)
-        dist.set_ylim(0, 1.05)
-        dist.set_xlim(-.8, max(.8, len(rates)-.2))
-        dist.set_yticks([0, .5, 1.0], ["0%", "50%", "100%"])
-        dist.set_xticks([])
-        dist.set_title("SIM-5 POSITIVE RATE / TRAIN EPISODE", loc="left", color=INK, fontsize=9.5, pad=8)
-        self.training_info.set_text(
-            f"Training label episode {self.train_idx+1}/{len(self.train_episodes)} (ID {ep_id}); "
-            "these labels belong to SIM-5 training data, NOT to the paired evaluation videos."
+        rate_ax.hist(rates, bins=np.linspace(0, 1, 11), color=GREEN, edgecolor=BG, alpha=.9)
+        rate_ax.set_xlim(0, 1)
+        rate_ax.set_xlabel("Fraction of positive labels per training episode", color=SECONDARY, fontsize=9)
+        rate_ax.set_ylabel("Episodes", color=SECONDARY, fontsize=9)
+        self.adv_info.set_text(
+            f"Training episode {self.train_idx + 1}/{len(self.train_episodes)} "
+            f"(ID {training_episode})  |  {len(labels)} frames  |  {labels.mean():.1%} positive"
         )
+        self.adv_fig.canvas.draw_idle()
 
-    def _on_key(self, event) -> None:
-        key = event.key
-        if key == " ":
+    def _on_key(self, event):
+        if event.key == " ":
             self.toggle_play()
-        elif key == "left":
+        elif event.key == "left":
             self._set_frame(self.frame_idx - 1)
-        elif key == "right":
+        elif event.key == "right":
             self._set_frame(self.frame_idx + 1)
-        elif key == "up":
+        elif event.key == "up":
             self.switch_episode(-1)
-        elif key == "down":
+        elif event.key == "down":
             self.switch_episode(1)
-        elif key in ("a", "A"):
+        elif event.key in ("a", "A"):
+            self.show_advantages()
+
+    def _on_adv_key(self, event):
+        if event.key in ("left", "a", "A"):
             self.switch_training_episode(-1)
-        elif key in ("d", "D"):
+        elif event.key in ("right", "d", "D"):
             self.switch_training_episode(1)
 
 
