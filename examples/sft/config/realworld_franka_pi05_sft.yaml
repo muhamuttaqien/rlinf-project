@@ -23,7 +23,7 @@ cluster:
 runner:
   task_type: sft
   logger:
-    log_path: "../results"
+    log_path: "${oc.env:RLINF_DATA_ROOT,/data1/Muttaqien}/training_runs/fr3_pi05_sft"
     project_name: rlinf
     experiment_name: "realworld_franka_pi05_sft"
     logger_backends: ["tensorboard"]
@@ -34,7 +34,7 @@ runner:
 
 data:
   # Replace with a real LeRobot dataset after its schema is audited.
-  train_data_paths: "/path/to/franka_lerobot_dataset"
+  train_data_paths: "${oc.env:RLINF_DATA_ROOT,/data1/Muttaqien}/datasets/fr3_lerobot"
 
 actor:
   group_name: "ActorGroup"
@@ -43,7 +43,7 @@ actor:
   global_batch_size: 32
   seed: 0
   model:
-    model_path: "/path/to/pi05_base_pytorch"
+    model_path: "${oc.env:RLINF_DATA_ROOT,/data1/Muttaqien}/checkpoints/pi05_base_pytorch"
     action_dim: 7
     num_action_chunks: 5
     openpi:
@@ -59,7 +59,7 @@ actor:
     # pi05_franka_pnp dataconfig AFTER collecting verified labeled actions.
     # This must be FR3-specific, never the StackCube Panda norm_stats.json.
     openpi_data:
-      norm_stats_path: /path/to/fr3_pi05_norm_assets/norm_stats.json
+      norm_stats_path: ${oc.env:RLINF_DATA_ROOT,/data1/Muttaqien}/checkpoints/fr3_pi05_norm_assets/norm_stats.json
   optim:
     lr: 2.5e-5
     adam_beta1: 0.9
