@@ -225,6 +225,7 @@ async function switchSuite(suite){
   const summary=await getJSON('/api/summary?suite='+encodeURIComponent(suite));
   if(token!==player.token)return;
   player.summary=summary;
+  if(summary.task_description){$('taskDescription').textContent=selected.name+' · Task '+selected.task_index+' · '+summary.task_description+' · 20 paired episodes';}
   $('availabilityNotice').hidden=!!summary.available;
   $('availabilityNotice').textContent=summary.available?'':summary.message;
   if(summary.available){renderOverview(summary);await selectEpisode(1);}else renderMissing(summary);
