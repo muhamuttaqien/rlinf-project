@@ -59,6 +59,9 @@ def test_store_reads_episode_and_frames(tmp_path):
     assert data["times_s"] == [0.0, 0.1]
     assert data["series"]["tcp_y"] == pytest.approx([0.2, 1.2])
     assert data["series"]["op_lin_x"] == [None, 0.5]
+    assert data["operator_events"]["twist"]["times_s"] == [0.05]
+    assert data["operator_events"]["twist"]["values"] == [0.5]
+    assert data["operator_events"]["gripper"]["times_s"] == []
     assert store.frame_jpeg("episode_0001", "base", 0).startswith(b"\xff\xd8")
 
 
