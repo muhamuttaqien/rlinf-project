@@ -22,7 +22,7 @@ python -m toolkits.realworld_check.fr3_data_collect \
   --controller-log "/home/aist-franka/fr3_telemetry_isolated_4c2t7/recordings/stationary_telemetry.jsonl"
 ```
 
-For each attempt, **press Enter to start**, operate the robot under the approved lab procedure, and **press Enter to stop**. Mark `s` for success, `f` for failure, or `a` for aborted. Press `q` at the *start prompt* to end the session. Recording duration is variable, with a **300-second safety cap** by default (`--max-duration-s` adjusts it). Re-running with the same output root resumes at the next unused episode number and counts only successful, completed raw captures. It never overwrites earlier episode directories. Failures and incomplete attempts are retained, not counted toward the requested 100 successes.
+For each attempt, **press Enter to start**, operate the robot under the approved lab procedure, and **press Enter to stop**. Press **Enter** or `s` for success, `f` for failure, or `a` to abort and permanently discard only the just-recorded episode directory. Press `q` at the *start prompt* to end the session. Recording duration is variable, with a **300-second safety cap** by default (`--max-duration-s` adjusts it). Re-running with the same output root resumes at the next unused episode number and counts only successful, completed raw captures. It never overwrites earlier episode directories. Failures and incomplete non-aborted attempts are retained, not counted toward the requested 100 successes. Explicitly aborted attempts (and Ctrl-C interruptions) are deleted and do not consume an episode index. Abortion is irreversible; any corresponding NUC controller telemetry is not automatically removed.
 
 ```text
 fr3_peg_100/
