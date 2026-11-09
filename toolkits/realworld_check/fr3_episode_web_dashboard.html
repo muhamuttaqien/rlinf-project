@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FR3 Episode Review Dashboard</title>
+<style>
+:root{color-scheme:dark;--bg:#10141e;--panel:#1b2230;--edge:#344052;--sub:#aebbd0;--text:#f0f4fa;--accent:#5baefa;--green:#5dd6a7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Arial,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 26px;border-bottom:1px solid var(--edge)}
+h1{margin:0;font-size:21px;letter-spacing:.02em}h2{margin:0 0 13px;font-size:15px}small,.muted{color:var(--sub)}
+.shell{max-width:1600px;margin:auto;padding:18px 24px 40px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.tile,.panel{background:var(--panel);border:1px solid var(--edge);border-radius:12px}.tile{padding:14px 18px}.tile strong{display:block;font-size:23px;margin-top:3px}
+.panel{padding:16px}.controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
+label{color:var(--sub);display:flex;align-items:center;gap:7px;font-size:13px}select,button,input{font:inherit;color:var(--text)}
+select,button{background:#283345;border:1px solid #48576b;border-radius:8px;padding:8px 10px}
+button{cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:wait}
+select{min-width:120px}input[type=range]{accent-color:var(--accent);cursor:pointer}
+.camera-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.camera{min-width:0}
+.cam-caption{display:flex;justify-content:space-between;margin-bottom:10px;color:var(--sub);font-size:12px}
+.camera img{display:block;width:100%;aspect-ratio:16/10;object-fit:contain;background:#080b11;border-radius:8px}
+.timeline{margin:16px 0}.seek{width:100%}.player-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0}
+.timecode{font-variant-numeric:tabular-nums;font-size:13px;min-width:120px}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:15px}.chart-card{min-width:0}
+.chart-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:7px}.chart-head select{min-width:0;width:170px}
+canvas{width:100%;height:195px;display:block;border-radius:8px;background:#111824;cursor:crosshair}
+.legend{font-size:11px;color:var(--sub);margin-top:5px;min-height:16px}
+.info{display:flex;flex-wrap:wrap;gap:12px;align-items:center;color:var(--sub);font-size:13px;margin:0 0 16px}
+.status{color:var(--green)}.notice{font-size:12px;color:var(--sub);margin-top:16px}
+#error{padding:12px;color:#ffbdbd;display:none;border:1px solid #a34b4b;border-radius:8px;margin-bottom:16px}
+@media(max-width:760px){.shell{padding:12px}.metrics{grid-template-columns:1fr 1fr}.camera-grid,.charts{grid-template-columns:1fr}header{padding:16px}.controls{gap:9px}}
+</style>
+</head>
+<body>
+<header><div><h1>FR3 EPISODE REVIEW DASHBOARD</h1><small>Offline recorded demonstrations · Read-only</small></div><span class="status" id="connection">● LOCAL DATASET</span></header>
+<main class="shell">
+<div class="metrics">
+<div class="tile"><small>Recorded episodes</small><strong id="totalEpisodes">—</strong></div>
+<div class="tile"><small>Reviewed successes</small><strong id="totalSuccess">—</strong></div>
+<div class="tile"><small>Recorded frames</small><strong id="totalFrames">—</strong></div>
+<div class="tile"><small>Current duration</small><strong id="duration">—</strong></div>
+</div>
+<div id="error" role="alert"></div>
+<section class="panel controls">
+<label>Episode <select id="episode"></select></label>
+<label>Playback speed <select id="speed"><option value=".25">0.25×</option><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+<label>FPS <span id="fps">—</span></label>
+<button id="previous">◀ Previous</button><button id="play">▶ Play</button><button id="next">Next ▶</button>
+<button id="export">Export PNG overview</button>
+</section>
+<div class="info"><span id="task">Task: —</span><span id="outcome">Outcome: —</span><span id="events">Operator events: —</span><span id="frameLabel">Frame: —</span></div>
+<section class="camera-grid">
+<div class="panel camera"><div class="cam-caption"><b>BASE CAMERA</b><span>Recorded RGB · 640×480</span></div><img id="base" alt="Recorded base camera frame"></div>
+<div class="panel camera"><div class="cam-caption"><b>WRIST CAMERA</b><span>Recorded RGB · 848×480</span></div><img id="wrist" alt="Recorded wrist camera frame"></div>
+</section>
+<section class="panel timeline">
+<div class="player-row"><b>Episode timeline</b><span class="timecode" id="timecode">00:00 / 00:00</span><small id="indexDetail">—</small></div>
+<input class="seek" id="seek" type="range" min="0" max="0" value="0" aria-label="Seek episode frame">
+</section>
+<section class="charts">
+<div class="panel chart-card"><div class="chart-head"><h2>Robot telemetry</h2><select id="robotMetric"><option value="tcp">TCP position (m)</option><option value="joint">Joint position (rad)</option><option value="velocity">Joint velocity (rad/s)</option><option value="effort">Joint effort</option><option value="force">TCP force (N)</option><option value="torque">TCP torque (Nm)</option><option value="gripper">Robotiq knuckle (rad)</option><option value="quaternion">TCP quaternion</option></select></div><canvas id="robotChart"></canvas><div class="legend" id="robotLegend"></div></div>
+<div class="panel chart-card"><div class="chart-head"><h2>Operator ROS events</h2><select id="operatorMetric"><option value="linear">Requested linear twist</option><option value="angular">Requested angular twist</option><option value="grip">Requested gripper fraction</option></select></div><canvas id="operatorChart"></canvas><div class="legend" id="operatorLegend"></div></div>
+</section>
+<p class="notice">Read-only recorded observations. Operator signals are held-last-received ROS messages, not confirmed controller actions. Camera frames represent bounded receipt synchronization, not verified exposure alignment. The dashboard never connects to robot hardware.</p>
+</main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const groups={
+  tcp:["tcp_x","tcp_y","tcp_z"],quaternion:["quat_x","quat_y","quat_z","quat_w"],
+  joint:Array.from({length:7},(_,i)=>"q"+(i+1)),
+  velocity:Array.from({length:7},(_,i)=>"dq"+(i+1)),
+  effort:Array.from({length:7},(_,i)=>"tau"+(i+1)),
+  force:["fx","fy","fz"],torque:["tx","ty","tz"],gripper:["gripper_angle"],
+  linear:["op_lin_x","op_lin_y","op_lin_z"],
+  angular:["op_ang_x","op_ang_y","op_ang_z"],
+  grip:["op_grip_request"]
+};
+const colors=["#57a9ef","#5dd6a7","#efae68","#d790ea","#ef7777","#a0c778","#e3d18d"];
+let info=null,frame=0,playing=false,started=null,generation=0,frameToken=0;
+function err(text){$("error").style.display=text?"block":"none";$("error").textContent=text;}
+function secs(t){t=Math.max(0,t||0);let m=Math.floor(t/60),s=Math.floor(t%60);return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");}
+async function get(url){const r=await fetch(url);if(!r.ok)throw Error("Server error "+r.status+" for "+url);return r.json();}
+function stop(){playing=false;started=null;$("play").textContent="▶ Play";}
+function loadImage(el,url){const img=$(el);img.src=url;}
+function renderFrame(n){
+ if(!info)return;
+ frame=Math.max(0,Math.min(info.frames-1,Math.round(n)));
+ $("seek").value=frame;
+ let timestamp=info.times_s[frame]||0;
+ $("timecode").textContent=secs(timestamp)+" / "+secs(info.duration_s);
+ $("indexDetail").textContent=(frame+1)+" / "+info.frames;
+ $("frameLabel").textContent="Frame: "+frame;
+ const encoded=encodeURIComponent(info.name);
+ loadImage("base","/api/frame/"+encoded+"/base/"+frame);
+ loadImage("wrist","/api/frame/"+encoded+"/wrist/"+frame);
+ drawAll();
+}
+function plot(canvasId,legendId,keys){
+ const canvas=$(canvasId),ctx=canvas.getContext("2d");if(!ctx||!info)return;
+ const box=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
+ const W=Math.max(250,Math.round(box.width)),H=Math.max(150,Math.round(box.height));
+ canvas.width=W*dpr;canvas.height=H*dpr;ctx.scale(dpr,dpr);
+ ctx.clearRect(0,0,W,H);
+ const pad={l:51,r:13,t:15,b:28},pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+ const lines=keys.map(key=>info.series[key]||[]);
+ const values=lines.flat().filter(Number.isFinite);
+ let lo=values.length?Math.min(...values):0,hi=values.length?Math.max(...values):1;
+ if(lo===hi){lo-=1;hi+=1}
+ let margin=(hi-lo)*.08;lo-=margin;hi+=margin;
+ const x=i=>pad.l+(info.frames>1?i/(info.frames-1):0)*pw;
+ const y=v=>pad.t+(1-(v-lo)/(hi-lo))*ph;
+ ctx.strokeStyle="#344355";ctx.lineWidth=1;ctx.fillStyle="#aebbd0";ctx.font="11px system-ui";
+ for(let k=0;k<=4;k++){let yy=pad.t+k*ph/4;
+   ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(pad.l+pw,yy);ctx.stroke();
+   ctx.fillText((hi-k*(hi-lo)/4).toFixed(3),4,yy+3);}
+ ctx.fillText("0",pad.l,H-8);ctx.fillText((info.duration_s||0).toFixed(1)+" s",W-48,H-8);
+ lines.forEach((line,j)=>{
+   ctx.strokeStyle=colors[j%colors.length];ctx.lineWidth=1.6;ctx.beginPath();
+   let open=false;
+   const stride=Math.max(1,Math.ceil(info.frames/1400));
+   for(let i=0;i<info.frames;i+=stride){
+     let v=line[i];if(!Number.isFinite(v)){open=false;continue}
+     if(!open){ctx.moveTo(x(i),y(v));open=true}else ctx.lineTo(x(i),y(v));
+   }
+   ctx.stroke();
+ });
+ ctx.strokeStyle="#ffffff";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x(frame),pad.t);ctx.lineTo(x(frame),pad.t+ph);ctx.stroke();ctx.setLineDash([]);
+ $(legendId).replaceChildren();
+ keys.forEach((key,j)=>{
+    const tag=document.createElement("span");tag.style.marginRight="13px";tag.style.color=colors[j%colors.length];
+    const value=info.series[key]?.[frame];tag.textContent=key+(Number.isFinite(value)?": "+value.toFixed(3):": —");
+    $(legendId).appendChild(tag);
+ });
+}
+function drawAll(){if(info){plot("robotChart","robotLegend",groups[$("robotMetric").value]);plot("operatorChart","operatorLegend",groups[$("operatorMetric").value]);}}
+async function selectEpisode(name){
+ stop();const token=++generation;err("");
+ try{
+  let data=await get("/api/episode/"+encodeURIComponent(name));
+  if(token!==generation)return;
+  info=data;frame=0;
+  $("task").textContent="Task: "+info.task;
+  $("outcome").textContent="Outcome: "+info.outcome+" / "+info.capture_status;
+  $("fps").textContent=info.fps+" Hz";
+  $("duration").textContent=secs(info.duration_s);
+  $("events").textContent="Operator events: "+info.operator_event_count;
+  $("seek").max=info.frames-1;renderFrame(0);
+ }catch(e){err(e.message)}
+}
+function tick(t){
+ if(!playing||!info)return;
+ if(started===null)started=t-(info.times_s[frame]||0)*1000/Number($("speed").value);
+ const time=(t-started)*Number($("speed").value)/1000;
+ // Binary search by measured timestamps instead of assuming perfect 10Hz.
+ let lo=0,hi=info.times_s.length-1;
+ while(lo<hi){let mid=(lo+hi+1)>>1;if(info.times_s[mid]<=time)lo=mid;else hi=mid-1;}
+ if(lo!==frame)renderFrame(lo);
+ if(time>=info.duration_s){renderFrame(info.frames-1);stop();return}
+ requestAnimationFrame(tick);
+}
+function exportPNG(){
+ if(!info)return;
+ const W=1480,pad=28,camW=690,camH=390;
+ const surface=document.createElement("canvas");surface.width=W;surface.height=1100;
+ const ctx=surface.getContext("2d");ctx.fillStyle="#111824";ctx.fillRect(0,0,W,surface.height);
+ ctx.fillStyle="#f0f4fa";ctx.font="bold 25px system-ui";ctx.fillText("FR3 RECORDED EPISODE OVERVIEW",pad,45);
+ ctx.font="17px system-ui";ctx.fillStyle="#aebbd0";
+ ctx.fillText(info.name+"  ·  "+info.task+"  ·  "+info.outcome+"  ·  Frame "+frame+" / "+(info.frames-1),pad,78);
+ for(const [id,x] of [["base",pad],["wrist",pad+camW+25]]){
+   const image=$(id);if(!image.complete||!image.naturalWidth)continue;
+   const ratio=Math.min(camW/image.naturalWidth,camH/image.naturalHeight);
+   const iw=image.naturalWidth*ratio,ih=image.naturalHeight*ratio;
+   ctx.fillStyle="#06080e";ctx.fillRect(x,100,camW,camH);
+   ctx.drawImage(image,x+(camW-iw)/2,100+(camH-ih)/2,iw,ih);
+   ctx.fillStyle="#f0f4fa";ctx.font="15px system-ui";ctx.fillText(id.toUpperCase()+" CAMERA",x,515);
+ }
+ for(const [id,x] of [["robotChart",pad],["operatorChart",pad+camW+25]]){
+   ctx.fillStyle="#1b2230";ctx.fillRect(x,545,camW,380);
+   ctx.drawImage($(id),x,565,camW,345);
+   ctx.fillStyle="#f0f4fa";ctx.font="15px system-ui";
+   ctx.fillText(id==="robotChart"?"Robot telemetry":"Operator command events",x,550);
+ }
+ ctx.font="14px system-ui";ctx.fillStyle="#aebbd0";
+ ctx.fillText("Captured "+secs(info.times_s[frame])+" / "+secs(info.duration_s)+
+  ". Read-only historical data. Commands are unverified observed requests.",pad,975);
+ surface.toBlob(blob=>{
+  if(!blob){err("PNG export failed");return}
+  const url=URL.createObjectURL(blob),link=document.createElement("a");
+  link.href=url;link.download=info.name+"_overview_frame_"+frame+".png";
+  link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+ },"image/png");
+}
+async function initialize(){
+ try{
+  const summary=await get("/api/episodes");
+  $("totalEpisodes").textContent=summary.episode_count;
+  $("totalSuccess").textContent=summary.operator_successes;
+  $("totalFrames").textContent=summary.total_frames.toLocaleString();
+  if(!summary.episodes.length)throw Error("No episodes found");
+  for(const episode of summary.episodes){
+   const option=document.createElement("option");option.value=episode.name;
+   option.textContent=episode.name+" · "+episode.outcome;
+   $("episode").appendChild(option);
+  }
+  await selectEpisode(summary.episodes[0].name);
+ }catch(e){err(e.message);$("connection").textContent="● UNAVAILABLE";}
+}
+$("episode").addEventListener("change",e=>selectEpisode(e.target.value));
+$("seek").addEventListener("input",e=>{stop();renderFrame(Number(e.target.value));});
+$("speed").addEventListener("change",()=>{if(playing){started=null;}});
+$("play").addEventListener("click",()=>{if(!info)return;if(playing){stop();return}
+ if(frame===info.frames-1)renderFrame(0);
+ playing=true;started=null;$("play").textContent="Ⅱ Pause";requestAnimationFrame(tick);
+});
+$("previous").addEventListener("click",()=>{stop();renderFrame(frame-1)});
+$("next").addEventListener("click",()=>{stop();renderFrame(frame+1)});
+$("robotMetric").addEventListener("change",drawAll);
+$("operatorMetric").addEventListener("change",drawAll);
+$("export").addEventListener("click",exportPNG);
+window.addEventListener("resize",drawAll);
+initialize();
+</script>
+</body>
+</html>
