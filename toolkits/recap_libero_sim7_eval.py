@@ -77,6 +77,8 @@ def main():
     parser.add_argument("--trials", type=int, default=10)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--video-count", type=int, default=3)
+    parser.add_argument("--value-observations", action="store_true",
+                        help="Save synchronized wrist video and states for SIM-4 value scoring")
     parser.add_argument("--output", default="logs/recap_sim7_eval")
     args = parser.parse_args()
     repo_path = Path(__file__).resolve().parents[1]
@@ -130,6 +132,8 @@ def main():
             obs = env.set_init_state(initial_states[episode])
             action_plan = collections.deque()
             frames = []
+            wrist_frames = []
+            states = []
             done = False
             for step in range(530):
                 if step < 10:
@@ -139,14 +143,17 @@ def main():
                 wrist_img = np.ascontiguousarray(
                     obs["robot0_eye_in_hand_image"][::-1, ::-1]
                 )
+                state = np.concatenate((
+                    obs["robot0_eef_pos"],
+                    _quat2axisangle(obs["robot0_eef_quat"].copy()),
+                    obs["robot0_gripper_qpos"],
+                )).astype(np.float32)
                 if episode < args.video_count:
                     frames.append(img)
+                    if args.value_observations:
+                        wrist_frames.append(wrist_img)
+                        states.append(state)
                 if not action_plan:
-                    state = np.concatenate((
-                        obs["robot0_eef_pos"],
-                        _quat2axisangle(obs["robot0_eef_quat"].copy()),
-                        obs["robot0_gripper_qpos"],
-                    )).astype(np.float32)
                     env_obs = {
                         "main_images": np.asarray([img]),
                         "wrist_images": np.asarray([wrist_img]),
@@ -166,6 +173,20 @@ def main():
                 suffix = "success" if done else "failure"
                 video = out_dir / f"task0_episode{episode + 1}_{suffix}.mp4"
                 imageio.mimwrite(video, frames[::10], fps=3)
+                if args.value_observations:
+                    if len(wrist_frames) != len(frames) or len(states) != len(frames):
+                        raise RuntimeError("Value observations not aligned with video frames")
+                    imageio.mimwrite(
+                        out_dir / f"wrist_task0_episode{episode + 1}_{suffix}.mp4",
+                        wrist_frames[::10], fps=3,
+                    )
+                    np.savez_compressed(
+                        out_dir / f"state_task0_episode{episode + 1}.npz",
+                        states=np.asarray(states[::10], dtype=np.float32),
+                        prompt=np.array(str(description)),
+                        seed=np.array(episode_seed),
+                        episode=np.array(episode + 1),
+                    )
         finally:
             env.close()
     print(f"LIBERO-10 Task 0 success rate: {successes}/{args.trials} "
