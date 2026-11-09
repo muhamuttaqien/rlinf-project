@@ -34,7 +34,15 @@ DEFAULT_SIDECAR = Path(
     "libero10_task0_train/meta/advantages_libero10_task0_recap.parquet"
 )
 HTML_FILE = Path(__file__).with_suffix(".html")
-MEDIA_RE = re.compile(r"^/media/(baseline|recap)/(\d{1,4})$")
+SUITES = (
+    ("libero_spatial", "LIBERO-Spatial", "Spatial relationships"),
+    ("libero_object", "LIBERO-Object", "Object variation"),
+    ("libero_goal", "LIBERO-Goal", "Goal variation"),
+    ("libero_10", "LIBERO-Long (LIBERO-10)", "Long-horizon manipulation"),
+    ("libero_90", "LIBERO-90", "Diverse short-horizon tasks"),
+)
+SUITE_IDS = frozenset(item[0] for item in SUITES)
+MEDIA_RE = re.compile(r"^/media/(?:(libero_spatial|libero_object|libero_goal|libero_10|libero_90)/)?(baseline|recap)/(\d{1,4})$")
 VIDEO_NAME_RE = re.compile(r"^task0_episode(\d+)_(success|failure)\.mp4$")
 MAX_API_POINTS = 5000
 
@@ -47,7 +55,7 @@ def _inside(path: Path, root: Path) -> bool:
         return False
 
 
-def load_experiment(output: Path, *, expected_episodes: int | None = 20, expected_seed: int | None = None) -> tuple[dict, list[dict]]:
+def load_experiment(output: Path, *, expected_episodes: int | None = 20, expected_seed: int | None = None, expected_suite: str = "libero_10", expected_task_index: int = 0) -> tuple[dict, list[dict]]:
     """Validate the exact experiment and video paths before serving anything."""
     output = output.expanduser().resolve()
     manifest_path = output / "run_config.json"
@@ -60,6 +68,8 @@ def load_experiment(output: Path, *, expected_episodes: int | None = 20, expecte
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     episodes = int(manifest.get("episodes", -1))
     seed = int(manifest.get("seed", -1))
+    if manifest.get("suite", "libero_10") != expected_suite or int(manifest.get("task_index", 0)) != expected_task_index:
+        raise ValueError(f"Recorded task identity mismatch for {output}: expected {expected_suite} task {expected_task_index}")
     if episodes < 1 or episodes > 1000 or seed < 0:
         raise ValueError("Invalid episode count or seed in run_config.json")
     if expected_episodes is not None and episodes != expected_episodes:
@@ -207,9 +217,11 @@ class TrainingSidecar:
 
 class Experiment:
     def __init__(self, output: Path, expected_episodes: int, seed: int | None, training_sidecar: Path,
-                 reference: tuple[int, int, int] | None):
+                 reference: tuple[int, int, int] | None, suite: str = "libero_10", task_index: int = 0):
         self.output = output.expanduser().resolve()
-        self.manifest, self.rows = load_experiment(self.output, expected_episodes=expected_episodes, expected_seed=seed)
+        self.manifest, self.rows = load_experiment(self.output, expected_episodes=expected_episodes, expected_seed=seed, expected_suite=suite, expected_task_index=task_index)
+        self.suite = suite
+        self.task_index = task_index
         self.sidecar = TrainingSidecar(training_sidecar)
         self.reference = reference
 
@@ -217,7 +229,8 @@ class Experiment:
         b = sum(r["baseline_success"] for r in self.rows)
         r = sum(r["recap_success"] for r in self.rows)
         return {
-            "task": "LIBERO-10 Task 0",
+            "task": f"{self.suite} Task {self.task_index}",
+            "suite": self.suite, "task_index": self.task_index,
             "episodes": len(self.rows), "fps": 3, "seed": int(self.manifest["seed"]),
             "baseline_successes": b, "recap_successes": r,
             "value_observations": bool(self.manifest.get("value_observations", False)),
@@ -245,6 +258,82 @@ class Experiment:
                       "url": f"/media/recap/{number}",
                       "values": read_value_curve(row["recap_value"], number, row["seed"], "recap")},
         }
+
+
+
+class SuiteCollection:
+    """Five independent paired experiments. Never alias one suite to another."""
+
+    def __init__(self, long_output: Path, episodes: int, seed: int | None,
+                 sidecar: Path, reference: tuple[int, int, int] | None):
+        self.episodes = episodes
+        self.datasets: dict[str, Experiment | None] = {}
+        self.errors: dict[str, str] = {}
+        root = long_output.expanduser().resolve()
+        for suite, _label, _focus in SUITES:
+            folder = root if suite == "libero_10" else root.parent / f"{root.name}_{suite}"
+            if not (folder / "run_config.json").is_file() or not (folder / "paired_results.csv").is_file():
+                self.datasets[suite] = None
+                continue
+            try:
+                self.datasets[suite] = Experiment(
+                    folder, episodes, seed, sidecar,
+                    reference if suite == "libero_10" else None,
+                    suite=suite, task_index=0,
+                )
+            except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+                self.datasets[suite] = None
+                self.errors[suite] = str(exc)
+        self.default_suite = "libero_10"
+
+    def _get(self, suite: str) -> Experiment | None:
+        if suite not in SUITE_IDS:
+            raise ValueError(f"Unknown LIBERO suite: {suite}")
+        return self.datasets[suite]
+
+    def catalog(self) -> dict:
+        rows = []
+        for suite, name, focus in SUITES:
+            experiment = self.datasets[suite]
+            rows.append({
+                "id": suite, "name": name, "focus": focus,
+                "task_index": 0, "task": "Task 0", "episodes": self.episodes,
+                "ready": experiment is not None,
+                "status": "Invalid data" if suite in self.errors else (
+                    "Ready" if experiment is not None else "Not recorded"
+                ),
+            })
+        return {"suites": rows, "default_suite": self.default_suite}
+
+    def summary(self, suite: str) -> dict:
+        experiment = self._get(suite)
+        name = next(label for key, label, _focus in SUITES if key == suite)
+        if experiment is None:
+            return {
+                "suite": suite, "category": name, "task": "Task 0", "task_index": 0,
+                "available": False, "episodes": self.episodes, "rows": [],
+                "message": self.errors.get(suite, f"{name} Task 0 has not been recorded. Run the 20-paired-episode evaluation for this suite."),
+            }
+        return {**experiment.summary(), "available": True, "category": name,
+                "task": "Task 0", "task_description": experiment.manifest.get("task_description"),
+                "value_critic_scope": "SIM-4 critic trained on LIBERO-10 Task 0; other suites are out-of-distribution."}
+
+    def episode(self, suite: str, number: int) -> dict:
+        experiment = self._get(suite)
+        if experiment is None:
+            raise ValueError(f"Suite {suite} has no recorded paired episodes")
+        episode = experiment.episode(number)
+        for policy in ("baseline", "recap"):
+            episode[policy]["url"] = f"/media/{suite}/{policy}/{number}"
+        return episode
+
+    def training(self, suite: str, number: int | None) -> dict:
+        if suite != "libero_10":
+            return {"available": False, "message": "SIM-5 training signals originate from LIBERO-10 Task 0 and do not apply to this suite."}
+        experiment = self._get(suite)
+        if experiment is None:
+            return {"available": False, "message": "LIBERO-10 Task 0 is not recorded."}
+        return experiment.sidecar.get(number)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -280,10 +369,11 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, data: dict, status: int = 200, head: bool = False):
         self._send(status, json.dumps(data, allow_nan=False, separators=(",", ":")).encode("utf-8"), head=head)
 
-    def _media(self, policy: str, number: int, *, head: bool = False):
-        if number < 1 or number > len(self.experiment.rows):
+    def _media(self, policy: str, number: int, *, head: bool = False, experiment: Experiment | None = None):
+        experiment = experiment or self.experiment
+        if number < 1 or number > len(experiment.rows):
             return self._json({"error": "Episode not found"}, 404, head)
-        video = self.experiment.rows[number - 1][f"{policy}_video"]
+        video = experiment.rows[number - 1][f"{policy}_video"]
         try:
             filesize = video.stat().st_size
         except OSError:
@@ -350,18 +440,29 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, HTML_FILE.read_bytes(), "text/html; charset=utf-8", head)
             if path == "/favicon.ico":
                 return self._send(204, b"", "image/x-icon", head)
+            collection = getattr(self.server, "collection", None)
+            suite = params.get("suite", ["libero_10"])[0]
+            if path == "/api/suites":
+                return self._json(collection.catalog() if collection else {
+                    "suites": [{"id": "libero_10", "name": "LIBERO-Long (LIBERO-10)", "task": "Task 0", "episodes": len(self.experiment.rows), "ready": True, "status": "Ready"}],
+                    "default_suite": "libero_10",
+                }, head=head)
             if path == "/api/summary":
-                return self._json(self.experiment.summary(), head=head)
+                return self._json(collection.summary(suite) if collection else self.experiment.summary(), head=head)
             if path == "/api/episode":
                 number = int(params.get("episode", ["1"])[0])
-                return self._json(self.experiment.episode(number), head=head)
+                return self._json(collection.episode(suite, number) if collection else self.experiment.episode(number), head=head)
             if path == "/api/training":
                 selection = params.get("episode", [None])[0]
                 requested = None if selection is None else int(selection)
-                return self._json(self.experiment.sidecar.get(requested), head=head)
+                return self._json(collection.training(suite, requested) if collection else self.experiment.sidecar.get(requested), head=head)
             match = MEDIA_RE.fullmatch(path)
             if match:
-                return self._media(match[1], int(match[2]), head=head)
+                chosen = match[1] or "libero_10"
+                experiment = collection._get(chosen) if collection else self.experiment
+                if experiment is None:
+                    return self._json({"error": "Suite has no recorded videos"}, 404, head)
+                return self._media(match[2], int(match[3]), head=head, experiment=experiment)
             return self._json({"error": "Not found"}, 404, head)
         except (ValueError, TypeError, KeyError) as exc:
             return self._json({"error": str(exc)}, 400, head)
@@ -377,7 +478,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Existing paired rollout output directory")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Existing LIBERO-10 Task 0 directory; the other suites are discovered in sibling folders suffixed with their suite IDs")
     parser.add_argument("--episodes", type=int, default=20, help="Expected paired episode count")
     parser.add_argument("--seed", type=int, default=None, help="Optional expected seed; inferred from manifest")
     parser.add_argument("--port", type=int, default=8765)
@@ -397,12 +498,14 @@ def main() -> None:
         parser.error("--episodes must be positive and --port must be 1..65535")
     if not HTML_FILE.is_file():
         parser.error(f"Missing web UI file {HTML_FILE}; pull latest repository branch")
-    experiment = Experiment(args.output, args.episodes, args.seed, args.sidecar, reference)
+    collection = SuiteCollection(args.output, args.episodes, args.seed, args.sidecar, reference)
     # Loopback only; remote users must authenticate through SSH/VPN.
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    httpd.experiment = experiment
+    httpd.collection = collection
+    httpd.experiment = collection.datasets.get("libero_10")
     print(f"RECAP web dashboard: http://127.0.0.1:{args.port}", flush=True)
-    print(f"Loaded {len(experiment.rows)} paired episodes from {experiment.output}", flush=True)
+    for item in collection.catalog()["suites"]:
+        print(f"{item['name']} Task 0: {item['status']} ({item['episodes']} paired episodes expected)", flush=True)
     print("Private loopback service. From Windows: ssh -N -L "
           f"{args.port}:127.0.0.1:{args.port} muttaqien@10.17.94.130", flush=True)
     try:
