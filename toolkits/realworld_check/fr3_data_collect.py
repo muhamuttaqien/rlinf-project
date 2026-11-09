@@ -277,7 +277,7 @@ def main() -> int:
                         frames, max_camera_receipt_skew_s=args.max_skew_s,
                     )
 
-                print("RECORDING — press Enter to STOP (Ctrl-C aborts).", flush=True)
+                print("🔴 RECORDING — press Enter to STOP (Ctrl-C aborts).", flush=True)
                 path = root / f"episode_{index:04d}"
                 result = capture_episode(
                     path, task=args.task, fps=args.fps, max_samples=max_samples,
