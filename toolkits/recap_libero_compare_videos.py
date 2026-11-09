@@ -211,7 +211,7 @@ def _valid_existing_episode(folder: Path, episode: int, seed: int, value_observa
     if not files:
         return False
     front = [p for p in files
-             if re.fullmatch(rf"task0_episode{episode}_(success|failure)\\.mp4", p.name)]
+             if re.fullmatch(rf"task0_episode{episode}_(success|failure)\.mp4", p.name)]
     if len(front) != 1 or not front[0].is_file():
         return False
     try:
