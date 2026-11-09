@@ -10,7 +10,7 @@ Examples:
 
   # Build comparison videos again without rerunning robot rollouts:
   python -m toolkits.recap_libero_compare_videos \
-    --compose-only --output logs/recap_sim7_comparison/paired-YYYYMMDD-HHMMSS \
+    --compose-only --output logs/cfg_rl/recap_sim7_video_comparison \
     --episodes 5
 
 The per-episode status is read from the SIM-7 evaluator's actual MP4 filenames.
@@ -171,6 +171,7 @@ def _run_evaluator(
     output: Path,
     episodes: int,
     seed: int,
+    value_observations: bool = False,
 ) -> None:
     command = [
         sys.executable, "-m", "toolkits.recap_libero_sim7_eval",
@@ -182,6 +183,8 @@ def _run_evaluator(
     ]
     if checkpoint is not None:
         command.extend(["--checkpoint", str(checkpoint.resolve())])
+    if value_observations:
+        command.append("--value-observations")
     print(f"Running {'SFT + RECAP' if checkpoint else 'SFT baseline'} evaluation...", flush=True)
     subprocess.run(command, cwd=repo_root, check=True)
 
@@ -241,8 +244,10 @@ def main() -> None:
     parser.add_argument("--model-path", type=Path, default=Path(DEFAULT_SFT))
     parser.add_argument("--episodes", type=int, default=5, help="Number of paired rollouts (default 5)")
     parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--output", type=Path, default=Path("logs/recap_sim7_comparison"))
+    parser.add_argument("--output", type=Path, default=Path("logs/cfg_rl/recap_sim7_video_comparison"))
     parser.add_argument("--compose-only", action="store_true", help="Reuse existing baseline/recap MP4s")
+    parser.add_argument("--value-observations", action="store_true",
+                        help="Record wrist views and states for optional numerical SIM-4 V(s) scoring")
     parser.add_argument("--reference-baseline", type=int, help="Optional historical baseline success count")
     parser.add_argument("--reference-recap", type=int, help="Optional historical RECAP success count")
     parser.add_argument("--reference-trials", type=int, help="Optional historical total episode count")
@@ -272,11 +277,12 @@ def main() -> None:
             parser.error(f"SFT model directory missing: {model_path}")
         if any(baseline_dir.glob("*.mp4")) or any(recap_dir.glob("*.mp4")):
             parser.error(f"Existing rollout MP4s found in {output}; use a new --output or --compose-only")
-        _run_evaluator(repo_root, model_path, None, baseline_dir, args.episodes, args.seed)
-        _run_evaluator(repo_root, model_path, checkpoint, recap_dir, args.episodes, args.seed)
+        _run_evaluator(repo_root, model_path, None, baseline_dir, args.episodes, args.seed, args.value_observations)
+        _run_evaluator(repo_root, model_path, checkpoint, recap_dir, args.episodes, args.seed, args.value_observations)
         (output / "run_config.json").write_text(json.dumps({
             "seed": args.seed, "episodes": args.episodes,
             "model_path": str(model_path), "checkpoint": str(checkpoint),
+            "value_observations": args.value_observations,
         }, indent=2), encoding="utf-8")
     else:
         manifest_path = output / "run_config.json"
