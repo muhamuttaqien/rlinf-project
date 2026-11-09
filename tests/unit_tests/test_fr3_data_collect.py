@@ -21,6 +21,7 @@ import pytest
 from toolkits.realworld_check.fr3_data_collect import (
     REVIEW_SCHEMA,
     capture_episode,
+    discard_aborted_episode,
     prepare_session,
     session_progress,
     warn_if_outside_data_root,
@@ -140,3 +141,32 @@ def test_storage_warning_is_nonblocking_and_checks_resolved_paths(tmp_path, caps
     outside = tmp_path / "home" / "fr3_peg_100"
     assert warn_if_outside_data_root(outside, data_root)
     assert "WARNING" in capsys.readouterr().err
+
+
+def test_abort_discards_only_current_episode_and_allows_reuse(tmp_path):
+    root = tmp_path / "session"
+    root.mkdir()
+    result = capture_episode(
+        root / "episode_0007", task="peg insertion", fps=10,
+        max_samples=3, camera_profiles=PROFILES, topic_names=TOPICS,
+        observation=observation, drain_events=lambda: ([], 0),
+        stop_requested=lambda: True, sleep=lambda _: None,
+    )
+    assert result["capture_status"] == "incomplete"
+    discard_aborted_episode(root / "episode_0007", root)
+    assert not (root / "episode_0007").exists()
+    assert session_progress(root) == (1, 0)
+    # A discarded index can be recorded again without touching other episodes.
+    run_capture(root)
+    assert (root / "episode_0001/manifest.json").is_file()
+
+
+def test_abort_refuses_other_paths_and_preserves_successful_episode(tmp_path):
+    root = tmp_path / "session"
+    root.mkdir()
+    run_capture(root)
+    with pytest.raises(ValueError, match="invalid episode path"):
+        discard_aborted_episode(root / "episode_0001", tmp_path)
+    assert (root / "episode_0001/manifest.json").is_file()
+    with pytest.raises(ValueError, match="invalid episode path"):
+        discard_aborted_episode(root, root)
