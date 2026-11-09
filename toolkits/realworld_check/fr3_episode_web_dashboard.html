@@ -2,223 +2,271 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FR3 Episode Review Dashboard</title>
+<title>FR3 | Offline Data Review</title>
 <style>
-:root{color-scheme:dark;--bg:#10141e;--panel:#1b2230;--edge:#344052;--sub:#aebbd0;--text:#f0f4fa;--accent:#5baefa;--green:#5dd6a7}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Arial,sans-serif}
-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 26px;border-bottom:1px solid var(--edge)}
-h1{margin:0;font-size:21px;letter-spacing:.02em}h2{margin:0 0 13px;font-size:15px}small,.muted{color:var(--sub)}
-.shell{max-width:1600px;margin:auto;padding:18px 24px 40px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
-.tile,.panel{background:var(--panel);border:1px solid var(--edge);border-radius:12px}.tile{padding:14px 18px}.tile strong{display:block;font-size:23px;margin-top:3px}
-.panel{padding:16px}.controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
-label{color:var(--sub);display:flex;align-items:center;gap:7px;font-size:13px}select,button,input{font:inherit;color:var(--text)}
-select,button{background:#283345;border:1px solid #48576b;border-radius:8px;padding:8px 10px}
-button{cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:wait}
-select{min-width:120px}input[type=range]{accent-color:var(--accent);cursor:pointer}
-.camera-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.camera{min-width:0}
-.cam-caption{display:flex;justify-content:space-between;margin-bottom:10px;color:var(--sub);font-size:12px}
-.camera img{display:block;width:100%;aspect-ratio:16/10;object-fit:contain;background:#080b11;border-radius:8px}
-.timeline{margin:16px 0}.seek{width:100%}.player-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0}
-.timecode{font-variant-numeric:tabular-nums;font-size:13px;min-width:120px}
-.charts{display:grid;grid-template-columns:1fr 1fr;gap:15px}.chart-card{min-width:0}
-.chart-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:7px}.chart-head select{min-width:0;width:170px}
-canvas{width:100%;height:195px;display:block;border-radius:8px;background:#111824;cursor:crosshair}
-.legend{font-size:11px;color:var(--sub);margin-top:5px;min-height:16px}
-.info{display:flex;flex-wrap:wrap;gap:12px;align-items:center;color:var(--sub);font-size:13px;margin:0 0 16px}
-.status{color:var(--green)}.notice{font-size:12px;color:var(--sub);margin-top:16px}
-#error{padding:12px;color:#ffbdbd;display:none;border:1px solid #a34b4b;border-radius:8px;margin-bottom:16px}
-@media(max-width:760px){.shell{padding:12px}.metrics{grid-template-columns:1fr 1fr}.camera-grid,.charts{grid-template-columns:1fr}header{padding:16px}.controls{gap:9px}}
+:root{color-scheme:dark;--bg:#080F1D;--panel:#121D2D;--panel-alt:#172438;--grid:#2A3B53;--fg:#EAF3FF;--muted:#92A9C3;--cyan:#56E0CC;--blue:#65B9FF;--purple:#B8A0FF;--amber:#FFCC7C;--pink:#FF88A9}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 "DejaVu Sans",system-ui,sans-serif}
+.app{max-width:1650px;margin:auto;padding:24px clamp(16px,5.5vw,80px) 27px}
+.masthead{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:28px}
+.eyebrow{font-size:12px;letter-spacing:0.24em;color:var(--cyan);font-weight:700}
+.readonly{font-size:12px;letter-spacing:.04em;color:var(--muted)}
+.titlebar{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin:12px 0 1px}
+h1{font-size:clamp(24px,2.2vw,34px);letter-spacing:.015em;margin:0;font-weight:700}
+.subtitle{color:var(--muted);font-size:12px;margin:5px 0 21px;min-height:19px}
+.status{font-size:12px;color:var(--muted)}
+.viewport{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px 22px}
+.surface{min-width:0}.heading{color:var(--fg);font-size:12px;font-weight:700;letter-spacing:.045em;margin:0 0 12px}
+.camera-frame{background:var(--panel);overflow:hidden;height:clamp(250px,24vw,355px);display:flex;align-items:center;justify-content:center}
+.camera-frame img{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain}
+.chart-panel{min-width:0}.chart{display:block;width:100%;height:140px;background:var(--panel)}
+.chart-label{font-size:10px;color:var(--muted);margin:6px 0 0;text-align:center}
+.overview{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:20px 0 13px}
+.progress{font-size:12px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.force{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.seek-row{display:flex;align-items:center;gap:14px;padding-left:45px}
+.frame-label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.06em}
+.seek{appearance:none;-webkit-appearance:none;flex:1;min-width:0;background:var(--grid);height:7px;border-radius:7px;cursor:pointer;margin:8px 4px}
+.seek::-webkit-slider-thumb{appearance:none;width:16px;height:16px;background:var(--fg);border:2px solid var(--cyan);border-radius:50%}
+.seek::-moz-range-thumb{width:13px;height:13px;background:var(--fg);border:2px solid var(--cyan);border-radius:50%}
+.controls{display:flex;align-items:stretch;justify-content:space-between;gap:9px;margin:20px 0 0}
+button{appearance:none;background:var(--panel-alt);color:var(--fg);border:1px solid var(--grid);font:700 12px "DejaVu Sans",system-ui,sans-serif;min-height:48px;padding:0 16px;cursor:pointer;white-space:nowrap}
+button:hover{background:var(--grid)}button.primary{background:var(--cyan);color:var(--bg);border-color:var(--cyan)}
+button.primary:hover{background:#77F3DE}
+button:focus-visible,.seek:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.episode-control{flex:1}.play-control{flex:1.15}.speed-group{display:flex;gap:6px;margin-left:12px}
+.speed-group button{min-width:44px}.speed-group .speed-btn{min-width:69px}
+.footer{color:var(--muted);font-size:11px;margin-top:23px;line-height:1.7;display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
+#alert{display:none;padding:12px 14px;margin:15px 0;background:#301c25;border:1px solid #d77f91;color:#ffcad4;font-size:12px}
+#episodePicker{background:var(--panel);color:var(--muted);border:1px solid var(--grid);padding:8px 12px;max-width:155px;font:12px "DejaVu Sans",system-ui,sans-serif;cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;color:var(--muted);font-size:10px;margin:-3px 0 6px;min-height:17px}
+.legend span{white-space:nowrap}.legend i{display:inline-block;width:12px;height:2px;vertical-align:middle;margin-right:5px}
+#export{font-size:11px;text-decoration:underline;color:var(--muted);cursor:pointer;border:0;background:transparent;min-height:0;padding:0;font-weight:400}
+#export:hover{color:var(--cyan)}
+@media(max-width:940px){.app{padding:18px}.camera-frame{height:280px}.controls{flex-wrap:wrap}.episode-control{flex:1 1 35%}.speed-group{margin-left:0}.chart{height:150px}}
+@media(max-width:720px){.viewport{grid-template-columns:1fr;gap:17px}.camera-frame{height:clamp(200px,55vw,360px)}.overview{flex-wrap:wrap}.eyebrow{letter-spacing:.12em;font-size:10px}.readonly{font-size:10px}button{font-size:10px;padding:0 10px;min-height:43px}.speed-group{flex:1}.titlebar{align-items:center}.app{padding:15px}.subtitle{line-height:1.7}}
 </style>
 </head>
 <body>
-<header><div><h1>FR3 EPISODE REVIEW DASHBOARD</h1><small>Offline recorded demonstrations · Read-only</small></div><span class="status" id="connection">● LOCAL DATASET</span></header>
-<main class="shell">
-<div class="metrics">
-<div class="tile"><small>Recorded episodes</small><strong id="totalEpisodes">—</strong></div>
-<div class="tile"><small>Reviewed successes</small><strong id="totalSuccess">—</strong></div>
-<div class="tile"><small>Recorded frames</small><strong id="totalFrames">—</strong></div>
-<div class="tile"><small>Current duration</small><strong id="duration">—</strong></div>
+<main class="app">
+<div class="masthead"><div class="eyebrow">F R 3&nbsp; / &nbsp;D A T A&nbsp; R E V I E W</div><div class="readonly">OFFLINE &nbsp;•&nbsp; READ ONLY</div></div>
+<div class="titlebar"><h1 id="heading">EPISODE 0001</h1><select id="episodePicker" aria-label="Select episode"></select></div>
+<div id="description" class="subtitle">Loading recorded episode…</div>
+<div id="alert" role="alert"></div>
+<section class="viewport">
+<div class="surface"><div class="heading">CAM 01 &nbsp; / &nbsp; BASE VIEW</div><div class="camera-frame"><img id="base" alt="Saved base-camera frame"></div></div>
+<div class="surface"><div class="heading">CAM 02 &nbsp; / &nbsp; WRIST VIEW</div><div class="camera-frame"><img id="wrist" alt="Saved wrist-camera frame"></div></div>
+<div class="surface chart-panel"><div class="heading">TCP &nbsp; / &nbsp; CARTESIAN POSITION</div><div class="legend" id="tcpLegend"></div><canvas id="tcp" class="chart"></canvas><div class="chart-label">Time (s) &nbsp; · &nbsp; metres</div></div>
+<div class="surface chart-panel"><div class="heading">FR3 &nbsp; / &nbsp; JOINT ANGLES</div><div class="legend" id="jointLegend"></div><canvas id="joint" class="chart"></canvas><div class="chart-label">Time (s) &nbsp; · &nbsp; radians</div></div>
+<div class="surface chart-panel"><div class="heading">ROBOTIQ &nbsp; / &nbsp; KNUCKLE ANGLE</div><div class="legend" id="gripLegend"></div><canvas id="grip" class="chart"></canvas><div class="chart-label">Time (s) &nbsp; · &nbsp; radians</div></div>
+<div class="surface chart-panel"><div class="heading">SPACEMOUSE &nbsp; / &nbsp; OPERATOR INPUT (NOT EXECUTED)</div><div class="legend" id="commandLegend"></div><canvas id="command" class="chart"></canvas><div class="chart-label">Time (s) &nbsp; · &nbsp; normalized</div></div>
+</section>
+<div class="overview"><div class="progress" id="progress">FRAME — / —</div><div class="force" id="force">Measured TCP force — N</div></div>
+<div class="seek-row"><label class="frame-label" for="seek">FRAME</label><input class="seek" id="seek" type="range" min="0" max="1" value="0"></div>
+<section class="controls" aria-label="Playback controls">
+<button id="prevEpisode" class="episode-control">‹ &nbsp; PREV EPISODE</button>
+<button id="nextEpisode" class="episode-control">NEXT EPISODE &nbsp; ›</button>
+<button id="back">−1F</button>
+<button id="play" class="primary play-control">▶ &nbsp; PLAY</button>
+<button id="forward">+1F</button>
+<div class="speed-group"><button id="slower" aria-label="Decrease playback speed">−</button><button id="speed" class="speed-btn" title="Reset speed to 1×">1×</button><button id="faster" aria-label="Increase playback speed">+</button></div>
+</section>
+<div class="footer">
+<span>SPACE &nbsp; play/pause &nbsp;&nbsp; ← → &nbsp; frame &nbsp;&nbsp; PgUp / PgDn &nbsp; episode &nbsp;&nbsp; ↑ ↓ &nbsp; speed &nbsp;&nbsp; HOME / END &nbsp; jump</span>
+<span><button id="export">Export PNG overview</button></span>
 </div>
-<div id="error" role="alert"></div>
-<section class="panel controls">
-<label>Episode <select id="episode"></select></label>
-<label>Playback speed <select id="speed"><option value=".25">0.25×</option><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-<label>FPS <span id="fps">—</span></label>
-<button id="previous">◀ Previous</button><button id="play">▶ Play</button><button id="next">Next ▶</button>
-<button id="export">Export PNG overview</button>
-</section>
-<div class="info"><span id="task">Task: —</span><span id="outcome">Outcome: —</span><span id="events">Operator events: —</span><span id="frameLabel">Frame: —</span></div>
-<section class="camera-grid">
-<div class="panel camera"><div class="cam-caption"><b>BASE CAMERA</b><span>Recorded RGB · 640×480</span></div><img id="base" alt="Recorded base camera frame"></div>
-<div class="panel camera"><div class="cam-caption"><b>WRIST CAMERA</b><span>Recorded RGB · 848×480</span></div><img id="wrist" alt="Recorded wrist camera frame"></div>
-</section>
-<section class="panel timeline">
-<div class="player-row"><b>Episode timeline</b><span class="timecode" id="timecode">00:00 / 00:00</span><small id="indexDetail">—</small></div>
-<input class="seek" id="seek" type="range" min="0" max="0" value="0" aria-label="Seek episode frame">
-</section>
-<section class="charts">
-<div class="panel chart-card"><div class="chart-head"><h2>Robot telemetry</h2><select id="robotMetric"><option value="tcp">TCP position (m)</option><option value="joint">Joint position (rad)</option><option value="velocity">Joint velocity (rad/s)</option><option value="effort">Joint effort</option><option value="force">TCP force (N)</option><option value="torque">TCP torque (Nm)</option><option value="gripper">Robotiq knuckle (rad)</option><option value="quaternion">TCP quaternion</option></select></div><canvas id="robotChart"></canvas><div class="legend" id="robotLegend"></div></div>
-<div class="panel chart-card"><div class="chart-head"><h2>Operator ROS events</h2><select id="operatorMetric"><option value="linear">Requested linear twist</option><option value="angular">Requested angular twist</option><option value="grip">Requested gripper fraction</option></select></div><canvas id="operatorChart"></canvas><div class="legend" id="operatorLegend"></div></div>
-</section>
-<p class="notice">Read-only recorded observations. Operator signals are held-last-received ROS messages, not confirmed controller actions. Camera frames represent bounded receipt synchronization, not verified exposure alignment. The dashboard never connects to robot hardware.</p>
 </main>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const groups={
-  tcp:["tcp_x","tcp_y","tcp_z"],quaternion:["quat_x","quat_y","quat_z","quat_w"],
-  joint:Array.from({length:7},(_,i)=>"q"+(i+1)),
-  velocity:Array.from({length:7},(_,i)=>"dq"+(i+1)),
-  effort:Array.from({length:7},(_,i)=>"tau"+(i+1)),
-  force:["fx","fy","fz"],torque:["tx","ty","tz"],gripper:["gripper_angle"],
-  linear:["op_lin_x","op_lin_y","op_lin_z"],
-  angular:["op_ang_x","op_ang_y","op_ang_z"],
-  grip:["op_grip_request"]
+const palette=["#56E0CC","#65B9FF","#B8A0FF","#FFCC7C","#FF88A9","#79D2FF","#B5E38A"];
+const SPEEDS=[.25,.5,.75,1,1.5,2,3,4];
+const fields={
+ tcp:{keys:["tcp_x","tcp_y","tcp_z"],names:["X","Y","Z"]},
+ joint:{keys:["q1","q2","q3","q4","q5","q6","q7"],names:["J1","J2","J3","J4","J5","J6","J7"]},
+ grip:{keys:["gripper_angle"],names:["measured"]}
 };
-const colors=["#57a9ef","#5dd6a7","#efae68","#d790ea","#ef7777","#a0c778","#e3d18d"];
-let info=null,frame=0,playing=false,started=null,generation=0,frameToken=0;
-function err(text){$("error").style.display=text?"block":"none";$("error").textContent=text;}
-function secs(t){t=Math.max(0,t||0);let m=Math.floor(t/60),s=Math.floor(t%60);return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");}
-async function get(url){const r=await fetch(url);if(!r.ok)throw Error("Server error "+r.status+" for "+url);return r.json();}
-function stop(){playing=false;started=null;$("play").textContent="▶ Play";}
-function loadImage(el,url){const img=$(el);img.src=url;}
-function renderFrame(n){
- if(!info)return;
- frame=Math.max(0,Math.min(info.frames-1,Math.round(n)));
- $("seek").value=frame;
- let timestamp=info.times_s[frame]||0;
- $("timecode").textContent=secs(timestamp)+" / "+secs(info.duration_s);
- $("indexDetail").textContent=(frame+1)+" / "+info.frames;
- $("frameLabel").textContent="Frame: "+frame;
- const encoded=encodeURIComponent(info.name);
- loadImage("base","/api/frame/"+encoded+"/base/"+frame);
- loadImage("wrist","/api/frame/"+encoded+"/wrist/"+frame);
- drawAll();
-}
-function plot(canvasId,legendId,keys){
- const canvas=$(canvasId),ctx=canvas.getContext("2d");if(!ctx||!info)return;
- const box=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,2);
- const W=Math.max(250,Math.round(box.width)),H=Math.max(150,Math.round(box.height));
- canvas.width=W*dpr;canvas.height=H*dpr;ctx.scale(dpr,dpr);
- ctx.clearRect(0,0,W,H);
- const pad={l:51,r:13,t:15,b:28},pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
- const lines=keys.map(key=>info.series[key]||[]);
- const values=lines.flat().filter(Number.isFinite);
- let lo=values.length?Math.min(...values):0,hi=values.length?Math.max(...values):1;
- if(lo===hi){lo-=1;hi+=1}
- let margin=(hi-lo)*.08;lo-=margin;hi+=margin;
- const x=i=>pad.l+(info.frames>1?i/(info.frames-1):0)*pw;
- const y=v=>pad.t+(1-(v-lo)/(hi-lo))*ph;
- ctx.strokeStyle="#344355";ctx.lineWidth=1;ctx.fillStyle="#aebbd0";ctx.font="11px system-ui";
- for(let k=0;k<=4;k++){let yy=pad.t+k*ph/4;
-   ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(pad.l+pw,yy);ctx.stroke();
-   ctx.fillText((hi-k*(hi-lo)/4).toFixed(3),4,yy+3);}
- ctx.fillText("0",pad.l,H-8);ctx.fillText((info.duration_s||0).toFixed(1)+" s",W-48,H-8);
+let episodes=[],episodeIdx=0,data=null,frame=0,speed=1,playing=false,timeOrigin=null,clockOrigin=0,requestId=0,rafId=null;
+function alertError(value){$("alert").textContent=value||"";$("alert").style.display=value?"block":"none"}
+async function api(url){const r=await fetch(url);if(!r.ok)throw Error("Request failed ("+r.status+")");return r.json()}
+function fixed(v,d=2){return Number.isFinite(v)?v.toFixed(d):"—"}
+function paintLegend(id,names,colors){const el=$(id);el.replaceChildren();names.forEach((name,i)=>{const x=document.createElement("span"),line=document.createElement("i");line.style.background=colors[i];x.appendChild(line);x.appendChild(document.createTextNode(name));el.appendChild(x)})}
+function plot(id,lines,labels,kind="line"){
+ if(!data)return;
+ const c=$(id),rect=c.getBoundingClientRect(),w=Math.max(200,Math.round(rect.width)),h=Math.max(110,Math.round(rect.height)),dpr=Math.min(2,window.devicePixelRatio||1);
+ c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);
+ const ctx=c.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+ const margin={left:48,right:13,top:12,bottom:21},pw=w-margin.left-margin.right,ph=h-margin.top-margin.bottom;
+ const valid=lines.flatMap(line=>line.values).filter(Number.isFinite);
+ let min=valid.length?Math.min(...valid):0,max=valid.length?Math.max(...valid):1;
+ if(min===max){const gap=Math.max(.01,Math.abs(min)*.02);min-=gap;max+=gap}
+ else{const gap=(max-min)*.08;min-=gap;max+=gap}
+ const duration=Math.max(.1,data.duration_s);
+ const X=t=>margin.left+Math.max(0,Math.min(1,t/duration))*pw;
+ const Y=v=>margin.top+(1-(v-min)/(max-min))*ph;
+ ctx.font="10px DejaVu Sans, sans-serif";ctx.fillStyle="#92A9C3";ctx.strokeStyle="#2A3B53";ctx.lineWidth=.7;
+ for(let k=0;k<=3;k++){let yy=margin.top+ph*k/3;ctx.beginPath();ctx.moveTo(margin.left,yy);ctx.lineTo(w-margin.right,yy);ctx.stroke();ctx.fillText(fixed(max-(max-min)*k/3),3,yy+3)}
+ ctx.fillText("0",margin.left,h-4);ctx.fillText(fixed(data.duration_s,1),w-margin.right-34,h-4);
  lines.forEach((line,j)=>{
-   ctx.strokeStyle=colors[j%colors.length];ctx.lineWidth=1.6;ctx.beginPath();
-   let open=false;
-   const stride=Math.max(1,Math.ceil(info.frames/1400));
-   for(let i=0;i<info.frames;i+=stride){
-     let v=line[i];if(!Number.isFinite(v)){open=false;continue}
-     if(!open){ctx.moveTo(x(i),y(v));open=true}else ctx.lineTo(x(i),y(v));
-   }
-   ctx.stroke();
+  ctx.strokeStyle=palette[j%palette.length];ctx.fillStyle=palette[j%palette.length];ctx.lineWidth=1.4;
+  const xs=line.times,ys=line.values;if(!xs.length)return;
+  if(kind==="scatter"&&j===0){
+    const stride=Math.max(1,Math.floor(xs.length/1100));
+    for(let i=0;i<xs.length;i+=stride){const v=ys[i];if(!Number.isFinite(v))continue;ctx.beginPath();ctx.arc(X(xs[i]),Y(v),1.65,0,2*Math.PI);ctx.fill()}
+    return;
+  }
+  ctx.beginPath();let hasPoint=false,priorY=0;const stride=Math.max(1,Math.floor(xs.length/1300));
+  for(let i=0;i<xs.length;i+=stride){const v=ys[i];if(!Number.isFinite(v)){hasPoint=false;continue}
+    const x=X(xs[i]),y=Y(v);
+    if(!hasPoint){ctx.moveTo(x,y);hasPoint=true}
+    else if(kind==="step"||(kind==="scatter"&&j>0)){ctx.lineTo(x,priorY);ctx.lineTo(x,y)}
+    else ctx.lineTo(x,y);
+    priorY=y;
+  }
+  ctx.stroke();
+  if(kind==="scatter"&&j>0){const s=Math.max(1,Math.floor(xs.length/800));for(let i=0;i<xs.length;i+=s){if(!Number.isFinite(ys[i]))continue;ctx.beginPath();ctx.arc(X(xs[i]),Y(ys[i]),2.1,0,2*Math.PI);ctx.fill()}}
  });
- ctx.strokeStyle="#ffffff";ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x(frame),pad.t);ctx.lineTo(x(frame),pad.t+ph);ctx.stroke();ctx.setLineDash([]);
- $(legendId).replaceChildren();
- keys.forEach((key,j)=>{
-    const tag=document.createElement("span");tag.style.marginRight="13px";tag.style.color=colors[j%colors.length];
-    const value=info.series[key]?.[frame];tag.textContent=key+(Number.isFinite(value)?": "+value.toFixed(3):": —");
-    $(legendId).appendChild(tag);
- });
+ ctx.strokeStyle="#EAF3FF";ctx.globalAlpha=.72;ctx.lineWidth=1.2;ctx.setLineDash([4,3]);const cursor=X(data.times_s[frame]||0);
+ ctx.beginPath();ctx.moveTo(cursor,margin.top);ctx.lineTo(cursor,margin.top+ph);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
 }
-function drawAll(){if(info){plot("robotChart","robotLegend",groups[$("robotMetric").value]);plot("operatorChart","operatorLegend",groups[$("operatorMetric").value]);}}
-async function selectEpisode(name){
- stop();const token=++generation;err("");
+function replot(){
+ if(!data)return;
+ for(const name of ["tcp","joint","grip"]){
+   const spec=fields[name];
+   const lines=spec.keys.map(key=>({times:data.times_s,values:data.series[key]||[]}));
+   plot(name,lines,spec.names);
+ }
+ let events=data.operator_events||{};
+ const twist=events.twist||{times_s:[],values:[]},grip=events.gripper||{times_s:[],values:[]};
+ plot("command",[
+  {times:twist.times_s,values:twist.values},
+  {times:grip.times_s,values:grip.values}
+ ],["Twist magnitude","Gripper request"],"scatter");
+}
+function setFrame(n,user=false){
+ if(!data)return;frame=Math.min(data.frames-1,Math.max(0,Math.floor(n)));
+ const t=data.times_s[frame]||0;
+ if(user&&playing){timeOrigin=t;clockOrigin=performance.now()}
+ const urlBase="/api/frame/"+data.name+"/";
+ $("base").src=urlBase+"base/"+frame;
+ $("wrist").src=urlBase+"wrist/"+frame;
+ $("seek").value=frame;
+ $("progress").textContent="FRAME  "+String(frame+1).padStart(4,"0")+" / "+String(data.frames).padStart(4,"0")+
+  "      "+fixed(t)+" / "+fixed(data.duration_s)+" s      PLAYBACK  "+speed+"×";
+ const components=["fx","fy","fz"].map(key=>data.series[key]?.[frame]);
+ let force=components.every(Number.isFinite)?Math.hypot(...components):NaN;
+ $("force").textContent="Measured TCP force  "+fixed(force)+" N";
+ replot();
+}
+function stop(){playing=false;timeOrigin=null;cancelAnimationFrame(rafId);$("play").textContent="▶  PLAY"}
+function tick(now){
+ if(!playing||!data)return;
+ const t=timeOrigin+(now-clockOrigin)*speed/1000;
+ if(t>=data.duration_s){setFrame(data.frames-1);stop();return}
+ let l=0,r=data.times_s.length-1;
+ while(l<r){let m=Math.ceil((l+r)/2);if(data.times_s[m]<=t)l=m;else r=m-1}
+ if(l!==frame)setFrame(l);
+ rafId=requestAnimationFrame(tick);
+}
+function toggle(){
+ if(!data)return;
+ if(playing){stop();return}
+ if(frame===data.frames-1)setFrame(0);
+ playing=true;timeOrigin=data.times_s[frame]||0;clockOrigin=performance.now();
+ $("play").textContent="Ⅱ  PAUSE";rafId=requestAnimationFrame(tick);
+}
+function setSpeed(value){
+ if(!SPEEDS.includes(value))return;
+ if(playing){timeOrigin+=(performance.now()-clockOrigin)*speed/1000;clockOrigin=performance.now()}
+ speed=value;$("speed").textContent=speed+"×";
+ if(data)setFrame(frame);
+}
+function adjustSpeed(step){const i=SPEEDS.indexOf(speed);setSpeed(SPEEDS[Math.max(0,Math.min(SPEEDS.length-1,i+step))])}
+async function selectEpisode(index){
+ if(!episodes.length)return;stop();episodeIdx=(index+episodes.length)%episodes.length;
+ $("episodePicker").value=episodes[episodeIdx].name;
+ const token=++requestId;alertError("");
  try{
-  let data=await get("/api/episode/"+encodeURIComponent(name));
-  if(token!==generation)return;
-  info=data;frame=0;
-  $("task").textContent="Task: "+info.task;
-  $("outcome").textContent="Outcome: "+info.outcome+" / "+info.capture_status;
-  $("fps").textContent=info.fps+" Hz";
-  $("duration").textContent=secs(info.duration_s);
-  $("events").textContent="Operator events: "+info.operator_event_count;
-  $("seek").max=info.frames-1;renderFrame(0);
- }catch(e){err(e.message)}
+  const response=await api("/api/episode/"+episodes[episodeIdx].name);
+  if(token!==requestId)return;
+  data=response;frame=0;
+  $("heading").textContent=data.name.replaceAll("_","  ").toUpperCase();
+  $("description").textContent=data.task+"    •    "+data.outcome.toUpperCase()+" / "+data.capture_status.toUpperCase()+
+    "    •    "+data.frames+" frames    •    "+fixed(data.duration_s)+" s    •    "+data.operator_event_count+
+    " input events    •    episode "+(episodeIdx+1)+"/"+episodes.length;
+  $("seek").max=Math.max(0,data.frames-1);
+  setFrame(0);
+ }catch(e){alertError(e.message)}
 }
-function tick(t){
- if(!playing||!info)return;
- if(started===null)started=t-(info.times_s[frame]||0)*1000/Number($("speed").value);
- const time=(t-started)*Number($("speed").value)/1000;
- // Binary search by measured timestamps instead of assuming perfect 10Hz.
- let lo=0,hi=info.times_s.length-1;
- while(lo<hi){let mid=(lo+hi+1)>>1;if(info.times_s[mid]<=time)lo=mid;else hi=mid-1;}
- if(lo!==frame)renderFrame(lo);
- if(time>=info.duration_s){renderFrame(info.frames-1);stop();return}
- requestAnimationFrame(tick);
-}
-function exportPNG(){
- if(!info)return;
- const W=1480,pad=28,camW=690,camH=390;
- const surface=document.createElement("canvas");surface.width=W;surface.height=1100;
- const ctx=surface.getContext("2d");ctx.fillStyle="#111824";ctx.fillRect(0,0,W,surface.height);
- ctx.fillStyle="#f0f4fa";ctx.font="bold 25px system-ui";ctx.fillText("FR3 RECORDED EPISODE OVERVIEW",pad,45);
- ctx.font="17px system-ui";ctx.fillStyle="#aebbd0";
- ctx.fillText(info.name+"  ·  "+info.task+"  ·  "+info.outcome+"  ·  Frame "+frame+" / "+(info.frames-1),pad,78);
- for(const [id,x] of [["base",pad],["wrist",pad+camW+25]]){
-   const image=$(id);if(!image.complete||!image.naturalWidth)continue;
-   const ratio=Math.min(camW/image.naturalWidth,camH/image.naturalHeight);
-   const iw=image.naturalWidth*ratio,ih=image.naturalHeight*ratio;
-   ctx.fillStyle="#06080e";ctx.fillRect(x,100,camW,camH);
-   ctx.drawImage(image,x+(camW-iw)/2,100+(camH-ih)/2,iw,ih);
-   ctx.fillStyle="#f0f4fa";ctx.font="15px system-ui";ctx.fillText(id.toUpperCase()+" CAMERA",x,515);
+function screenshot(){
+ if(!data)return;
+ const canvas=document.createElement("canvas");canvas.width=1500;canvas.height=1090;
+ const ctx=canvas.getContext("2d");ctx.fillStyle="#080F1D";ctx.fillRect(0,0,1500,1090);
+ ctx.fillStyle="#56E0CC";ctx.font="bold 17px DejaVu Sans";ctx.fillText("F R 3   /   D A T A   R E V I E W",60,46);
+ ctx.fillStyle="#92A9C3";ctx.font="15px DejaVu Sans";ctx.fillText("OFFLINE • READ ONLY",1260,46);
+ ctx.fillStyle="#EAF3FF";ctx.font="bold 32px DejaVu Sans";ctx.fillText($("heading").textContent,60,95);
+ ctx.font="14px DejaVu Sans";ctx.fillStyle="#92A9C3";ctx.fillText($("description").textContent.slice(0,155),60,125);
+ for(const [id,x,title] of [["base",60,"CAM 01 / BASE VIEW"],["wrist",770,"CAM 02 / WRIST VIEW"]]){
+  ctx.fillStyle="#EAF3FF";ctx.fillText(title,x,159);
+  const img=$(id);if(img.complete&&img.naturalWidth){const scale=Math.min(670/img.naturalWidth,340/img.naturalHeight);
+   let w=scale*img.naturalWidth,h=scale*img.naturalHeight;ctx.drawImage(img,x+(670-w)/2,171+(340-h)/2,w,h);}
  }
- for(const [id,x] of [["robotChart",pad],["operatorChart",pad+camW+25]]){
-   ctx.fillStyle="#1b2230";ctx.fillRect(x,545,camW,380);
-   ctx.drawImage($(id),x,565,camW,345);
-   ctx.fillStyle="#f0f4fa";ctx.font="15px system-ui";
-   ctx.fillText(id==="robotChart"?"Robot telemetry":"Operator command events",x,550);
+ for(const [id,x,y,title] of [["tcp",60,546,"TCP / CARTESIAN POSITION"],["joint",770,546,"FR3 / JOINT ANGLES"],["grip",60,782,"ROBOTIQ / KNUCKLE ANGLE"],["command",770,782,"SPACEMOUSE / OPERATOR INPUT (NOT EXECUTED)"]]){
+  ctx.fillStyle="#EAF3FF";ctx.fillText(title,x,y);
+  ctx.drawImage($(id),x,y+12,670,178);
  }
- ctx.font="14px system-ui";ctx.fillStyle="#aebbd0";
- ctx.fillText("Captured "+secs(info.times_s[frame])+" / "+secs(info.duration_s)+
-  ". Read-only historical data. Commands are unverified observed requests.",pad,975);
- surface.toBlob(blob=>{
-  if(!blob){err("PNG export failed");return}
-  const url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download=info.name+"_overview_frame_"+frame+".png";
-  link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+ ctx.fillStyle="#92A9C3";ctx.font="15px DejaVu Sans";ctx.fillText($("progress").textContent,60,1024);
+ ctx.fillText($("force").textContent,1100,1024);
+ canvas.toBlob(blob=>{
+  if(!blob){alertError("Could not export PNG");return}
+  const link=document.createElement("a"),url=URL.createObjectURL(blob);
+  link.href=url;link.download=data.name+"_overview.png";link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
  },"image/png");
 }
-async function initialize(){
+async function init(){
+ for(const [id,names] of [["tcp",["X","Y","Z"]],["joint",["J1","J2","J3","J4","J5","J6","J7"]],["grip",["measured"]],["command",["Twist magnitude","Gripper request"]]]){
+  paintLegend(id+"Legend",names,palette);
+ }
  try{
-  const summary=await get("/api/episodes");
-  $("totalEpisodes").textContent=summary.episode_count;
-  $("totalSuccess").textContent=summary.operator_successes;
-  $("totalFrames").textContent=summary.total_frames.toLocaleString();
-  if(!summary.episodes.length)throw Error("No episodes found");
-  for(const episode of summary.episodes){
-   const option=document.createElement("option");option.value=episode.name;
-   option.textContent=episode.name+" · "+episode.outcome;
-   $("episode").appendChild(option);
-  }
-  await selectEpisode(summary.episodes[0].name);
- }catch(e){err(e.message);$("connection").textContent="● UNAVAILABLE";}
+ const summary=await api("/api/episodes");episodes=summary.episodes;
+ if(!episodes.length)throw Error("No recorded episodes");
+ for(const e of episodes){let option=document.createElement("option");option.value=e.name;option.textContent=e.name;$("episodePicker").appendChild(option)}
+ await selectEpisode(0);
+ }catch(e){alertError(e.message)}
 }
-$("episode").addEventListener("change",e=>selectEpisode(e.target.value));
-$("seek").addEventListener("input",e=>{stop();renderFrame(Number(e.target.value));});
-$("speed").addEventListener("change",()=>{if(playing){started=null;}});
-$("play").addEventListener("click",()=>{if(!info)return;if(playing){stop();return}
- if(frame===info.frames-1)renderFrame(0);
- playing=true;started=null;$("play").textContent="Ⅱ Pause";requestAnimationFrame(tick);
+$("play").addEventListener("click",toggle);
+$("back").addEventListener("click",()=>setFrame(frame-1,true));
+$("forward").addEventListener("click",()=>setFrame(frame+1,true));
+$("prevEpisode").addEventListener("click",()=>selectEpisode(episodeIdx-1));
+$("nextEpisode").addEventListener("click",()=>selectEpisode(episodeIdx+1));
+$("slower").addEventListener("click",()=>adjustSpeed(-1));
+$("faster").addEventListener("click",()=>adjustSpeed(1));
+$("speed").addEventListener("click",()=>setSpeed(1));
+$("seek").addEventListener("input",e=>setFrame(+e.target.value,true));
+$("episodePicker").addEventListener("change",e=>selectEpisode(episodes.findIndex(x=>x.name===e.target.value)));
+$("export").addEventListener("click",screenshot);
+window.addEventListener("resize",replot);
+document.addEventListener("keydown",event=>{
+ const tag=event.target?.tagName;
+ if(["INPUT","SELECT","TEXTAREA","BUTTON"].includes(tag))return;
+ let handled=true;
+ switch(event.key){
+ case " ":toggle();break;
+ case "ArrowRight":setFrame(frame+1,true);break;
+ case "ArrowLeft":setFrame(frame-1,true);break;
+ case "ArrowUp":adjustSpeed(1);break;
+ case "ArrowDown":adjustSpeed(-1);break;
+ case "PageUp":selectEpisode(episodeIdx-1);break;
+ case "PageDown":selectEpisode(episodeIdx+1);break;
+ case "Home":setFrame(0,true);break;
+ case "End":if(data)setFrame(data.frames-1,true);break;
+ default:handled=false;
+ }
+ if(handled)event.preventDefault();
 });
-$("previous").addEventListener("click",()=>{stop();renderFrame(frame-1)});
-$("next").addEventListener("click",()=>{stop();renderFrame(frame+1)});
-$("robotMetric").addEventListener("change",drawAll);
-$("operatorMetric").addEventListener("change",drawAll);
-$("export").addEventListener("click",exportPNG);
-window.addEventListener("resize",drawAll);
-initialize();
+init();
 </script>
 </body>
 </html>
