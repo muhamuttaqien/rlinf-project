@@ -27,6 +27,7 @@ import json
 import re
 import os
 import shutil
+import zipfile
 import subprocess
 import sys
 from datetime import datetime
@@ -236,7 +237,7 @@ def _valid_existing_episode(folder: Path, episode: int, seed: int, value_observa
             and np.isfinite(states).all()
             and len(files) == 3
         )
-    except (OSError, ValueError, KeyError, RuntimeError, IndexError):
+    except (OSError, ValueError, KeyError, RuntimeError, IndexError, EOFError, zipfile.BadZipFile):
         return False
 
 
