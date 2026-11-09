@@ -147,6 +147,35 @@ class EpisodeStore:
              and isinstance(cmd.get("received_monotonic_ns"), int)],
             key=lambda row: row["received_monotonic_ns"],
         )
+        # Mirror the original fr3_visualize.py operator plot: use discrete
+        # ROS event times, twist vector magnitudes, and requested gripper values.
+        # These are NOT verified executed robot-controller commands.
+        events = {
+            "twist": {"times_s": [], "values": []},
+            "gripper": {"times_s": [], "values": []},
+        }
+        for cmd in commands:
+            t = (cmd["received_monotonic_ns"] - times_ns[0]) * 1e-9
+            message = cmd.get("message")
+            if not isinstance(message, dict):
+                continue
+            if cmd.get("name") == "operator_twist":
+                vectors = []
+                for component in ("linear", "angular"):
+                    values = message.get(component)
+                    if not isinstance(values, dict):
+                        break
+                    vectors.extend(_finite(values.get(axis)) for axis in "xyz")
+                if len(vectors) == 6 and all(v is not None for v in vectors):
+                    magnitude = math.sqrt(sum(v * v for v in vectors))
+                    events["twist"]["times_s"].append(round(t, 5))
+                    events["twist"]["values"].append(magnitude)
+            elif cmd.get("name") == "operator_gripper_request":
+                requested = _finite(message.get("data"))
+                if requested is not None:
+                    events["gripper"]["times_s"].append(round(t, 5))
+                    events["gripper"]["values"].append(requested)
+
         held = {key: None for key in OPERATOR_FIELDS}
         pos = 0
         for stamp in times_ns:
@@ -175,6 +204,7 @@ class EpisodeStore:
             "duration_s": times[-1],
             "times_s": times,
             "operator_event_count": len(commands),
+            "operator_events": events,
             "series": series,
             "notes": (
                 "Read-only measured-state playback. Operator ROS twist/gripper "
