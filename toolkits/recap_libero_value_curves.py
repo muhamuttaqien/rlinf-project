@@ -71,7 +71,7 @@ def _load_value_critic(checkpoint: Path, device: str):
     model_cfg = OmegaConf.merge(model_config, sim5_config.advantage.model)
     if sim5_config.data.model_type != "pi05":
         raise ValueError("Unexpected SIM-5 value model type: expected pi05")
-    if not str(checkpoint).endswith("full_weights.pt") and not str(checkpoint).endswith(".safetensors"):
+    if checkpoint.suffix not in (".pt", ".pth", ".safetensors"):
         raise ValueError("Expected a full model-weights checkpoint, not a DCP optimizer shard")
     if device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError("CUDA is not available; run SIM-4 scoring on the lab GPU")
@@ -88,6 +88,34 @@ def _load_value_critic(checkpoint: Path, device: str):
         siglip_path=str(model_cfg.siglip_path),
         gemma3_path=str(model_cfg.gemma3_path),
     )
+    # The factory intentionally loads with strict=False. Verify actual full
+    # checkpoint tensor/key coverage so a partially loaded critic can never
+    # silently produce misleading V(s) curves (the old PI0 issue).
+    if checkpoint.suffix == ".safetensors":
+        from safetensors import safe_open
+        with safe_open(str(checkpoint), framework="pt", device="cpu") as sf:
+            saved_shapes = {k: tuple(sf.get_slice(k).get_shape()) for k in sf.keys()}
+    else:
+        saved = torch.load(checkpoint, map_location="cpu", weights_only=True, mmap=True)
+        if not isinstance(saved, dict):
+            raise ValueError("Expected a state_dict of model tensors")
+        if "state_dict" in saved and isinstance(saved["state_dict"], dict):
+            saved = saved["state_dict"]
+        saved_shapes = {k: tuple(v.shape) for k, v in saved.items()
+                        if isinstance(v, torch.Tensor)}
+        del saved
+    expected = {k: tuple(v.shape) for k, v in model.state_dict().items()}
+    matched = sum(saved_shapes.get(k) == shape for k, shape in expected.items())
+    if matched == 0:
+        matched = sum(saved_shapes.get("model." + k) == shape
+                      for k, shape in expected.items())
+    coverage = matched / max(1, len(expected))
+    if coverage < .95:
+        raise ValueError(
+            f"SIM-4 value checkpoint key/shape coverage too low: "
+            f"{matched}/{len(expected)} ({coverage:.1%}); refusing numerical plots"
+        )
+    print(f"SIM-4 checkpoint coverage: {matched}/{len(expected)} value-model tensors", flush=True)
     return model
 
 
