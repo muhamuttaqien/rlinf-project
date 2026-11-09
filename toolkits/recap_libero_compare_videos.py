@@ -403,6 +403,21 @@ def main() -> None:
             for episode in range(1, args.episodes + 1):
                 if not _valid_existing_episode(folder, episode, args.seed + episode - 1, args.value_observations, args.task_index):
                     raise RuntimeError(f"Recorded {policy} episode {episode} is incomplete; do not compose misleading results")
+        if args.value_observations:
+            task_prompts = []
+            for folder in (baseline_dir, recap_dir):
+                path = folder / f"state_task{args.task_index}_episode1.npz"
+                with np.load(path, allow_pickle=False) as values:
+                    task_prompts.append(str(values["prompt"].item()))
+            if task_prompts[0] != task_prompts[1] or not task_prompts[0]:
+                raise RuntimeError("Baseline and RECAP task prompts differ; refusing to combine separate tasks")
+            saved = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if saved.get("task_description") not in (None, task_prompts[0]):
+                raise RuntimeError("Existing task description conflicts with recorded observations")
+            saved["task_description"] = task_prompts[0]
+            pending = manifest_path.with_suffix(".json.tmp")
+            pending.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+            pending.replace(manifest_path)
     else:
         if manifest_path.is_file():
             original = json.loads(manifest_path.read_text(encoding="utf-8"))
