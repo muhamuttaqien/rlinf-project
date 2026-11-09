@@ -25,6 +25,7 @@ import re
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from toolkits.realworld_check.fr3_episode_video_encode import default_video_root, video_ready
 from urllib.parse import urlsplit
 
 import numpy as np
@@ -33,6 +34,7 @@ from PIL import Image
 EPISODE_RE = re.compile(r"episode_[0-9]{4,}")
 FRAME_ROUTE = re.compile(r"/api/frame/(episode_[0-9]{4,})/(base|wrist)/([0-9]+)")
 EPISODE_ROUTE = re.compile(r"/api/episode/(episode_[0-9]{4,})")
+VIDEO_ROUTE = re.compile(r"/api/video/(episode_[0-9]{4,})/(base|wrist)")
 
 STATE_FIELDS = {
     "tcp_pose": ("tcp_x", "tcp_y", "tcp_z", "quat_x", "quat_y", "quat_z", "quat_w"),
@@ -73,10 +75,14 @@ def _finite(value):
 class EpisodeStore:
     """Reads only files within the explicitly configured raw dataset root."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, video_root: Path | None = None):
         self.root = root.expanduser().resolve(strict=True)
         if not self.root.is_dir():
             raise NotADirectoryError(self.root)
+        self.video_root = (video_root.expanduser().resolve()
+                           if video_root else default_video_root(self.root))
+        if self.video_root == self.root or self.video_root.is_relative_to(self.root):
+            raise ValueError("Video cache must be outside the raw dataset root")
 
     def episode_dir(self, name: str) -> Path:
         if not EPISODE_RE.fullmatch(name):
@@ -214,6 +220,18 @@ class EpisodeStore:
         }
         return data, rows
 
+    def video_path(self, name: str, role: str) -> Path | None:
+        if role not in ("base", "wrist"):
+            raise ValueError("Invalid camera role")
+        raw = self.episode_dir(name)
+        target = self.video_root / name
+        if not video_ready(raw, target):
+            return None
+        file = target / f"{role}.mp4"
+        if file.is_symlink() or not file.resolve().is_relative_to(target.resolve()):
+            return None
+        return file
+
     @lru_cache(maxsize=96)
     def frame_jpeg(self, name: str, role: str, index: int) -> bytes:
         if role not in ("base", "wrist"):
@@ -257,6 +275,64 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_video(self, path: Path, head_only: bool = False):
+        """Stream local MP4 with HTTP byte-range support for browser seeking."""
+        size = path.stat().st_size
+        requested = self.headers.get("Range")
+        start, end, status = 0, size - 1, 200
+        if requested:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested.strip())
+            if not match:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            a, b = match.groups()
+            if not a and not b:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if not a:  # suffix request: bytes=-500
+                requested_len = int(b)
+                start = max(0, size - requested_len) if requested_len else size
+            else:
+                start = int(a)
+                if b:
+                    end = min(size - 1, int(b))
+            if start >= size or end < start:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            status = 206
+        self.send_response(status)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if status == 206:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.end_headers()
+        if head_only:
+            return
+        with path.open("rb") as stream:
+            stream.seek(start)
+            remaining = end - start + 1
+            while remaining:
+                chunk = stream.read(min(256 * 1024, remaining))
+                if not chunk:
+                    break
+                try:
+                    self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError):
+                    break  # Browser moved its video playhead: old request cancelled.
+                remaining -= len(chunk)
+
     def _json(self, status: int, obj: dict):
         self._send(status, json.dumps(obj, allow_nan=False).encode(),
                    "application/json; charset=utf-8")
@@ -271,7 +347,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self._json(200, self.store.episodes())
             episode = EPISODE_ROUTE.fullmatch(route)
             if episode:
-                return self._json(200, self.store.load(episode.group(1))[0])
+                name = episode.group(1)
+                result = dict(self.store.load(name)[0])
+                result["video_available"] = self.store.video_path(name, "base") is not None
+                return self._json(200, result)
+            video = VIDEO_ROUTE.fullmatch(route)
+            if video:
+                path = self.store.video_path(video.group(1), video.group(2))
+                if path is None:
+                    return self._json(404, {"error": "Preview not encoded yet"})
+                return self._send_video(path)
             frame = FRAME_ROUTE.fullmatch(route)
             if frame:
                 body = self.store.frame_jpeg(
@@ -285,6 +370,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
         except Exception:
             self.log_error("Unexpected dashboard error", exc_info=True)
             return self._json(500, {"error": "Dashboard error"})
+
+    def do_HEAD(self):
+        video = VIDEO_ROUTE.fullmatch(urlsplit(self.path).path)
+        if video:
+            path = self.store.video_path(video.group(1), video.group(2))
+            if path is not None:
+                return self._send_video(path, head_only=True)
+        self.send_response(404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_POST(self):
         self._json(405, {"error": "Read-only dashboard"})
@@ -303,10 +398,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("/data1/Muttaqien/fr3_peg_100"))
     parser.add_argument("--port", type=int, default=8766)
+    parser.add_argument("--video-root", type=Path, default=None,
+                        help="Pre-encoded MP4 cache (default: sibling *_web_videos)")
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error("--port must be between 1024 and 65535")
-    store = EpisodeStore(args.root)
+    store = EpisodeStore(args.root, video_root=args.video_root)
     summary = store.episodes()
     if summary["episode_count"] == 0:
         parser.error(f"No recorded episodes found under {store.root}")
