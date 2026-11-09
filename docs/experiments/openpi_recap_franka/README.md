@@ -2,6 +2,8 @@
 
 **Status:** Pre-hardware preparation for the two-camera, EE-space teleoperation experiment; no demonstrations or rollout datasets exist yet. Not a tested robot deployment.
 
+
+Storage: see [workstation storage policy](storage_policy.md) for `/data1/Muttaqien/` dataset, checkpoint, run and cache locations, and the separate NUC telemetry exception.
 ## Responsibility split
 
 | Workstation (GPU) | NUC (robot) |
