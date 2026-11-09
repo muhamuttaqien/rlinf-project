@@ -1,6 +1,6 @@
 # FR3 SpaceMouse episode-based raw collection
 
-`toolkits/realworld_check/fr3_episode_capture.py` adds **manual start/stop** to the existing read-only FR3/Robotiq/two-camera capture. It **does not** publish motion commands or activate/deactivate ROS controllers. It expects the lab-approved FR3 controller, existing SpaceMouse publisher, Robotiq driver, and ROS 2 state streams to be running already. Ensure the operator is physically present, E-stop accessible, and the workcell safe before moving the arm. The RealSense ROS publishers must be stopped before this direct-SDK camera capture; do not start a second SpaceMouse publisher.
+`toolkits/realworld_check/fr3_data_collect.py` adds **manual start/stop** to the existing read-only FR3/Robotiq/two-camera capture. It **does not** publish motion commands or activate/deactivate ROS controllers. It expects the lab-approved FR3 controller, existing SpaceMouse publisher, Robotiq driver, and ROS 2 state streams to be running already. Ensure the operator is physically present, E-stop accessible, and the workcell safe before moving the arm. The RealSense ROS publishers must be stopped before this direct-SDK camera capture; do not start a second SpaceMouse publisher.
 
 Run from the GPU workstation with the existing Python environment and ROS Jazzy setup:
 
@@ -12,10 +12,10 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
-  tests/unit_tests/test_fr3_episode_capture.py \
+  tests/unit_tests/test_fr3_data_collect.py \
   tests/unit_tests/test_fr3_raw_capture.py
 
-python -m toolkits.realworld_check.fr3_episode_capture \
+python -m toolkits.realworld_check.fr3_data_collect \
   --output-root "$HOME/fr3_peg_100" \
   --task "FR3 peg insertion" --target-successes 100 \
   --base-serial 337122075473 --wrist-serial 218622277827 \
