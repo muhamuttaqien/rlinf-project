@@ -26,6 +26,7 @@ import math
 import queue
 import re
 import select
+import shutil
 import sys
 import time
 from collections import Counter
@@ -37,6 +38,7 @@ from toolkits.realworld_check.fr3_live_qualification import read_camera_pair
 from toolkits.realworld_check.fr3_multimodal import assemble_fr3_multimodal
 from toolkits.realworld_check.fr3_raw_capture import (
     GRIPPER_REQUEST_TOPIC,
+    RAW_SCHEMA,
     TWIST_TOPIC,
     RawCaptureWriter,
 )
@@ -95,6 +97,21 @@ def session_progress(root: Path) -> tuple[int, int]:
                 and review.get("capture_status") == "raw_recorded"):
             successes += 1
     return next_index, successes
+
+
+def discard_aborted_episode(path: Path, session_root: Path) -> None:
+    """Delete only the just-recorded, recognized episode directory on abort."""
+    if (not EPISODE_NAME.fullmatch(path.name) or path.is_symlink()
+            or path.parent.resolve() != session_root.resolve()
+            or not path.is_dir()):
+        raise ValueError("Refusing to delete an invalid episode path")
+    manifest_path = path / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError("Refusing to delete episode without a manifest")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema") != RAW_SCHEMA:
+        raise ValueError("Refusing to delete episode with unexpected manifest schema")
+    shutil.rmtree(path)
 
 
 def capture_episode(
@@ -287,6 +304,13 @@ def main() -> int:
                 )
                 outcome = ("aborted" if result["capture_status"] == "interrupted"
                            else prompt_outcome())
+                if outcome == "aborted":
+                    discard_aborted_episode(path, root)
+                    print(f"Discarded {path}: aborted; successes "
+                          f"{successes}/{args.target_successes}")
+                    if result["capture_status"] == "interrupted":
+                        break
+                    continue  # Retry the same index; nothing from this attempt remains.
                 review = {
                     "schema": REVIEW_SCHEMA, "episode_index": index,
                     "task": args.task, "operator_outcome": outcome,
