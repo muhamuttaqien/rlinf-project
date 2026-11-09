@@ -75,12 +75,25 @@ def main():
     parser.add_argument("--checkpoint", default=None, help="Checkpoint global_step_N directory")
     parser.add_argument("--model-path", default=None, help="Pretrained/SFT model directory for baseline")
     parser.add_argument("--trials", type=int, default=10)
+    parser.add_argument("--episode-indices", default=None,
+                        help="Optional comma-separated 1-based episodes to evaluate; --trials sets suite size")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--video-count", type=int, default=3)
     parser.add_argument("--value-observations", action="store_true",
                         help="Save synchronized wrist video and states for SIM-4 value scoring")
     parser.add_argument("--output", default="logs/recap_sim7_eval")
     args = parser.parse_args()
+    if args.trials < 1:
+        parser.error("--trials must be positive")
+    if args.episode_indices is None:
+        selected_episodes = set(range(args.trials))
+    else:
+        try:
+            selected_episodes = {int(x) - 1 for x in args.episode_indices.split(",")}
+        except ValueError:
+            parser.error("--episode-indices must be comma-separated integers")
+        if not selected_episodes or min(selected_episodes) < 0 or max(selected_episodes) >= args.trials:
+            parser.error("--episode-indices must be within 1..--trials")
     repo_path = Path(__file__).resolve().parents[1]
     os.environ["REPO_PATH"] = str(repo_path)
 
@@ -124,6 +137,8 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     successes = 0
     for episode in range(args.trials):
+        if episode not in selected_episodes:
+            continue
         episode_seed = args.seed + episode
         _seed_episode(episode_seed)
         env, description = _get_libero_env(task, LIBERO_ENV_RESOLUTION, episode_seed)
@@ -189,8 +204,9 @@ def main():
                     )
         finally:
             env.close()
-    print(f"LIBERO-10 Task 0 success rate: {successes}/{args.trials} "
-          f"= {100 * successes / args.trials:.1f}%", flush=True)
+    evaluated = len(selected_episodes)
+    print(f"LIBERO-10 Task 0 selected-episode success rate: {successes}/{evaluated} "
+          f"= {100 * successes / evaluated:.1f}%", flush=True)
     print(f"Videos: {out_dir.resolve()}", flush=True)
 
 
