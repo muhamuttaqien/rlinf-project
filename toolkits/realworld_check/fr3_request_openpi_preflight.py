@@ -143,6 +143,15 @@ def check_official_loader(train: Path, validation: Path, norm: Path,
         )
         if data_cfg.norm_stats is None:
             raise ValueError("Missing OpenPI norm stats")
+        expected_starts = (
+            11568 if split == "train" else 2898
+        )
+        if getattr(loader, "strict_valid_starts_count", None) != expected_starts:
+            raise ValueError(
+                f"{split}: strict horizon count differs from audit: "
+                f"{getattr(loader, 'strict_valid_starts_count', None)} "
+                f"!= {expected_starts}"
+            )
         sample = next(iter(loader))
         if not isinstance(sample, (list, tuple)) or len(sample) != 2:
             raise ValueError("Unexpected official loader response")
@@ -157,6 +166,8 @@ def check_official_loader(train: Path, validation: Path, norm: Path,
             "actions_shape": list(actions.shape),
             "image_keys": sorted(images),
             "official_loader_passed": True,
+            "strict_valid_horizon_starts": expected_starts,
+            "boundary_padding_excluded": True,
         }
     return {**report, "loader_results": summary, "model_trained": False}
 
