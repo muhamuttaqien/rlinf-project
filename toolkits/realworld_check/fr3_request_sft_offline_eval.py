@@ -234,6 +234,19 @@ def evaluate(args) -> dict:
     predicted = []
     targets = []
     sources = []
+    temporal_enabled = getattr(args, "temporal_output", None) is not None
+    temporal_b = []
+    temporal_fixed = []
+    if temporal_enabled:
+        if not args.all_windows:
+            raise ValueError("--temporal-output requires --all-windows")
+        if args.seed == args.second_seed or args.fixed_noise_seed in (args.seed, args.second_seed):
+            raise ValueError("Distinct seeds required for temporal diagnostic")
+        second_rng = torch.Generator(device=device).manual_seed(args.second_seed)
+        fixed_rng = torch.Generator(device=device).manual_seed(args.fixed_noise_seed)
+        shared_noise = torch.randn(
+            (1, 10, 32), device=device, generator=fixed_rng, dtype=torch.float32
+        )
     with torch.inference_mode():
         for k, ((obs, actions), (_, episode)) in enumerate(
                 zip(subset_loader, selected, strict=True), 1):
@@ -244,6 +257,22 @@ def evaluate(args) -> dict:
             generated = model.sample_actions(
                 obs, num_steps=args.denoising_steps, noise=noise
             )
+            if temporal_enabled:
+                noise_b = torch.randn(
+                    (1, 10, 32), device=device, generator=second_rng, dtype=torch.float32
+                )
+                p_b = model.sample_actions(
+                    obs, num_steps=args.denoising_steps, noise=noise_b
+                ).detach().cpu().float().numpy()[0]
+                p_fixed = model.sample_actions(
+                    obs, num_steps=args.denoising_steps, noise=shared_noise
+                ).detach().cpu().float().numpy()[0]
+                temporal_b.append(np.asarray(
+                    inverse({"actions": p_b})["actions"][:, :7]
+                ).copy())
+                temporal_fixed.append(np.asarray(
+                    inverse({"actions": p_fixed})["actions"][:, :7]
+                ).copy())
             p = generated.detach().cpu().float().numpy()[0]
             y = actions.detach().cpu().float().numpy()[0]
             if p.shape != (10, 32) or y.shape != (10, 32):
@@ -260,6 +289,21 @@ def evaluate(args) -> dict:
             if k % 20 == 0:
                 print(f"Evaluated {k}/{len(selected)} offline validation windows", flush=True)
     pred, target = np.stack(predicted), np.stack(targets)
+    if temporal_enabled:
+        from toolkits.realworld_check.fr3_request_temporal_consistency import summarize
+        temporal = summarize(
+            pred, np.stack(temporal_b), np.stack(temporal_fixed), target,
+            manifest["segments"], threshold=args.activity_threshold,
+            tolerance=args.event_tolerance,
+            independent_seeds=(args.seed, args.second_seed),
+            fixed_noise_seed=args.fixed_noise_seed,
+        )
+        report_path = args.temporal_output.expanduser()
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        with report_path.open("x", encoding="utf-8") as stream:
+            json.dump(temporal, stream, indent=2, allow_nan=False)
+            stream.write("\n")
+        print(f"Temporal report saved: {report_path}", flush=True)
     if getattr(args, "transition_output", None) is not None:
         if not args.all_windows:
             raise ValueError("--transition-output requires --all-windows")
@@ -328,6 +372,12 @@ def main() -> int:
                         help="Evaluate all 2898 windows; significantly slower")
     parser.add_argument("--denoising-steps", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--second-seed", type=int, default=1,
+                        help="Independent second initial-noise sample")
+    parser.add_argument("--fixed-noise-seed", type=int, default=1001,
+                        help="Single fixed initial-noise tensor reused across windows")
+    parser.add_argument("--temporal-output", type=Path,
+                        help="New offline temporal diagnostic JSON; requires --all-windows")
     parser.add_argument("--transition-output", type=Path,
                         help="Write offline first-step transition report (requires --all-windows)")
     parser.add_argument("--activity-threshold", type=float, default=0.1)
@@ -339,6 +389,8 @@ def main() -> int:
         parser.error("denoising_steps must be 1..20 and per_episode >=1")
     if args.transition_output is not None and not args.all_windows:
         parser.error("--transition-output requires --all-windows")
+    if args.temporal_output is not None and not args.all_windows:
+        parser.error("--temporal-output requires --all-windows")
     if not 0 < args.activity_threshold < 1 or not 0 <= args.event_tolerance <= 10:
         parser.error("activity threshold must be in (0,1), tolerance in [0,10]")
     report = evaluate(args)
