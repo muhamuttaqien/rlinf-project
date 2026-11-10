@@ -1,0 +1,97 @@
+# OFFLINE-ONLY Pi0.5 short diagnostic on FR3 observed-motion PROXIES.
+# NOT controller-accepted actions; future-state leakage in proxy labels.
+# NEVER deploy this policy or treat declining loss as task success.
+# Runs 10000 optimizer steps; saves ONE checkpoint at final step.
+# Logs training metrics live to CoreWeave Forge W&B and locally to TensorBoard.
+# No validation, simulation rollouts, inference deployment, or robot commands.
+# Starting from the successful one-step smoke configuration; not resuming it.
+
+defaults:
+  - model/pi0_5@actor.model
+  - hybrid_engines/fsdp@actor.fsdp_config
+  - override hydra/job_logging: stdout
+  - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    actor,env,rollout: all
+
+runner:
+  task_type: sft
+  logger:
+    log_path: /data1/Muttaqien/logs
+    project_name: "rlinf-openpi-recap"
+    experiment_name: "fr3_peg_pi05_proxy_offline_full10000_wandb"
+    wandb_entity: "muhamuttaqien"
+    logger_backends: ["wandb", "tensorboard"]
+  max_epochs: -1
+  max_steps: 10000
+  val_check_interval: -1
+  save_interval: 10000
+
+data:
+  train_data_paths: /data1/Muttaqien/fr3_peg_lerobot_proxy_v1
+  repo_id: ""
+  num_workers: 0
+
+algorithm:
+  adv_type: gae
+
+actor:
+  group_name: "ActorGroup"
+  training_backend: "fsdp"
+  micro_batch_size: 1
+  eval_batch_size: 1
+  global_batch_size: 4
+  seed: 0
+
+  model:
+    model_path: /data1/Muttaqien/rlinf_data/checkpoints/torch/pi05_base_rlinf
+    num_action_chunks: 10
+    action_dim: 7
+    openpi:
+      task: sft
+      config_name: "pi05_fr3_peg_proxy_offline"
+      action_horizon: 10
+      discrete_state_input: false
+    openpi_data:
+      norm_stats_path: /data1/Muttaqien/fr3_peg_proxy_norm_v1/norm_stats.json
+
+# Optimizer uses a matching 10000-step cosine schedule with 100-step warmup.
+# No intermediate checkpoints to limit disk usage.
+  optim:
+    lr: 2.5e-5
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-8
+    weight_decay: 1.0e-10
+    clip_grad: 1.0
+    total_training_steps: 10000
+    lr_warmup_steps: 100
+    lr_scheduler: "openpi_cosine"
+    num_cycles: 0.5
+    min_lr: 2.5e-6
+
+  fsdp_config:
+    strategy: "fsdp"
+    sharding_strategy: "no_shard"
+    use_orig_params: True
+    gradient_checkpointing: False
+    mixed_precision:
+      param_dtype: ${actor.model.precision}
+      reduce_dtype: ${actor.model.precision}
+      buffer_dtype: ${actor.model.precision}
+
+reward:
+  use_reward_model: False
+
+critic:
+  use_critic_model: False
