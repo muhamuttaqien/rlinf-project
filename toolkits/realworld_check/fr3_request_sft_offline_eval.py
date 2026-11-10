@@ -273,7 +273,7 @@ def evaluate(args) -> dict:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         with target_path.open("x", encoding="utf-8") as output_file:
             json.dump(diagnostic, output_file, indent=2, allow_nan=False)
-            output_file.write("\\n")
+            output_file.write("\n")
         print(f"Transition report saved: {target_path}", flush=True)
 
     result.update({
