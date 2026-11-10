@@ -6,6 +6,7 @@ import pytest
 from toolkits.realworld_check.fr3_request_label_validation import (
     _assert_same_reconstruction,
     _corr,
+    _relative_body_rotvec,
     _relative_world_rotvec,
 )
 
@@ -44,3 +45,13 @@ def test_reconstruction_must_match_original_labels():
     altered = [dict(original[0], candidate_request_action_7d=[0.2] * 6 + [1.])]
     with pytest.raises(ValueError, match="candidate_request_action_7d"):
         _assert_same_reconstruction(original, altered, "episode_000")
+
+def test_world_and_tool_frame_rotation_differ_for_rotated_tool():
+    half = np.pi / 4
+    q0 = np.array([0., 0., np.sin(half), np.cos(half)])
+    delta = np.array([np.sin(0.1), 0., 0., np.cos(0.1)])
+    # Compose q1 = q0 * delta: command rotates around tool X, world Y.
+    from toolkits.realworld_check.fr3_request_label_validation import _quat_mul
+    q1 = _quat_mul(q0, delta)
+    assert np.allclose(_relative_body_rotvec(q0, q1), [0.2, 0., 0.], atol=1e-8)
+    assert np.allclose(_relative_world_rotvec(q0, q1), [0., 0.2, 0.], atol=1e-8)
