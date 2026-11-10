@@ -107,11 +107,24 @@ def compute_from_lerobot(dataset: Path) -> tuple[dict, dict]:
     states, actions = [], []
     for path in paths:
         parquet = pq.ParquetFile(path)
-        if not {"state", "actions"}.issubset(parquet.schema.names):
-            raise ValueError(f"Missing state/actions columns in {path}")
+        # ParquetFile.schema.names are PHYSICAL leaf names (e.g. "element"
+        # for fixed-size-list arrays), not logical top-level feature names.
+        # LeRobot writes 19D/7D array features as nested Arrow list fields.
+        # Inspect schema_arrow.names instead, then locate batch columns by
+        # their field names rather than relying on projection order.
+        logical_names = set(parquet.schema_arrow.names)
+        if not {"state", "actions"}.issubset(logical_names):
+            raise ValueError(
+                f"Missing logical state/actions columns in {path}; "
+                f"available: {sorted(logical_names)}"
+            )
         for batch in parquet.iter_batches(columns=["state", "actions"], batch_size=4096):
-            s = np.asarray(batch.column("state").to_pylist(), dtype=np.float64)
-            a = np.asarray(batch.column("actions").to_pylist(), dtype=np.float64)
+            state_idx = batch.schema.get_field_index("state")
+            action_idx = batch.schema.get_field_index("actions")
+            if state_idx < 0 or action_idx < 0:
+                raise ValueError(f"Parquet batch missing state/actions in {path}")
+            s = np.asarray(batch.column(state_idx).to_pylist(), dtype=np.float64)
+            a = np.asarray(batch.column(action_idx).to_pylist(), dtype=np.float64)
             if s.size == 0:
                 continue
             if s.ndim != 2 or s.shape[1] != STATE_DIM or a.shape != (len(s), ACTION_DIM):
