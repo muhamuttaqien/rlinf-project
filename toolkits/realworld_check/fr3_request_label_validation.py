@@ -47,9 +47,8 @@ def _quat_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.r_[aw * bv + bw * av + np.cross(av, bv), aw * bw - np.dot(av, bv)]
 
 
-def _relative_world_rotvec(q0: np.ndarray, q1: np.ndarray) -> np.ndarray:
-    """Rotation mapping q0 to q1, expressed in the state pose world frame."""
-    delta = _quat_mul(q1, np.r_[-q0[:3], q0[3]])
+def _rotvec(delta: np.ndarray) -> np.ndarray:
+    """Shortest rotation vector for an xyzw unit quaternion."""
     if delta[3] < 0:
         delta = -delta
     v = delta[:3]
@@ -57,6 +56,16 @@ def _relative_world_rotvec(q0: np.ndarray, q1: np.ndarray) -> np.ndarray:
     if norm < 1e-12:
         return 2 * v
     return (2 * math.atan2(norm, float(delta[3])) / norm) * v
+
+
+def _relative_world_rotvec(q0: np.ndarray, q1: np.ndarray) -> np.ndarray:
+    """q1 * inverse(q0): orientation change in the world frame."""
+    return _rotvec(_quat_mul(q1, np.r_[-q0[:3], q0[3]]))
+
+
+def _relative_body_rotvec(q0: np.ndarray, q1: np.ndarray) -> np.ndarray:
+    """inverse(q0) * q1: orientation change in the initial tool frame."""
+    return _rotvec(_quat_mul(np.r_[-q0[:3], q0[3]], q1))
 
 
 def _corr(a: list[float], b: list[float]) -> float | None:
@@ -103,6 +112,9 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
         raise ValueError("Expected the 100-demonstration source report")
 
     pairs = defaultdict(lambda: {"request": [], "measured": []})
+    # Cross-axis tool/body-frame correlations detect axis swaps or frame rotations
+    # missed by comparing each command against only its world-frame component.
+    body_pairs = defaultdict(lambda: {"request": [], "measured": []})
     totals = {"episodes": 0, "rows": 0, "complete_labels": 0,
               "episode_adjacencies": 0, "reconstructed_episodes": 0}
     dt = []
@@ -168,8 +180,10 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
                  - rows[i]["observation_camera_receipt_ns"]) / 1e9
             v = (positions[i + 1] - positions[i]) / d
             w = _relative_world_rotvec(quats[i], quats[i + 1]) / d
-            if 0.02 <= d <= 0.25 and np.isfinite(v).all() and np.isfinite(w).all():
-                velocities.append(np.r_[v, w])
+            w_body = _relative_body_rotvec(quats[i], quats[i + 1]) / d
+            if (0.02 <= d <= 0.25 and np.isfinite(v).all()
+                    and np.isfinite(w).all() and np.isfinite(w_body).all()):
+                velocities.append((np.r_[v, w], w_body))
                 totals["episode_adjacencies"] += 1
             else:
                 velocities.append(None)
@@ -179,13 +193,19 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
             for lag in range(max_lag_frames + 1):
                 if i + lag >= len(velocities):
                     break
-                motion = velocities[i + lag]
-                if motion is None:
+                motion_pair = velocities[i + lag]
+                if motion_pair is None:
                     continue
+                motion_world, motion_body_rot = motion_pair
                 for axis in range(6):
                     entry = pairs[(axis, lag)]
                     entry["request"].append(float(action[axis]))
-                    entry["measured"].append(float(motion[axis]))
+                    entry["measured"].append(float(motion_world[axis]))
+                for source_axis in range(3):
+                    for measured_axis in range(3):
+                        entry = body_pairs[(source_axis, measured_axis, lag)]
+                        entry["request"].append(float(action[source_axis + 3]))
+                        entry["measured"].append(float(motion_body_rot[measured_axis]))
         totals["episodes"] += 1
         totals["rows"] += len(rows)
 
@@ -212,6 +232,39 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
             "best_absolute_correlation": best,
             "all_lags": lag_results,
         })
+    body_associations = []
+    for axis in range(3):
+        lag_results = []
+        for lag in range(max_lag_frames + 1):
+            sample = body_pairs[(axis, axis, lag)]
+            lag_results.append({
+                "lag_frames": lag,
+                "sample_pairs": len(sample["request"]),
+                "pearson_r": _corr(sample["request"], sample["measured"]),
+            })
+        usable = [value for value in lag_results if value["pearson_r"] is not None]
+        body_associations.append({
+            "channel": AXES[axis + 3],
+            "measured_component": "initial_tool_frame_tcp_rotation",
+            "best_absolute_correlation": (
+                max(usable, key=lambda value: abs(value["pearson_r"]))
+                if usable else None
+            ),
+            "all_lags": lag_results,
+        })
+    body_cross_axis_lag0 = []
+    for source_axis in range(3):
+        sample = body_pairs[(source_axis, 0, 0)]
+        source_std = (float(np.std(sample["request"])) if sample["request"] else None)
+        correlations = []
+        for measured_axis in range(3):
+            entry = body_pairs[(source_axis, measured_axis, 0)]
+            correlations.append(_corr(entry["request"], entry["measured"]))
+        body_cross_axis_lag0.append({
+            "request_channel": AXES[source_axis + 3],
+            "request_std": round(source_std, 5) if source_std is not None else None,
+            "measured_tool_rotation_correlations_xyz": correlations,
+        })
     return {
         "schema": "fr3_request_label_offline_validation_v1",
         "candidate_root": str(root),
@@ -221,6 +274,8 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
         "median_observation_interval_s": round(float(np.median(dt)), 5),
         "valid_motion_intervals": totals["episode_adjacencies"],
         "association_only": associations,
+        "tool_body_rotation_associations": body_associations,
+        "tool_body_cross_axis_lag0": body_cross_axis_lag0,
         "label_timing": (
             "6D operator requests averaged over [camera receipt t_i, t_i+1]; "
             "7th channel is latched gripper request at t_i+1; "
@@ -230,6 +285,8 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
             "Matching axes are not proof of frame calibration: mounting rotation, camera lag, controller hold/IK and co-active axes may distort correlations.",
             "Observed displacement is NOT controller-accepted action or command target.",
             "Camera receipt time is not calibrated exposure time; workstation receipt is not NUC command acceptance time.",
+            "Reference controller composes pose.M * RPY(...), i.e. applies tool/body-relative rotation; compare tool-body motion as well as world-frame motion.",
+            "Even tool/body correlations cannot certify controller input frames, active binary, axis signs, or actual command execution.",
             "Documented angular scaling disagrees across historical inspections (0.03 vs 0.06); inspect running NUC binary/source and configured parameters.",
         ],
         "controller_frame_scale_verified": False,
