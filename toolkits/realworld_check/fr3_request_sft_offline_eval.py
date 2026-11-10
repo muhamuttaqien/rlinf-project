@@ -260,6 +260,22 @@ def evaluate(args) -> dict:
             if k % 20 == 0:
                 print(f"Evaluated {k}/{len(selected)} offline validation windows", flush=True)
     pred, target = np.stack(predicted), np.stack(targets)
+    if getattr(args, "transition_output", None) is not None:
+        if not args.all_windows:
+            raise ValueError("--transition-output requires --all-windows")
+        from toolkits.realworld_check.fr3_request_transition_diagnostic import analyze
+        diagnostic = analyze(
+            pred, target, manifest["segments"],
+            threshold=args.activity_threshold,
+            tolerance=args.event_tolerance,
+        )
+        target_path = args.transition_output.expanduser()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with target_path.open("x", encoding="utf-8") as output_file:
+            json.dump(diagnostic, output_file, indent=2, allow_nan=False)
+            output_file.write("\\n")
+        print(f"Transition report saved: {target_path}", flush=True)
+
     result.update({
         "source_episode_disjoint": provenance["source_episode_disjoint"],
         "train_only_norm_passed": provenance["train_only_norm_passed"],
@@ -312,10 +328,19 @@ def main() -> int:
                         help="Evaluate all 2898 windows; significantly slower")
     parser.add_argument("--denoising-steps", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--transition-output", type=Path,
+                        help="Write offline first-step transition report (requires --all-windows)")
+    parser.add_argument("--activity-threshold", type=float, default=0.1)
+    parser.add_argument("--event-tolerance", type=int, default=2,
+                        help="Maximum nominal frame difference for event matching")
     parser.add_argument("--output", type=Path, help="New JSON result; never overwrite")
     args = parser.parse_args()
     if not 1 <= args.denoising_steps <= 20 or args.per_episode < 1:
         parser.error("denoising_steps must be 1..20 and per_episode >=1")
+    if args.transition_output is not None and not args.all_windows:
+        parser.error("--transition-output requires --all-windows")
+    if not 0 < args.activity_threshold < 1 or not 0 <= args.event_tolerance <= 10:
+        parser.error("activity threshold must be in (0,1), tolerance in [0,10]")
     report = evaluate(args)
     if args.output:
         output = args.output.expanduser()
