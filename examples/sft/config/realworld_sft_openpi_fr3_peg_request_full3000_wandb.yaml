@@ -32,6 +32,7 @@ runner:
     experiment_name: "fr3_peg_pi05_request_offline_full3000_wandb"
     wandb_entity: "muhamuttaqien"
     logger_backends: ["wandb", "tensorboard"]
+  resume_dir: null  # Explicit fresh SFT run: do not load any prior optimizer/model checkpoint.
   max_epochs: -1
   max_steps: 3000
   val_check_interval: -1
