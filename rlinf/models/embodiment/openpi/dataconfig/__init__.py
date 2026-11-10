@@ -40,6 +40,9 @@ from rlinf.models.embodiment.openpi.dataconfig.dual_franka_tcp_rot6d_dataconfig 
 from rlinf.models.embodiment.openpi.dataconfig.fr3_peg_proxy_dataconfig import (
     Fr3PegProxyDataConfig,
 )
+from rlinf.models.embodiment.openpi.dataconfig.fr3_peg_request_dataconfig import (
+    Fr3PegRequestDataConfig,
+)
 from rlinf.models.embodiment.openpi.dataconfig.franka_co_training_dataconfig import (
     LeRobotFrankaEEDataConfig,
 )
@@ -201,6 +204,22 @@ _CONFIGS = [
         num_train_steps=5_000,
         log_interval=5,
         save_interval=250,
+    ),
+    TrainConfig(
+        name="pi05_fr3_peg_request_offline",
+        model=pi0_config.Pi0Config(
+            pi05=True, action_horizon=10, action_dim=32,
+            discrete_state_input=False,
+        ),
+        data=Fr3PegRequestDataConfig(
+            repo_id="",
+            base_config=DataConfig(prompt_from_task=True),
+            assets=AssetsConfig(assets_dir="checkpoints/torch/pi05_base/assets"),
+        ),
+        pytorch_weight_path="checkpoints/torch/pi05_base",
+        batch_size=4,
+        num_workers=0,
+        num_train_steps=100,
     ),
     TrainConfig(
         name="pi05_fr3_peg_proxy_offline",
