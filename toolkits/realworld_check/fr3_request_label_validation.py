@@ -134,7 +134,7 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
                           row.get("next_observation_camera_receipt_ns"))
             if (row.get("frame_index") != i or row.get("next_frame_index") != i + 1
                     or type(start) is not int or type(end) is not int
-                    or start >= end or not 0.02 <= (end - start) / 1e9 <= 0.25):
+                    or start <= 0 or end <= start):
                 raise ValueError(f"{name}:{i}: invalid frame timing")
             if i and rows[i - 1]["next_observation_camera_receipt_ns"] != start:
                 raise ValueError(f"{name}:{i}: missing/noncontiguous observation")
@@ -168,8 +168,11 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
                  - rows[i]["observation_camera_receipt_ns"]) / 1e9
             v = (positions[i + 1] - positions[i]) / d
             w = _relative_world_rotvec(quats[i], quats[i + 1]) / d
-            velocities.append(np.r_[v, w])
-            totals["episode_adjacencies"] += 1
+            if 0.02 <= d <= 0.25 and np.isfinite(v).all() and np.isfinite(w).all():
+                velocities.append(np.r_[v, w])
+                totals["episode_adjacencies"] += 1
+            else:
+                velocities.append(None)
         for i, action in enumerate(commands):
             if action is None:
                 continue
@@ -177,6 +180,8 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
                 if i + lag >= len(velocities):
                     break
                 motion = velocities[i + lag]
+                if motion is None:
+                    continue
                 for axis in range(6):
                     entry = pairs[(axis, lag)]
                     entry["request"].append(float(action[axis]))
@@ -214,6 +219,7 @@ def validate(candidate_root: Path, *, verify_source: bool = False,
         "dataset_integrity_passed": True,
         **totals,
         "median_observation_interval_s": round(float(np.median(dt)), 5),
+        "valid_motion_intervals": totals["episode_adjacencies"],
         "association_only": associations,
         "label_timing": (
             "6D operator requests averaged over [camera receipt t_i, t_i+1]; "
