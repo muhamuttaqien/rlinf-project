@@ -33,3 +33,24 @@ def test_fails_on_nonbinary_gripper_or_wrong_dimensions():
         compute_from_arrays(states, actions)
     with pytest.raises(ValueError, match="aligned"):
         compute_from_arrays(states[:3], np.zeros((4, 7)))
+
+
+def test_list_encoded_lerobot_arrow_columns_are_detected(tmp_path):
+    """LeRobot array features can have physical Parquet leaf names 'element'."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    path = tmp_path / "sample.parquet"
+    table = pa.table({
+        "state": pa.array([[float(i)] * 19 for i in range(3)]),
+        "actions": pa.array([[0.0] * 6 + [1.0] for _ in range(3)]),
+    })
+    pq.write_table(table, path)
+    parquet = pq.ParquetFile(path)
+    assert {"state", "actions"}.issubset(set(parquet.schema_arrow.names))
+    batches = list(parquet.iter_batches(columns=["state", "actions"]))
+    batch = batches[0]
+    s = np.asarray(batch.column(batch.schema.get_field_index("state")).to_pylist())
+    a = np.asarray(batch.column(batch.schema.get_field_index("actions")).to_pylist())
+    assert s.shape == (3, 19)
+    assert a.shape == (3, 7)
