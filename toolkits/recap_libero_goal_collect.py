@@ -150,6 +150,9 @@ def collect(args: argparse.Namespace) -> None:
     from toolkits.recap_libero_sim7_eval import _repair_libero_paths
 
     repo = Path(__file__).resolve().parents[1]
+    # Hydra searchpath uses ${oc.env:REPO_PATH}; direct python -m invocation must
+    # initialize it instead of relying on a shell launcher.
+    os.environ.setdefault("REPO_PATH", str(repo))
     output_root = args.output_root.expanduser().resolve()
     checkpoint = args.model_path.expanduser().resolve()
     if not checkpoint.is_dir():
