@@ -66,6 +66,68 @@ def select_windows(segments: list[dict], *, horizon: int = 10,
     return selected, cursor
 
 
+
+
+def select_chunk_windows(segments: list[dict]) -> tuple[list[tuple[int, str]], int]:
+    """Select non-overlapping 10-step action chunks per contiguous segment."""
+    selected = []
+    cursor = 0
+    for seg in segments:
+        source, start, stop = seg.get("episode"), seg.get("start"), seg.get("stop")
+        if (not isinstance(source, str) or not source.startswith("episode_")
+                or type(start) is not int or type(stop) is not int
+                or stop - start < 10):
+            raise ValueError("Invalid segment for chunk evaluation")
+        valid = stop - start - 9
+        selected.extend((cursor + offset, source) for offset in range(0, valid, 10))
+        cursor += valid
+    if not selected:
+        raise ValueError("No full 10-step chunks")
+    return selected, cursor
+
+
+def chunk_transition_summary(predicted: np.ndarray, target: np.ndarray,
+                             segments: list[dict], *, threshold=0.1,
+                             tolerance=2) -> dict:
+    """Measure command transitions in concatenated chunks, without crossing gaps."""
+    from toolkits.realworld_check.fr3_request_transition_diagnostic import transition_score
+
+    pred, truth = np.asarray(predicted), np.asarray(target)
+    if (pred.shape != truth.shape or pred.ndim != 3 or pred.shape[1:] != (10, 7)
+            or not np.isfinite(pred).all() or not np.isfinite(truth).all()):
+        raise ValueError("Expected matched finite 10-step chunks")
+    segment_arrays = []
+    position = 0
+    for seg in segments:
+        chunks = len(range(0, seg["stop"] - seg["start"] - 9, 10))
+        segment_arrays.append((
+            truth[position:position + chunks].reshape(-1, 7),
+            pred[position:position + chunks].reshape(-1, 7),
+        ))
+        position += chunks
+    if position != len(pred):
+        raise ValueError("Chunk count and manifest disagree")
+
+    axes = {}
+    for j, name in enumerate(FIELDS):
+        activity = [(np.abs(y[:, j]) >= threshold, np.abs(p[:, j]) >= threshold)
+                    for y, p in segment_arrays]
+        axes[name] = {
+            "onset": transition_score(activity, direction=True, tolerance=tolerance),
+            "offset": transition_score(activity, direction=False, tolerance=tolerance),
+        }
+    gripper = [(y[:, 6] >= 0.5, p[:, 6] >= 0.5) for y, p in segment_arrays]
+    return {
+        "axes": axes,
+        "gripper_open": transition_score(gripper, direction=True, tolerance=tolerance),
+        "gripper_close": transition_score(gripper, direction=False, tolerance=tolerance),
+        "threshold": threshold,
+        "tolerance_frames": tolerance,
+        "evaluated_steps": 10 * len(pred),
+        "segments_kept_separate": len(segment_arrays),
+    }
+
+
 def metric_summary(predicted: np.ndarray, true: np.ndarray) -> dict:
     """Metrics in ORIGINAL normalized SpaceMouse request units (not OpenPI units)."""
     pred, truth = np.asarray(predicted, dtype=np.float64), np.asarray(true, dtype=np.float64)
@@ -202,9 +264,12 @@ def evaluate(args) -> dict:
     manifest = json.loads(
         (args.validation / "fr3_command_request_provenance.json").read_text(encoding="utf-8")
     )
-    selected, total = select_windows(
-        manifest["segments"], per_episode=args.per_episode, all_windows=args.all_windows
-    )
+    if args.chunk_only:
+        selected, total = select_chunk_windows(manifest["segments"])
+    else:
+        selected, total = select_windows(
+            manifest["segments"], per_episode=args.per_episode, all_windows=args.all_windows
+        )
     if (total != loader.strict_valid_starts_count
             or total != 2898 or len({ep for _, ep in selected}) != 20):
         raise ValueError("Held-out 20-episode strict-window provenance is inconsistent")
@@ -326,12 +391,15 @@ def evaluate(args) -> dict:
         "heldout_source_episodes": len(set(sources)),
         "heldout_possible_windows": total,
         "evaluated_windows": len(sources),
-        "window_selection": "all_windows" if args.all_windows else "evenly_spaced_per_episode",
-        "per_episode_requested": None if args.all_windows else args.per_episode,
+        "window_selection": (
+            "nonoverlapping_10_step_chunks" if args.chunk_only else
+            "all_windows" if args.all_windows else "evenly_spaced_per_episode"
+        ),
+        "per_episode_requested": None if (args.all_windows or args.chunk_only) else args.per_episode,
         "denoising_steps": args.denoising_steps,
         "seed": args.seed,
         "metric_units": "original normalized SpaceMouse requests, NOT TCP SI units",
-        "overlapping_action_horizons": True,
+        "overlapping_action_horizons": not args.chunk_only,
         "metrics": metric_summary(pred, target),
         "per_episode": {
             episode: metric_summary(
@@ -341,11 +409,24 @@ def evaluate(args) -> dict:
         },
         "caveats": [
             "Offline teacher-forced observation windows, not closed-loop peg insertion.",
-            "Overlapping 10-step action horizons are correlated, not independent trajectories.",
+            ("Non-overlapping 10-step chunks, teacher-forced at each chunk start."
+             if args.chunk_only else
+             "Overlapping 10-step action horizons are correlated, not independent trajectories."),
             "No calibrated controller acceptance, camera exposure timing or robot safety.",
             "Euler flow-model outputs depend on inference noise seed and denoising steps.",
         ],
     })
+    if args.chunk_only:
+        result["chunk_transition_metrics"] = chunk_transition_summary(
+            pred, target, manifest["segments"],
+            threshold=args.activity_threshold, tolerance=args.event_tolerance,
+        )
+        result["chunk_evaluation_limitations"] = [
+            "Offline teacher-forced 10-step predictions, NOT real closed-loop execution.",
+            "Predictions are normalized SpaceMouse requests, not accepted robot commands.",
+            "Non-overlapping chunk selection discards up to nine tail frames per segment.",
+            "Event counts vary with activity threshold and are not physical safety metrics.",
+        ]
     return result
 
 
@@ -370,6 +451,8 @@ def main() -> int:
     parser.add_argument("--per-episode", type=int, default=5)
     parser.add_argument("--all-windows", action="store_true",
                         help="Evaluate all 2898 windows; significantly slower")
+    parser.add_argument("--chunk-only", action="store_true",
+                        help="Evaluate each non-overlapping 10-step chunk once (faster)")
     parser.add_argument("--denoising-steps", type=int, default=5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--second-seed", type=int, default=1,
@@ -393,6 +476,10 @@ def main() -> int:
         parser.error("--temporal-output requires --all-windows")
     if not 0 < args.activity_threshold < 1 or not 0 <= args.event_tolerance <= 10:
         parser.error("activity threshold must be in (0,1), tolerance in [0,10]")
+    if args.chunk_only and (args.all_windows or args.temporal_output or args.transition_output):
+        parser.error("--chunk-only cannot be combined with all-window diagnostics")
+    if args.output and args.output.expanduser().exists():
+        parser.error(f"Output exists; choose a new path: {args.output}")
     report = evaluate(args)
     if args.output:
         output = args.output.expanduser()
