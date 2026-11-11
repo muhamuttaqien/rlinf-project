@@ -1,6 +1,8 @@
+# @package _global_
 # Goal-specific SIM-5: set advantage.value_checkpoint=... to trained Goal critic.
 defaults:
   - /model/recap_value_model@advantage.model
+  - _self_
 advantage:
   value_checkpoint: /REPLACE_WITH_GOAL_TASK0_CRITIC/full_weights.pt
   batch_size: 64
