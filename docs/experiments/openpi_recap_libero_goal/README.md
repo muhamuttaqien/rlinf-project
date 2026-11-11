@@ -165,6 +165,20 @@ python -m toolkits.recap_libero_value_curves \
 contains cross-task transfer evaluation of the **LIBERO-10-trained** RECAP
 policy and is useful as a separate scientific baseline.
 
+To visualize the new specialist in the existing five-category browser dashboard,
+restart the server using the new optional override (after completing evaluation):
+
+```bash
+python -m toolkits.recap_libero_web_dashboard \
+  --output /data1/Muttaqien/rlinf_runs/cfg_rl/recap_sim7_value_comparison_20episodes \
+  --goal-specialist-output "$GOAL_EVAL" \
+  --episodes 20 --port 8765
+```
+
+With no `--goal-specialist-output`, the Goal tab still shows the earlier
+**LIBERO-10-to-Goal transfer** evaluation. This preserves both datasets and
+avoids giving them misleading identical labels.
+
 The comparison to report is:
 
 1. Original SFT baseline, Goal Task 0.
