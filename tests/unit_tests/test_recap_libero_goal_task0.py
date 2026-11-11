@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from hydra import compose, initialize_config_dir
 
 import numpy as np
 import yaml
@@ -75,6 +79,28 @@ class GoalTask0Tests(unittest.TestCase):
         sft, train, evaluation = (Path(d["dataset_path"]).name for d in ret["data"]["train_data_paths"])
         self.assertEqual((sft, train, evaluation), tuple(name for name, _ in SPLITS.values()))
         self.assertEqual(features((8, 8, 3))["actions"]["shape"], (7,))
+
+    def test_hydra_configs_use_root_package(self):
+        # YAML parsing alone does not detect Hydra's implicit package prefix:
+        # nested 'experiments/libero_goal_task0' would hide cfg.data.
+        config_root = ROOT / "examples/offline_rl/config"
+        with patch.dict(os.environ, {"REPO_PATH": str(ROOT)}):
+            with initialize_config_dir(version_base="1.1", config_dir=str(config_root)):
+                names = (
+                    "recap_compute_returns",
+                    "recap_value_model_sft",
+                    "recap_compute_advantages",
+                    "cfg_rl_openpi",
+                )
+                for name in names:
+                    with self.subTest(name=name):
+                        cfg = compose(config_name=f"experiments/libero_goal_task0/{name}")
+                        self.assertIn("data", cfg)
+                        self.assertNotIn("experiments", cfg)
+                        if name == "recap_compute_advantages":
+                            self.assertIn("advantage", cfg)
+                        if name in ("recap_value_model_sft", "cfg_rl_openpi"):
+                            self.assertIn("actor", cfg)
 
     def test_preflight_blocks_missing_goal_datasets(self):
         with tempfile.TemporaryDirectory() as temp:
