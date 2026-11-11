@@ -1,0 +1,22 @@
+# Task-specific LIBERO-Goal Task 0 RECAP: compute return/reward sidecars.
+# Launcher: bash examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh experiments/libero_goal_task0/recap_compute_returns
+data:
+  data_root: null
+  train_data_paths:
+    - dataset_path: /data1/Muttaqien/rlinf_data/recap_libero_goal_task0/libero_goal_task0_sft
+      type: sft
+    - dataset_path: /data1/Muttaqien/rlinf_data/recap_libero_goal_task0/libero_goal_task0_train
+      type: rollout
+    - dataset_path: /data1/Muttaqien/rlinf_data/recap_libero_goal_task0/libero_goal_task0_eval
+      type: rollout
+  dataset_type: sft
+  gamma: 1.0
+  failure_reward: -300.0
+  tag: libero_goal_task0_recap
+  num_workers: 8
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
