@@ -165,7 +165,8 @@ function renderOverview(s){
  $('baseRate').textContent=fmtPct(s.baseline_successes/s.episodes);
  $('recapRate').textContent=fmtPct(s.recap_successes/s.episodes);
  const delta=100*(s.recap_successes-s.baseline_successes)/s.episodes;
- $('recapRate').classList.toggle('negative',delta<0);
+ const recapUnderperforms=s.recap_successes<s.baseline_successes;
+ $('recapRate').classList.toggle('negative',recapUnderperforms);
  $('deltaRate').classList.toggle('negative',delta<0);
  $('deltaRate').textContent=(delta>0?'+':'')+delta.toFixed(1)+' pp';
  $('baseCount').textContent=s.baseline_successes+' of '+s.episodes+' successful episodes';
