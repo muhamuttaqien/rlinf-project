@@ -51,6 +51,21 @@ logger = logging.getLogger(__name__)
 _READ_COLUMNS = ["episode_index", "frame_index", "is_success", "task_index", "task"]
 
 
+def parse_episode_success(value) -> bool:
+    """Interpret scalar or length-one LeRobot is_success without list truthiness.
+
+    A 1-element LeRobot bool feature can become [False] in Parquet.
+    Using bool([False]) incorrectly evaluates the failed rollout as success.
+    """
+    if isinstance(value, (list, tuple, np.ndarray)):
+        if len(value) != 1:
+            raise ValueError(f"Expected one is_success flag, got {value!r}")
+        value = value[0]
+    if not isinstance(value, (bool, int, np.bool_, np.integer)) or value not in (0, 1):
+        raise ValueError(f"Invalid is_success flag: {value!r}")
+    return bool(value)
+
+
 def compute_returns_for_episode(
     episode_length: int,
     is_success: bool,
@@ -164,7 +179,7 @@ def _process_single_parquet(
         if dataset_type == "sft":
             is_success = True
         else:
-            is_success = bool(is_success_col[ep_end - 1])
+            is_success = parse_episode_success(is_success_col[ep_end - 1])
 
         ep_returns, ep_rewards = compute_returns_for_episode(
             episode_length=ep_length,
