@@ -181,7 +181,11 @@ function renderOverview(s){
  }
  $('footerNote').textContent='V(s) is estimated by the SIM-4 critic, not observed reward, advantage, or success probability.';
  if(s.reference){const r=s.reference;$('footerNote').textContent+=' Previous '+r.trials+'-episode benchmark: SFT '+r.baseline+'/'+r.trials+' vs RECAP '+r.recap+'/'+r.trials+'.';}
- if(player.suite!=='libero_10')$('footerNote').textContent+=' Cross-suite results are exploratory: RECAP and SIM-4 were trained on LIBERO-10 Task 0.';
+ if(player.suite!=='libero_10'){
+  $('footerNote').textContent+=s.policy_variant==='Goal Task 0 specialist'
+   ?' Goal Task 0 specialist uses its own task-specific critic and policy; compare against the original SFT under matched conditions.'
+   :' Cross-suite results are exploratory: RECAP and SIM-4 were trained on LIBERO-10 Task 0.';
+ }
 }
 function renderMissing(s){
  player.current=null;player.duration=0;player.time=0;
