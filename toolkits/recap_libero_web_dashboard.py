@@ -265,13 +265,17 @@ class SuiteCollection:
     """Five independent paired experiments. Never alias one suite to another."""
 
     def __init__(self, long_output: Path, episodes: int, seed: int | None,
-                 sidecar: Path, reference: tuple[int, int, int] | None):
+                 sidecar: Path, reference: tuple[int, int, int] | None,
+                 goal_specialist_output: Path | None = None):
         self.episodes = episodes
         self.datasets: dict[str, Experiment | None] = {}
         self.errors: dict[str, str] = {}
+        self.goal_specialist = goal_specialist_output is not None
         root = long_output.expanduser().resolve()
         for suite, _label, _focus in SUITES:
             folder = root if suite == "libero_10" else root.parent / f"{root.name}_{suite}"
+            if suite == "libero_goal" and goal_specialist_output is not None:
+                folder = goal_specialist_output.expanduser().resolve()
             if not (folder / "run_config.json").is_file() or not (folder / "paired_results.csv").is_file():
                 self.datasets[suite] = None
                 continue
@@ -296,7 +300,8 @@ class SuiteCollection:
         for suite, name, focus in SUITES:
             experiment = self.datasets[suite]
             rows.append({
-                "id": suite, "name": name, "focus": focus,
+                "id": suite, "name": name,
+                "focus": focus + (" · Goal-trained RECAP specialist" if suite == "libero_goal" and self.goal_specialist else ""),
                 "task_index": 0, "task": "Task 0", "episodes": self.episodes,
                 "ready": experiment is not None,
                 "status": "Invalid data" if suite in self.errors else (
@@ -314,9 +319,13 @@ class SuiteCollection:
                 "available": False, "episodes": self.episodes, "rows": [],
                 "message": self.errors.get(suite, f"{name} Task 0 has not been recorded. Run the 20-paired-episode evaluation for this suite."),
             }
+        scope = ("Goal Task 0 value critic and RECAP specialist"
+                 if suite == "libero_goal" and self.goal_specialist
+                 else "SIM-4 critic trained on LIBERO-10 Task 0; other suites are out-of-distribution.")
         return {**experiment.summary(), "available": True, "category": name,
                 "task": "Task 0", "task_description": experiment.manifest.get("task_description"),
-                "value_critic_scope": "SIM-4 critic trained on LIBERO-10 Task 0; other suites are out-of-distribution."}
+                "value_critic_scope": scope,
+                "policy_variant": ("Goal Task 0 specialist" if suite == "libero_goal" and self.goal_specialist else "LIBERO-10-trained transfer")}
 
     def episode(self, suite: str, number: int) -> dict:
         experiment = self._get(suite)
@@ -479,6 +488,8 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Existing LIBERO-10 Task 0 directory; the other suites are discovered in sibling folders suffixed with their suite IDs")
+    parser.add_argument("--goal-specialist-output", type=Path, default=None,
+                        help="Optional independently recorded Goal-trained RECAP evaluation directory; never overwrites transfer videos")
     parser.add_argument("--episodes", type=int, default=20, help="Expected paired episode count")
     parser.add_argument("--seed", type=int, default=None, help="Optional expected seed; inferred from manifest")
     parser.add_argument("--port", type=int, default=8765)
@@ -498,7 +509,8 @@ def main() -> None:
         parser.error("--episodes must be positive and --port must be 1..65535")
     if not HTML_FILE.is_file():
         parser.error(f"Missing web UI file {HTML_FILE}; pull latest repository branch")
-    collection = SuiteCollection(args.output, args.episodes, args.seed, args.sidecar, reference)
+    collection = SuiteCollection(args.output, args.episodes, args.seed, args.sidecar, reference,
+                                 goal_specialist_output=args.goal_specialist_output)
     # Loopback only; remote users must authenticate through SSH/VPN.
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     httpd.collection = collection
