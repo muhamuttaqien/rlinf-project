@@ -123,7 +123,8 @@ def _rollout(model, task, initial_state, episode_seed: int, max_steps: int) -> t
                     "states": state[None],
                     "task_descriptions": [str(task_description)],
                 }
-                actions, _ = model.predict_action_batch(batch, mode="eval")
+                with torch.inference_mode():
+                    actions, _ = model.predict_action_batch(batch, mode="eval")
                 action_plan.extend(actions[0, :5])
             action = np.asarray(action_plan.popleft(), dtype=np.float32).reshape(-1)
             if action.shape != (7,):
