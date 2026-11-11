@@ -96,6 +96,28 @@ class MultiSuiteTests(unittest.TestCase):
         self.assertEqual(c.episode("libero_goal", 1)["baseline"]["url"], "/media/libero_goal/baseline/1")
         self.assertTrue(c.summary("libero_10")["available"])
 
+    def test_comparison_color_tracks_success_rate(self):
+        html = (
+            Path(__file__).resolve().parents[2]
+            / "toolkits/recap_libero_web_dashboard.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "const recapUnderperforms=s.recap_successes<s.baseline_successes;",
+            html,
+        )
+        self.assertIn(
+            "$('recapRate').classList.toggle('negative',recapUnderperforms);",
+            html,
+        )
+        self.assertIn(
+            "$('deltaRate').classList.toggle('negative',delta<0);",
+            html,
+        )
+        self.assertIn(
+            ".metric.recap .metric-number.negative,.metric.delta .metric-number.negative{color:var(--red)}",
+            html,
+        )
+
     def test_http_suite_routes_and_ranges(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         server.collection = self.collection
