@@ -345,8 +345,39 @@ class NvidiaGPUManager(AcceleratorManager):
 
     @staticmethod
     def get_num_devices():
-        """Get the number of NVIDIA GPU devices on the node."""
-        return NvidiaGPUAcceleratorManager.get_current_node_num_accelerators()
+        """Detect NVIDIA GPUs; permit explicit fallback when Ray/NVML fails.
+
+        Some workstations can execute CUDA kernels and list GPUs with nvidia-smi,
+        yet Ray's NVML-backed detector reports zero. The opt-in fallback must
+        match the GPU count advertised when starting the Ray node (e.g.
+        `ray start --head --num-gpus=4`) and the GPUs accessible via PyTorch.
+        It is intentionally NOT used when Ray detects GPUs successfully.
+        """
+        detected = NvidiaGPUAcceleratorManager.get_current_node_num_accelerators()
+        if detected > 0:
+            return detected
+
+        override = os.environ.get("RLINF_NVIDIA_GPU_COUNT_OVERRIDE")
+        if override is None:
+            return detected
+        try:
+            count = int(override)
+        except ValueError as exc:
+            raise ValueError(
+                "RLINF_NVIDIA_GPU_COUNT_OVERRIDE must be a positive integer "
+                "matching the number of CUDA-accessible devices"
+            ) from exc
+        if count <= 0:
+            raise ValueError(
+                "RLINF_NVIDIA_GPU_COUNT_OVERRIDE must be a positive integer"
+            )
+        logger.warning(
+            "Ray NVIDIA detection reported 0 GPUs; using explicitly configured "
+            "RLINF_NVIDIA_GPU_COUNT_OVERRIDE=%d. Verify Ray cluster GPU resources "
+            "and CUDA visibility agree before launching GPU jobs.",
+            count,
+        )
+        return count
 
     @staticmethod
     def get_accelerator_type():
