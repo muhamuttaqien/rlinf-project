@@ -81,6 +81,21 @@ class MultiSuiteTests(unittest.TestCase):
         status = next(x for x in c.catalog()["suites"] if x["id"] == "libero_object")
         self.assertEqual(status["status"], "Invalid data")
 
+    def test_goal_specialist_override_is_isolated(self):
+        specialist = Path(self.temp.name) / "goal_specialist"
+        create_paired_run(specialist, "libero_goal")
+        c = SuiteCollection(
+            self.root, 2, 7, Path(self.temp.name) / "missing.parquet", None,
+            goal_specialist_output=specialist,
+        )
+        self.assertTrue(c.summary("libero_goal")["available"])
+        self.assertEqual(c.summary("libero_goal")["policy_variant"], "Goal Task 0 specialist")
+        self.assertIn("Goal-trained RECAP", next(
+            x["focus"] for x in c.catalog()["suites"] if x["id"] == "libero_goal"
+        ))
+        self.assertEqual(c.episode("libero_goal", 1)["baseline"]["url"], "/media/libero_goal/baseline/1")
+        self.assertTrue(c.summary("libero_10")["available"])
+
     def test_http_suite_routes_and_ranges(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         server.collection = self.collection
