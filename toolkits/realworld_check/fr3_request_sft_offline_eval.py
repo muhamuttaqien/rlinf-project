@@ -354,6 +354,19 @@ def evaluate(args) -> dict:
             if k % 20 == 0:
                 print(f"Evaluated {k}/{len(selected)} offline validation windows", flush=True)
     pred, target = np.stack(predicted), np.stack(targets)
+    if getattr(args, "shadow_dir", None) is not None:
+        from toolkits.realworld_check.fr3_request_shadow_recorder import ShadowRolloutRecorder
+        recorder = ShadowRolloutRecorder(
+            args.shadow_dir, checkpoint=ckpt, validation=args.validation
+        )
+        for (index, episode), p_chunk, y_chunk in zip(
+                selected, pred, target, strict=True):
+            recorder.record(
+                window_index=index, source_episode=episode,
+                prediction=p_chunk, reference=y_chunk,
+            )
+        shadow_manifest = recorder.close()
+        print(f"Offline shadow trace saved: {shadow_manifest}", flush=True)
     if temporal_enabled:
         from toolkits.realworld_check.fr3_request_temporal_consistency import summarize
         temporal = summarize(
@@ -466,6 +479,8 @@ def main() -> int:
     parser.add_argument("--activity-threshold", type=float, default=0.1)
     parser.add_argument("--event-tolerance", type=int, default=2,
                         help="Maximum nominal frame difference for event matching")
+    parser.add_argument("--shadow-dir", type=Path,
+                        help="Record OFFLINE shadow action chunks; no ROS or execution")
     parser.add_argument("--output", type=Path, help="New JSON result; never overwrite")
     args = parser.parse_args()
     if not 1 <= args.denoising_steps <= 20 or args.per_episode < 1:
@@ -476,6 +491,12 @@ def main() -> int:
         parser.error("--temporal-output requires --all-windows")
     if not 0 < args.activity_threshold < 1 or not 0 <= args.event_tolerance <= 10:
         parser.error("activity threshold must be in (0,1), tolerance in [0,10]")
+    if args.shadow_dir is not None and not args.chunk_only:
+        parser.error("--shadow-dir requires --chunk-only")
+    if args.reload_only and args.shadow_dir is not None:
+        parser.error("--shadow-dir requires actual offline inference")
+    if args.shadow_dir is not None and args.shadow_dir.expanduser().exists():
+        parser.error(f"Shadow directory exists: {args.shadow_dir}")
     if args.chunk_only and (args.all_windows or args.temporal_output or args.transition_output):
         parser.error("--chunk-only cannot be combined with all-window diagnostics")
     if args.output and args.output.expanduser().exists():
