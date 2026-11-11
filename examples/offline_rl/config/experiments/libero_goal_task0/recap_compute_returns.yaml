@@ -1,3 +1,4 @@
+# @package _global_
 # Task-specific LIBERO-Goal Task 0 RECAP: compute return/reward sidecars.
 # Launcher: bash examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh experiments/libero_goal_task0/recap_compute_returns
 data:
