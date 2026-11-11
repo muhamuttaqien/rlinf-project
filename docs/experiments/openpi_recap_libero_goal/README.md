@@ -31,6 +31,83 @@ The existing 20-episode Goal transfer gallery contains MP4s, wrist MP4s and
 sampled states, but **not all executed actions**. Do **not** use it as RECAP
 training data and do not relabel LIBERO-10 data as Goal Task 0.
 
+## GPU detection workaround: Ray/NVML shows 0, PyTorch shows 4
+
+On workstation `pca03395`, `nvidia-smi -L` and `torch.cuda.device_count()`
+reported four GPUs, but Ray's NVIDIA manager returned 0 because NVML
+initialization failed. RLinf's FSDP worker consequently received
+`accelerator_type=NO_ACCEL` and failed **before any training**.
+
+The branch provides an **opt-in, NVIDIA-only** workaround through
+`RLINF_NVIDIA_GPU_COUNT_OVERRIDE`. This changes only RLinf's own NVIDIA
+enumeration when Ray's lower-level detector returns 0. It does **not**
+change Ray's resource scheduler. Both layers must agree.
+
+1. Check that no other Ray cluster/job is active on the workstation.
+   Never `ray stop` a shared cluster without coordinating with its users.
+2. Confirm `nvidia-smi -L` and `torch.cuda.device_count()` each show 4.
+3. In the SAME shell, **before starting Ray**, run:
+
+```bash
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+export RLINF_NVIDIA_GPU_COUNT_OVERRIDE=4
+
+python -m unittest discover -s tests/unit_tests -p "test_recap_libero_ray_gpu_fallback.py" -v
+
+# ONLY if no Ray instance is already running:
+ray start --head --num-gpus=4
+
+ray status
+```
+
+4. Check that Ray advertises four GPU resources and that a Ray worker
+   inherited the explicit RLinf override:
+
+```bash
+python - <<'PY'
+import ray
+from rlinf.scheduler.hardware.accelerators.nvidia_gpu import NvidiaGPUManager
+from ray._private.accelerators.nvidia_gpu import NvidiaGPUAcceleratorManager
+
+ray.init(address="auto")
+print("Ray resources:", ray.cluster_resources())
+print("Native Ray NVML detector:", NvidiaGPUAcceleratorManager.get_current_node_num_accelerators())
+print("Driver RLinf detector:", NvidiaGPUManager.get_num_devices())
+
+@ray.remote
+def worker_probe():
+    import os
+    from rlinf.scheduler.hardware.accelerators.nvidia_gpu import NvidiaGPUManager
+    return {
+        "override": os.environ.get("RLINF_NVIDIA_GPU_COUNT_OVERRIDE"),
+        "rlinf_gpus": NvidiaGPUManager.get_num_devices(),
+    }
+
+print("Ray worker:", ray.get(worker_probe.remote()))
+ray.shutdown()
+PY
+```
+
+Expected: Ray resources include `'GPU': 4.0`, the RLinf driver detector
+reports 4, and the Ray worker reports `override=4` and `rlinf_gpus=4`.
+The *native* Ray NVML detector can still report 0: that's why the explicit
+workaround exists. Do not proceed if these checks disagree.
+
+5. In the same shell, launch SIM-4:
+
+```bash
+bash examples/offline_rl/advantage_labeling/recap/run_value_sft.sh \
+  experiments/libero_goal_task0/recap_value_model_sft
+```
+
+The configured `actor,env,rollout: "0"` uses GPU index 0, **not all four
+GPUs**, even though the cluster should see four. Confirm the RLinf startup
+log reports accelerator hardware and a GPU-assigned placement before
+trusting the run.
+
+If NVML works again, simply `unset RLINF_NVIDIA_GPU_COUNT_OVERRIDE` and
+start Ray normally (with GPU resources verified).
+
 ## Run the pipeline
 
 From a clean `branch-openpi-recap-sim` checkout:
