@@ -244,10 +244,11 @@ def run(args):
                     decoded = np.asarray(
                         inverse_actions({"actions": generated.detach().cpu().float().numpy()[0]})["actions"]
                     )[:, :7]
-                actions = validate_prediction(decoded)
-                # Reject invalid predictions BEFORE publishing to ROS. No clipping.
+                # Reject nonfinite or out-of-domain predictions before ROS.
+                # Save unmodified prediction text even for NaN/Inf, with no clipping.
                 from toolkits.realworld_check.fr3_pi05_ros_executor import validate_chunk
                 try:
+                    actions = validate_prediction(decoded)
                     stamp = time.monotonic_ns()
                     validate_chunk(actions.tolist(), observation_ns=stamp,
                                    issued_ns=stamp, now_ns=stamp)
@@ -255,7 +256,7 @@ def run(args):
                     stop_reason = "invalid_policy_action"
                     (episode_dir/"invalid_policy_action.json").write_text(
                         json.dumps({"chunk":chunk_i, "reason":str(exc),
-                                    "raw_action_7d":actions.tolist(),
+                                    "raw_action_7d_repr":repr(decoded.tolist()),
                                     "policy_commands_sent_before_fault":issued},
                                    indent=2, allow_nan=False) + "\n",
                         encoding="utf-8")
