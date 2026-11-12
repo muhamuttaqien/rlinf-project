@@ -191,7 +191,7 @@ def run(args):
         # is deciding whether to start. Launch it only after confirmation.
         executor = Executor(ros_python=args.ros_python)
         stack.callback(executor.close)
-        executor.wait("ready", timeout=8)
+        executor.wait("ready", timeout=13)
         executor.send("begin_episode")
         executor.wait("episode_started")
         episode_dir.mkdir(parents=True, exist_ok=True)
