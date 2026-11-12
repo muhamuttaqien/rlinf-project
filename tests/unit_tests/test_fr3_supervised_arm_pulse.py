@@ -11,7 +11,7 @@ from toolkits.realworld_check.fr3_supervised_arm_pulse import (
 
 
 def endpoint(name):
-    return SimpleNamespace(node_name=name)
+    return SimpleNamespace(node_name=name, topic_type="geometry_msgs/msg/Twist")
 
 
 def test_preflight_requires_controller_and_no_spacemouse_writer():
@@ -53,3 +53,19 @@ def test_pulse_bounds_reject_bad_inputs(axis_value, pulse_seconds):
 
 def test_default_pulse_within_review_bounds():
     validate_pulse_request(0.03, 0.1)
+
+
+def test_unknown_nuc_subscriber_name_requires_twist_type():
+    qualify_graph([], [endpoint("_NODE_NAME_UNKNOWN_")])
+    with pytest.raises(Blocked, match="Twist type"):
+        qualify_graph([], [SimpleNamespace(
+            node_name="_NODE_NAME_UNKNOWN_", topic_type=None)])
+    with pytest.raises(Blocked, match="Unexpected motion subscriber type"):
+        qualify_graph([], [SimpleNamespace(
+            node_name="_NODE_NAME_UNKNOWN_", topic_type="std_msgs/msg/Float32")])
+
+
+def test_rejects_multiple_subscribers_even_when_one_is_controller():
+    with pytest.raises(Blocked, match="Expected one FR3 arm subscriber"):
+        qualify_graph([], [endpoint("joint_impedance_ik_controller"),
+                           endpoint("_NODE_NAME_UNKNOWN_")])
