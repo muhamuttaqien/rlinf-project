@@ -237,9 +237,9 @@ def run(args):
                 # No model request is published until the Jazzy executor
                 # independently validates the latest observation and graph.
                 issued_ns = time.monotonic_ns()
+                before = len(executor.events)
                 executor.send("chunk", values=actions.tolist(),
                               observation_ns=observation_ns, issued_ns=issued_ns)
-                before = len(executor.events)
                 executor.wait("chunk_done", timeout=4)
                 new_events = executor.events[before:]
                 action_events = [e for e in new_events if e.get("event")=="action"]
@@ -250,6 +250,7 @@ def run(args):
                     states.write(json.dumps({
                         "monotonic_ns":e["monotonic_ns"], "tcp_xyz":e["tcp_xyz"],
                         "observation_file":file, "chunk":chunk_i,
+                        "observed_state19": raw["observation/state"].tolist(),
                     },allow_nan=False)+"\n")
                 commands.flush()
                 states.flush()
