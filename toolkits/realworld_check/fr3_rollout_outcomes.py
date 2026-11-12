@@ -60,14 +60,21 @@ def progress(root: Path) -> dict:
     ids = [item["episode_id"] for item in episodes]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate episode IDs")
+    # Never overwrite a partially recorded physical episode after a fault.
+    occupied_ids = {
+        i for i in range(1, TARGET + 1)
+        if (root / f"episode_{i:02d}").exists()
+        and any((root / f"episode_{i:02d}").iterdir())
+    }
     return {
         "real_rollouts": sum(x["outcome"] in ("success", "failure") for x in episodes),
         "recorded_attempts": len(episodes),
+        "incomplete_attempts": len(occupied_ids - set(ids)),
         "target": TARGET,
         "successes": sum(x["outcome"] == "success" for x in episodes),
         "failures": sum(x["outcome"] == "failure" for x in episodes),
         "aborted": sum(x["outcome"] == "aborted" for x in episodes),
-        "next_episode": next((i for i in range(1, TARGET + 1) if i not in ids), None),
+        "next_episode": next((i for i in range(1, TARGET + 1) if i not in occupied_ids), None),
         "outcomes_complete": sum(x["outcome"] in ("success", "failure") for x in episodes) == TARGET,
         "recap_dataset_ready": False,  # Export and real transition validation still required.
     }
