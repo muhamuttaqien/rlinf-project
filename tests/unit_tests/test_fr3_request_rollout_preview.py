@@ -16,15 +16,15 @@ def test_gripper_binary_preview_and_ambiguous_hold():
     assert preview_request([0, 0, 0, 0, 0, 0, 0.5])["gripper_intent"] == "hold_ambiguous_gripper_preview"
 
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("action_values", [
     [1.001, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 1.2],
     [0, 0, 0, 0, 0, 0, float("nan")],
     [0, 0, 0],
 ])
-def test_rejects_bad_requests(request):
+def test_rejects_bad_requests(action_values):
     with pytest.raises(ValueError):
-        preview_request(request)
+        preview_request(action_values)
 
 
 def test_live_shadow_summary_never_approves_physical_execution(tmp_path):
