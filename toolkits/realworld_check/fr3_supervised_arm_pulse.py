@@ -159,7 +159,30 @@ def run(*, execute: bool, request: float, duration: float) -> int:
             raise Blocked("Interactive operator confirmation required") from exc
         if answer != "MOVE":
             raise Blocked("Operator did not authorize pulse")
-        check(own=False)
+        # input() blocks the single-threaded ROS executor, so the pose
+        # received before the operator prompt is necessarily stale.
+        # Resume spinning, require a NEW measured pose after confirmation,
+        # and keep checking for any competing command publisher.
+        confirmation_at = time.monotonic()
+        refresh_deadline = confirmation_at + 3.0
+        while time.monotonic() < refresh_deadline:
+            rclpy.spin_once(node, timeout_sec=0.05)
+            qualify_graph(
+                node.get_publishers_info_by_topic(MOTION_TOPIC),
+                node.get_subscriptions_info_by_topic(MOTION_TOPIC),
+                own_publisher=False,
+            )
+            if pose_received is not None and pose_received > confirmation_at:
+                qualify_pose(
+                    position, receipt_monotonic=pose_received,
+                    now=time.monotonic(),
+                )
+                break
+        else:
+            raise Blocked(
+                "No fresh FR3 pose received after operator confirmation; "
+                "no motion command published"
+            )
         initial = tuple(position)
         publisher = node.create_publisher(Twist, MOTION_TOPIC, 10)
         # Allow discovery; recheck because a competing publisher must abort.
