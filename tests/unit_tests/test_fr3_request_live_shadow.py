@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from toolkits.realworld_check.fr3_request_live_shadow import (
-    check_decoded_requests, make_live_policy_sample,
+    validate_prediction, make_live_input,
 )
 
 
@@ -29,7 +29,7 @@ def sample():
 
 
 def test_live_request_sample_matches_sft_repacks():
-    obs = make_live_policy_sample(sample(), "Insert the peg into the hole.")
+    obs = make_live_input(sample(), prompt="Insert the peg into the hole.")
     assert set(obs) == {
         "observation/image", "observation/wrist_image",
         "observation/state", "prompt",
@@ -43,25 +43,25 @@ def test_live_request_sample_matches_sft_repacks():
 
 def test_bad_live_sample_is_rejected():
     with pytest.raises(ValueError):
-        make_live_policy_sample(sample(), "")
+        make_live_input(sample(), prompt="")
     damaged = sample()
     damaged["state"]["tcp_pose"][3:] = 0
     with pytest.raises(ValueError, match="quaternion"):
-        make_live_policy_sample(damaged, "peg")
+        make_live_input(damaged, prompt="peg")
     damaged = sample()
     damaged["policy_images_rgb"].pop("wrist")
-    with pytest.raises(ValueError, match="Two live RGB"):
-        make_live_policy_sample(damaged, "peg")
+    with pytest.raises(ValueError, match="Unexpected live input roles/state"):
+        make_live_input(damaged, prompt="peg")
 
 
 def test_shadow_prediction_is_never_an_executable_action():
     raw = np.zeros((10, 7), dtype=np.float32)
-    np.testing.assert_array_equal(check_decoded_requests(raw), raw)
+    np.testing.assert_array_equal(validate_prediction(raw), raw)
     with pytest.raises(ValueError):
-        check_decoded_requests(np.zeros((9, 7)))
+        validate_prediction(np.zeros((9, 7)))
     raw[0, 0] = np.nan
     with pytest.raises(ValueError):
-        check_decoded_requests(raw)
+        validate_prediction(raw)
 
 
 def test_shadow_runner_has_no_command_capability():
