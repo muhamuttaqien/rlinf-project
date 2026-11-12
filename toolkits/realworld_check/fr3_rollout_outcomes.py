@@ -67,7 +67,8 @@ def progress(root: Path) -> dict:
         "failures": sum(x["outcome"] == "failure" for x in episodes),
         "aborted": sum(x["outcome"] == "aborted" for x in episodes),
         "next_episode": next((i for i in range(1, TARGET + 1) if i not in ids), None),
-        "recap_dataset_ready": len(episodes) == TARGET,
+        "outcomes_complete": len(episodes) == TARGET,
+        "recap_dataset_ready": False,  # Export and real transition validation still required.
     }
 
 
