@@ -80,6 +80,41 @@ class GoalTask0Tests(unittest.TestCase):
         self.assertEqual((sft, train, evaluation), tuple(name for name, _ in SPLITS.values()))
         self.assertEqual(features((8, 8, 3))["actions"]["shape"], (7,))
 
+    def test_mixed_value_critic_configs_have_isolated_train_only_stats(self):
+        # The completed 8k success-only critic remains a separate baseline.
+        with (CONFIG / "recap_value_model_sft.yaml").open() as stream:
+            legacy = yaml.safe_load(stream)
+        self.assertTrue(legacy["data"]["train_data_paths"][0]["dataset_path"].endswith(
+            "libero_goal_task0_sft"
+        ))
+        for variant, expected_steps in (("pilot", 1000), ("full", 8000)):
+            with self.subTest(variant=variant):
+                with (CONFIG / f"recap_value_model_mixed_{variant}.yaml").open() as stream:
+                    cfg = yaml.safe_load(stream)
+                self.assertEqual(cfg["data"]["tag"], TAG)
+                train_paths = cfg["data"]["train_data_paths"]
+                self.assertEqual(len(train_paths), 1)
+                self.assertEqual(train_paths[0]["type"], "rollout")
+                self.assertTrue(train_paths[0]["dataset_path"].endswith(
+                    "libero_goal_task0_train"
+                ))
+                self.assertEqual(len(cfg["data"]["eval_data_paths"]), 1)
+                self.assertTrue(cfg["data"]["eval_data_paths"][0]["dataset_path"].endswith(
+                    "libero_goal_task0_eval"
+                ))
+                # Worker derives global return_min/max from TRAIN stats.json.
+                self.assertIsNone(cfg["data"].get("return_min"))
+                self.assertIsNone(cfg["data"].get("return_max"))
+                self.assertTrue(cfg["data"]["normalize_to_minus_one_zero"])
+                self.assertEqual(cfg["actor"]["model"]["action_dim"], 7)
+                self.assertEqual(cfg["actor"]["micro_batch_size"], 32)
+                self.assertEqual(cfg["actor"]["global_batch_size"], 256)
+                self.assertEqual(cfg["actor"]["optim"]["total_training_steps"], 8000)
+                self.assertEqual(cfg["actor"]["optim"]["lr_warmup_steps"], 500)
+                self.assertEqual(cfg["runner"]["max_steps"], expected_steps)
+                self.assertEqual(cfg["runner"]["save_interval"], 500)
+                self.assertEqual(cfg["cluster"]["component_placement"]["actor,env,rollout"], "2")
+
     def test_hydra_configs_use_root_package(self):
         # YAML parsing alone does not detect Hydra's implicit package prefix:
         # nested 'experiments/libero_goal_task0' would hide cfg.data.
@@ -89,6 +124,8 @@ class GoalTask0Tests(unittest.TestCase):
                 names = (
                     "recap_compute_returns",
                     "recap_value_model_sft",
+                    "recap_value_model_mixed_pilot",
+                    "recap_value_model_mixed_full",
                     "recap_compute_advantages",
                     "cfg_rl_openpi",
                 )
@@ -99,7 +136,12 @@ class GoalTask0Tests(unittest.TestCase):
                         self.assertNotIn("experiments", cfg)
                         if name == "recap_compute_advantages":
                             self.assertIn("advantage", cfg)
-                        if name in ("recap_value_model_sft", "cfg_rl_openpi"):
+                        if name in (
+                            "recap_value_model_sft",
+                            "recap_value_model_mixed_pilot",
+                            "recap_value_model_mixed_full",
+                            "cfg_rl_openpi",
+                        ):
                             self.assertIn("actor", cfg)
 
     def test_preflight_blocks_missing_goal_datasets(self):
