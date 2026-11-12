@@ -64,3 +64,27 @@ def test_incomplete_episode_preserved_and_skipped(tmp_path):
     assert status["incomplete_attempts"] == 1
     assert status["real_rollouts"] == 0
     assert status["next_episode"] == 2
+
+
+def test_aborted_attempts_do_not_exhaust_target_20(tmp_path):
+    for i in range(1, 21):
+        folder = tmp_path / f"episode_{i:02d}"
+        folder.mkdir()
+        item = sample(folder, outcome="aborted")
+        item["episode_id"] = i
+        (folder / "outcome.json").write_text(json.dumps(item))
+    status = progress(tmp_path)
+    assert status["recorded_attempts"] == 20
+    assert status["real_rollouts"] == 0
+    assert status["next_episode"] == 21
+
+
+def test_100_plus_attempt_id_is_discoverable(tmp_path):
+    folder = tmp_path / "episode_101"
+    folder.mkdir()
+    item = sample(folder, outcome="aborted")
+    item["episode_id"] = 101
+    (folder / "outcome.json").write_text(json.dumps(item))
+    result = progress(tmp_path)
+    assert result["recorded_attempts"] == 1
+    assert result["next_episode"] == 1
