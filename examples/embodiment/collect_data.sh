@@ -3,6 +3,7 @@ set -eo pipefail
 
 export EMBODIED_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_PATH="$(dirname "$(dirname "$EMBODIED_PATH")")"
+source "${REPO_PATH}/scripts/rlinf_storage_env.sh" || exit 1
 export PYTHONPATH="${REPO_PATH}${PYTHONPATH:+:${PYTHONPATH}}"
 export HYDRA_FULL_ERROR=1
 
@@ -11,7 +12,7 @@ if [ "$#" -gt 0 ]; then
     shift
 fi
 
-LOG_DIR="${RLINF_LOG_DIR:-${REPO_PATH}/logs/$(date +'%Y%m%d-%H%M%S')-${CONFIG_NAME}}"
+LOG_DIR="${RLINF_LOG_DIR:-${RLINF_DATA_ROOT}/logs/$(date +'%Y%m%d-%H%M%S')-${CONFIG_NAME}}"
 mkdir -p "$LOG_DIR"
 CMD=(python "${EMBODIED_PATH}/collect_real_data.py"
     --config-path "${EMBODIED_PATH}/config" --config-name "$CONFIG_NAME"

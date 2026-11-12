@@ -1,0 +1,57 @@
+[
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/src/franka_arm_controllers/CMakeLists.txt",
+    "before_sha256": "a6edb45214494d84f03264efd1f4485ee81aee7ba1bc28419997d0fc6530e351",
+    "after_sha256": "36626ba83ce79648ba958cf46f14bf38b8ef362804856c97942e4b1842f8b2fb"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/src/franka_arm_controllers/include/franka_arm_controllers/joint_impedance_ik_controller.hpp",
+    "before_sha256": "2d64f0da45272175fc13fa879590e58c3f4aa8c216db916811f08cc604bd793c",
+    "after_sha256": "033cb6f2ee6eda228c1183c337964ffa7d051b6000431bcdf6c788a509c257cb"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/src/franka_arm_controllers/package.xml",
+    "before_sha256": "f6354091d7ab5b2d4f7dd857ec88c8de6af82426173d65c57cdc5f3503a192c4",
+    "after_sha256": "6aa8d5bf9ffb4de36aec9f77d2dbb5b4f7594c870cee4bef2350c48da662cbf0"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp",
+    "before_sha256": "75c0ea4fe5c1569d24c7a544268d90f5a260147df928d031f0129d6d263669a5",
+    "after_sha256": "8d6ebf4ce420586dca3fe39a0befbd0d7bd61a4230153a2c7a5637cdd8bbdc47"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_controller_ws/src/franka_arm_controllers/test/joint_impedance_ik_controller_test.cpp",
+    "before_sha256": null,
+    "after_sha256": "34dc3006c68653899b6ac7152a365f893bb8f32e20aabf185bd654d4fc3c89b3"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/src/franka_ros2/franka_hardware/include/franka_hardware/franka_hardware_interface.hpp",
+    "before_sha256": "9e1decf8acfc342c9a0a9d6bd6d4f63d4ecfd69fcb1ea5fd4692722dd1430eb6",
+    "after_sha256": "5ae126895385098033ed66f60c5d19d642ce7b5b409f339f54198663189e831b"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/src/franka_ros2/franka_hardware/src/franka_hardware_interface.cpp",
+    "before_sha256": "5ca87ea4b4301e9ba1d38312a3e0e750ca72eb8da66d4eb29f73ccd96e0cac08",
+    "after_sha256": "29b0cdb7d8a32272785f99cd28f5fe5613ee7ffc1b53ba85b94d6d5e28e17518"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/src/franka_ros2/franka_hardware/src/robot.cpp",
+    "before_sha256": "801b39cd086adc78a93c679709af516d62b83c0077e923b10eff958e4e604a7b",
+    "after_sha256": "1fa66d69ecef1f0472afed65d6e7627f4b777466fb9a7645445f3179ade6b864"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/src/franka_ros2/franka_hardware/test/franka_hardware_interface_test.cpp",
+    "before_sha256": "f0daffedebb2847bd5e1e74b0a56f05bc341b3f3a541348ef9d9cab2612bd6e0",
+    "after_sha256": "9d80fadbdf26c088bb72afc5c5b9c039a736a69105606152327f74b5f445e889"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/src/franka_ros2/franka_hardware/test/franka_robot_test.cpp",
+    "before_sha256": "676c6ccd15280c6be6ec0a5b5e140e15c79057ede9f3adc2840d594767caf01d",
+    "after_sha256": "30f881288fce762dbd8b8e44f1c3225127bf8974df86ec9e439af347c6a459db"
+  },
+  {
+    "path": "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/src/franka_ros2/franka_hardware/test/franka_robot_test.hpp",
+    "before_sha256": "a1ab2efc6570973408b27e4e2456110e4096f9d2d9d24d2b3ebfe6e8ec2b123d",
+    "after_sha256": "2c16393f170b0890bd57898a6e0a523b2492b51eff65545aab0734e17c8f6997"
+  }
+]

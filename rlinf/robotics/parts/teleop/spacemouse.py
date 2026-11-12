@@ -34,6 +34,7 @@ class SpaceMouse(TeleopDevice):
 
     Args:
         device_index: Which HID device to open when several are attached.
+        device_path: Explicit HID path, selected instead of device_index.
         dexterous_hand: Whether the robot wears a hand rather than a gripper,
             which swaps which button the info reports as each side.
     """
@@ -48,8 +49,16 @@ class SpaceMouse(TeleopDevice):
     #: gripper_open is read when offered, but a default covers its absence.
     NEEDS = ()
 
-    def __init__(self, device_index: int = 0, dexterous_hand: bool = False) -> None:
+    def __init__(
+        self,
+        device_index: int = 0,
+        dexterous_hand: bool = False,
+        device_path: Optional[str] = None,
+    ) -> None:
+        if device_path is not None and device_index != 0:
+            raise ValueError("Select either device_path or a nonzero device_index.")
         self._device_index = device_index
+        self._device_path = device_path
         self.dexterous_hand = dexterous_hand
         self._grip: Optional[np.ndarray] = None
         self.left = False
@@ -65,6 +74,7 @@ class SpaceMouse(TeleopDevice):
         return TeleopEntry(
             cls(
                 device_index=int(options.get("device_index", 0)),
+                device_path=options.get("device_path"),
                 dexterous_hand="hand" in facts.kinds,
             ),
             drives=options.get("drives"),
@@ -73,7 +83,9 @@ class SpaceMouse(TeleopDevice):
     # Hardware.
 
     def _open(self) -> Any:
-        return SpaceMouseExpert(device_index=self._device_index)
+        return SpaceMouseExpert(
+            device_index=self._device_index, device_path=self._device_path
+        )
 
     @property
     def observation_features(self) -> Features:
@@ -139,10 +151,16 @@ class SpaceMouse(TeleopDevice):
 class SpaceMouseExpert:
     """Read SpaceMouse motion and button state in a background thread."""
 
-    def __init__(self, device_index: int = 0) -> None:
+    def __init__(
+        self, device_index: int = 0, device_path: Optional[str] = None
+    ) -> None:
         import pyspacemouse
 
-        self._device = pyspacemouse.open(device_index=device_index)
+        self._device = (
+            pyspacemouse.open(device_index=device_index)
+            if device_path is None
+            else pyspacemouse.open_by_path(device_path)
+        )
 
         self.state_lock = threading.Lock()
         self.latest_data: dict = {"action": np.zeros(6), "buttons": [0, 0]}

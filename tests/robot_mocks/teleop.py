@@ -69,6 +69,13 @@ def spacemouse() -> types.ModuleType:
         return device
 
     fake.open = _open
+    fake.opened_paths = []
+
+    def _open_by_path(path):
+        fake.opened_paths.append(path)
+        return _open()
+
+    fake.open_by_path = _open_by_path
     return fake
 
 

@@ -6,11 +6,10 @@
 
 export SCRIPT_DIR="$( cd "$(dirname "${BASH_SOURCE[0]}")" && pwd )"
 export REPO_PATH="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+source "${REPO_PATH}/scripts/rlinf_storage_env.sh" || exit 1
 export OFFLINE_RL_CONFIG="${REPO_PATH}/examples/offline_rl/config"
 export EMBODIED_PATH="${SCRIPT_DIR}"
 export SRC_FILE="${SCRIPT_DIR}/train_value.py"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HOME}/.cache/huggingface/datasets}"
-export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HOME}/.cache/transformers}"
 
 export MUJOCO_GL="${MUJOCO_GL:-egl}"
 export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"
@@ -33,7 +32,7 @@ shift 1 2>/dev/null || true
 EXTRA_ARGS="$@"
 
 echo "Using Python at $(which python)"
-LOG_DIR="${REPO_PATH}/logs/value_sft/${CONFIG_NAME}-$(date +'%Y%m%d-%H:%M:%S')"
+LOG_DIR="${RLINF_DATA_ROOT}/logs/value_sft/${CONFIG_NAME}-$(date +'%Y%m%d-%H:%M:%S')"
 MEGA_LOG_FILE="${LOG_DIR}/run_value_sft.log"
 mkdir -p "${LOG_DIR}"
 HYDRA_ARGS=("runner.logger.log_path=${LOG_DIR}")

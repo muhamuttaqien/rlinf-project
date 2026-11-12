@@ -75,10 +75,76 @@ def build_official_openpi_sft_dataloader(
     )
     _validate_openpi_model_shape(model_cfg, config)
 
-    data_loader = openpi_data_loader.create_data_loader(
-        config, framework="pytorch", shuffle=not eval_dataset
-    )
+    if model_cfg.openpi.config_name == "pi05_fr3_peg_request_offline":
+        if not norm_stats_path_from_data_kwargs(data_kwargs):
+            raise ValueError("FR3 request loader needs explicit train-only stats")
+        data_loader = _create_strict_request_loader(openpi_data_loader, config, eval_dataset=eval_dataset)
+    else:
+        data_loader = openpi_data_loader.create_data_loader(
+            config, framework="pytorch", shuffle=not eval_dataset
+        )
     return data_loader, data_loader.data_config()
+
+
+def valid_horizon_starts(starts: list[int], ends: list[int],
+                         horizon: int, length: int) -> list[int]:
+    """Only starts whose entire horizon fits within the same episode."""
+    if horizon < 1 or not starts or len(starts) != len(ends):
+        raise ValueError("Missing episode boundaries or invalid horizon")
+    indices = []
+    previous_end = 0
+    for first, stop in zip(starts, ends, strict=True):
+        if not (type(first) is int and type(stop) is int
+                and first == previous_end and first < stop <= length):
+            raise ValueError("Invalid episode boundaries")
+        indices.extend(range(first, max(first, stop - horizon + 1)))
+        previous_end = stop
+    if previous_end != length or not indices:
+        raise ValueError("No valid full-horizon samples")
+    return indices
+
+
+def _create_strict_request_loader(openpi_data_loader: Any, config: Any,
+                                  *, eval_dataset: bool) -> Any:
+    """Use official OpenPI transforms with only complete action windows."""
+    import torch
+    from rlinf.data.storage.lerobot.compat import episode_boundaries
+
+    data_cfg = config.data.create(config.assets_dirs, config.model)
+    if data_cfg.norm_stats is None:
+        raise ValueError("Request normalization missing")
+    dataset = openpi_data_loader.create_torch_dataset(
+        data_cfg, config.model.action_horizon, config.model
+    )
+    raw = dataset
+    for _ in range(5):
+        nested = getattr(raw, "_dataset", None)
+        if nested is None:
+            break
+        raw = nested
+    starts, ends = episode_boundaries(raw)
+    indices = valid_horizon_starts(
+        starts, ends, config.model.action_horizon, len(raw)
+    )
+    subset = torch.utils.data.Subset(dataset, indices)
+    transformed = openpi_data_loader.transform_dataset(subset, data_cfg)
+    sampler = None
+    batch_size = config.batch_size
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            transformed, shuffle=not eval_dataset, drop_last=True
+        )
+        batch_size //= torch.distributed.get_world_size()
+    loader = openpi_data_loader.TorchDataLoader(
+        transformed, local_batch_size=batch_size,
+        shuffle=sampler is None and not eval_dataset,
+        sampler=sampler, num_workers=config.num_workers, seed=config.seed,
+        framework="pytorch",
+    )
+    result = openpi_data_loader.DataLoaderImpl(data_cfg, loader)
+    result.strict_valid_starts_count = len(indices)
+    result.strict_total_frames = len(raw)
+    return result
 
 
 def get_official_openpi_sft_num_batches(data_loader: Any) -> int:

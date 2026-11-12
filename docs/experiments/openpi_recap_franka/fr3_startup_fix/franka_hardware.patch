@@ -1,0 +1,566 @@
+--- a/franka_hardware/include/franka_hardware/franka_hardware_interface.hpp
++++ b/franka_hardware/include/franka_hardware/franka_hardware_interface.hpp
+@@ -14,6 +14,7 @@
+ 
+ #pragma once
+ 
++#include <atomic>
+ #include <map>
+ #include <memory>
+ #include <set>
+@@ -86,6 +87,8 @@
+   bool initial_robot_state_update_{true};
+   double robot_time_state_{0.0};
+ 
++  // Latch I/O failure until the hardware component is recreated after operator review.
++  std::atomic<bool> io_error_{false};
+   std::shared_ptr<Robot> robot_;
+   std::shared_ptr<FrankaParamServiceServer> service_node_;
+   std::shared_ptr<ActionServer> action_node_;
+--- a/franka_hardware/src/franka_hardware_interface.cpp
++++ b/franka_hardware/src/franka_hardware_interface.cpp
+@@ -164,8 +164,9 @@
+ 
+ CallbackReturn FrankaHardwareInterface::on_activate(
+     const rclcpp_lifecycle::State& /*previous_state*/) {
+-  read(rclcpp::Time(0),
+-       rclcpp::Duration(0, 0));  // makes sure that the robot state is properly initialized.
++  if (read(rclcpp::Time(0), rclcpp::Duration(0, 0)) != hardware_interface::return_type::OK) {
++    return CallbackReturn::ERROR;
++  }
+   RCLCPP_INFO(getLogger(), "Started");
+   return CallbackReturn::SUCCESS;
+ }
+@@ -204,20 +205,31 @@
+ 
+ hardware_interface::return_type FrankaHardwareInterface::read(const rclcpp::Time& /*time*/,
+                                                               const rclcpp::Duration& /*period*/) {
+-  if (hw_franka_model_ptr_ == nullptr) {
+-    hw_franka_model_ptr_ = robot_->getModel();
+-  }
+-  hw_franka_robot_state_ = robot_->readOnce();
+-  robot_time_state_ = hw_franka_robot_state_.time.toSec();
+-  initializePositionCommands(hw_franka_robot_state_);
+-
+-  hw_positions_ = hw_franka_robot_state_.q;
+-  hw_velocities_ = hw_franka_robot_state_.dq;
+-  hw_efforts_ = hw_franka_robot_state_.tau_J;
+-  elbow_state_ = hw_franka_robot_state_.elbow;
+-  cartesian_pose_state_ = hw_franka_robot_state_.O_T_EE;
+-
+-  return hardware_interface::return_type::OK;
++  if (io_error_.load()) {
++    return hardware_interface::return_type::ERROR;
++  }
++  try {
++    if (hw_franka_model_ptr_ == nullptr) {
++      hw_franka_model_ptr_ = robot_->getModel();
++    }
++    hw_franka_robot_state_ = robot_->readOnce();
++    robot_time_state_ = hw_franka_robot_state_.time.toSec();
++    initializePositionCommands(hw_franka_robot_state_);
++
++    hw_positions_ = hw_franka_robot_state_.q;
++    hw_velocities_ = hw_franka_robot_state_.dq;
++    hw_efforts_ = hw_franka_robot_state_.tau_J;
++    elbow_state_ = hw_franka_robot_state_.elbow;
++    cartesian_pose_state_ = hw_franka_robot_state_.O_T_EE;
++
++    return hardware_interface::return_type::OK;
++  } catch (const franka::Exception& error) {
++    io_error_.store(true);
++    RCLCPP_ERROR(getLogger(),
++                 "Franka read failed; further I/O is blocked pending operator review: %s",
++                 error.what());
++    return hardware_interface::return_type::ERROR;
++  }
+ }
+ 
+ template <typename CommandType>
+@@ -228,37 +240,48 @@
+ 
+ hardware_interface::return_type FrankaHardwareInterface::write(const rclcpp::Time& /*time*/,
+                                                                const rclcpp::Duration& /*period*/) {
+-  if (hasInfinite(hw_position_commands_) || hasInfinite(hw_effort_commands_) ||
+-      hasInfinite(hw_velocity_commands_) || hasInfinite(hw_cartesian_velocities_) ||
+-      hasInfinite(hw_elbow_command_) || hasInfinite(hw_cartesian_pose_commands_)) {
+-    return hardware_interface::return_type::ERROR;
+-  }
+-
+-  if (velocity_joint_interface_running_) {
+-    robot_->writeOnce(hw_velocity_commands_);
+-  } else if (effort_interface_running_) {
+-    robot_->writeOnce(hw_effort_commands_);
+-  } else if (position_joint_interface_running_ && !first_position_update_) {
+-    robot_->writeOnce(hw_position_commands_);
+-  } else if (velocity_cartesian_interface_running_ && elbow_command_interface_running_ &&
+-             !first_elbow_update_) {
+-    // Wait until the first read pass after robot controller is activated to write the elbow
+-    // command to the robot
+-    robot_->writeOnce(hw_cartesian_velocities_, hw_elbow_command_);
+-  } else if (pose_cartesian_interface_running_ && elbow_command_interface_running_ &&
+-             !first_cartesian_pose_update_ && !first_elbow_update_) {
+-    // Wait until the first read pass after robot controller is activated to write the elbow
+-    // command to the robot
+-    robot_->writeOnce(hw_cartesian_pose_commands_, hw_elbow_command_);
+-  } else if (pose_cartesian_interface_running_ && !first_cartesian_pose_update_) {
+-    // Wait until the first read pass after robot controller is activated to write the cartesian
+-    // pose
+-    robot_->writeOnce(hw_cartesian_pose_commands_);
+-  } else if (velocity_cartesian_interface_running_ && !elbow_command_interface_running_) {
+-    robot_->writeOnce(hw_cartesian_velocities_);
+-  }
+-
+-  return hardware_interface::return_type::OK;
++  if (io_error_.load()) {
++    return hardware_interface::return_type::ERROR;
++  }
++  try {
++    if (hasInfinite(hw_position_commands_) || hasInfinite(hw_effort_commands_) ||
++        hasInfinite(hw_velocity_commands_) || hasInfinite(hw_cartesian_velocities_) ||
++        hasInfinite(hw_elbow_command_) || hasInfinite(hw_cartesian_pose_commands_)) {
++      return hardware_interface::return_type::ERROR;
++    }
++
++    if (velocity_joint_interface_running_) {
++      robot_->writeOnce(hw_velocity_commands_);
++    } else if (effort_interface_running_) {
++      robot_->writeOnce(hw_effort_commands_);
++    } else if (position_joint_interface_running_ && !first_position_update_) {
++      robot_->writeOnce(hw_position_commands_);
++    } else if (velocity_cartesian_interface_running_ && elbow_command_interface_running_ &&
++               !first_elbow_update_) {
++      // Wait until the first read pass after robot controller is activated to write the elbow
++      // command to the robot
++      robot_->writeOnce(hw_cartesian_velocities_, hw_elbow_command_);
++    } else if (pose_cartesian_interface_running_ && elbow_command_interface_running_ &&
++               !first_cartesian_pose_update_ && !first_elbow_update_) {
++      // Wait until the first read pass after robot controller is activated to write the elbow
++      // command to the robot
++      robot_->writeOnce(hw_cartesian_pose_commands_, hw_elbow_command_);
++    } else if (pose_cartesian_interface_running_ && !first_cartesian_pose_update_) {
++      // Wait until the first read pass after robot controller is activated to write the cartesian
++      // pose
++      robot_->writeOnce(hw_cartesian_pose_commands_);
++    } else if (velocity_cartesian_interface_running_ && !elbow_command_interface_running_) {
++      robot_->writeOnce(hw_cartesian_velocities_);
++    }
++
++    return hardware_interface::return_type::OK;
++  } catch (const franka::Exception& error) {
++    io_error_.store(true);
++    RCLCPP_ERROR(getLogger(),
++                 "Franka write failed; further I/O is blocked pending operator review: %s",
++                 error.what());
++    return hardware_interface::return_type::ERROR;
++  }
+ }
+ 
+ CallbackReturn FrankaHardwareInterface::on_init(const hardware_interface::HardwareInfo& info) {
+@@ -351,84 +374,96 @@
+ hardware_interface::return_type FrankaHardwareInterface::perform_command_mode_switch(
+     const std::vector<std::string>& /*start_interfaces*/,
+     const std::vector<std::string>& /*stop_interfaces*/) {
+-  if (!effort_interface_running_ && effort_interface_claimed_) {
+-    std::fill(hw_effort_commands_.begin(), hw_effort_commands_.end(), 0);
+-    robot_->stopRobot();
+-    robot_->initializeTorqueInterface();
+-    effort_interface_running_ = true;
+-  } else if (effort_interface_running_ && !effort_interface_claimed_) {
+-    robot_->stopRobot();
+-    effort_interface_running_ = false;
+-  }
+-
+-  if (!velocity_joint_interface_running_ && velocity_joint_interface_claimed_) {
+-    std::fill(hw_velocity_commands_.begin(), hw_velocity_commands_.end(), 0);
+-    robot_->stopRobot();
+-    robot_->initializeJointVelocityInterface();
+-    velocity_joint_interface_running_ = true;
+-  } else if (velocity_joint_interface_running_ && !velocity_joint_interface_claimed_) {
+-    robot_->stopRobot();
+-    velocity_joint_interface_running_ = false;
+-  }
+-
+-  if (!position_joint_interface_running_ && position_joint_interface_claimed_) {
+-    robot_->stopRobot();
+-    robot_->initializeJointPositionInterface();
+-    position_joint_interface_running_ = true;
+-    first_position_update_ = true;
+-  } else if (position_joint_interface_running_ && !position_joint_interface_claimed_) {
+-    robot_->stopRobot();
+-    position_joint_interface_running_ = false;
+-  }
+-
+-  if (!velocity_cartesian_interface_running_ && velocity_cartesian_interface_claimed_) {
+-    std::fill(hw_cartesian_velocities_.begin(), hw_cartesian_velocities_.end(), 0);
+-    robot_->stopRobot();
+-    robot_->initializeCartesianVelocityInterface();
+-    if (!elbow_command_interface_running_ && elbow_command_interface_claimed_) {
+-      elbow_command_interface_running_ = true;
+-      first_elbow_update_ = true;
+-    }
+-    velocity_cartesian_interface_running_ = true;
+-  } else if (velocity_cartesian_interface_running_ && !velocity_cartesian_interface_claimed_) {
+-    robot_->stopRobot();
+-    // Elbow command interface can't be commanded without cartesian velocity or pose interface
+-    if (elbow_command_interface_running_) {
+-      elbow_command_interface_running_ = false;
+-      elbow_command_interface_claimed_ = false;
+-    }
+-    velocity_cartesian_interface_running_ = false;
+-  }
+-
+-  if (!pose_cartesian_interface_running_ && pose_cartesian_interface_claimed_) {
+-    robot_->stopRobot();
+-    robot_->initializeCartesianPoseInterface();
+-    if (!elbow_command_interface_running_ && elbow_command_interface_claimed_) {
+-      elbow_command_interface_running_ = true;
+-      first_elbow_update_ = true;
+-    }
+-    pose_cartesian_interface_running_ = true;
+-    initial_robot_state_update_ = true;
+-    first_cartesian_pose_update_ = true;
+-  } else if (pose_cartesian_interface_running_ && !pose_cartesian_interface_claimed_) {
+-    robot_->stopRobot();
+-    // Elbow command interface can't be commanded without cartesian pose or pose interface
+-    if (elbow_command_interface_running_) {
+-      elbow_command_interface_running_ = false;
+-      elbow_command_interface_claimed_ = false;
+-    }
+-    pose_cartesian_interface_running_ = false;
+-  }
+-
+-  // check if the elbow command is activated without cartesian command interface
+-  if (elbow_command_interface_claimed_ &&
+-      !(velocity_cartesian_interface_claimed_ || pose_cartesian_interface_claimed_)) {
+-    RCLCPP_FATAL(getLogger(),
+-                 "Elbow cannot be commanded without cartesian velocity or pose interface");
+-    return hardware_interface::return_type::ERROR;
+-  }
+-
+-  return hardware_interface::return_type::OK;
++  if (io_error_.load()) {
++    return hardware_interface::return_type::ERROR;
++  }
++  try {
++    if (!effort_interface_running_ && effort_interface_claimed_) {
++      std::fill(hw_effort_commands_.begin(), hw_effort_commands_.end(), 0);
++      robot_->stopRobot();
++      robot_->initializeTorqueInterface();
++      effort_interface_running_ = true;
++    } else if (effort_interface_running_ && !effort_interface_claimed_) {
++      robot_->stopRobot();
++      effort_interface_running_ = false;
++    }
++
++    if (!velocity_joint_interface_running_ && velocity_joint_interface_claimed_) {
++      std::fill(hw_velocity_commands_.begin(), hw_velocity_commands_.end(), 0);
++      robot_->stopRobot();
++      robot_->initializeJointVelocityInterface();
++      velocity_joint_interface_running_ = true;
++    } else if (velocity_joint_interface_running_ && !velocity_joint_interface_claimed_) {
++      robot_->stopRobot();
++      velocity_joint_interface_running_ = false;
++    }
++
++    if (!position_joint_interface_running_ && position_joint_interface_claimed_) {
++      robot_->stopRobot();
++      robot_->initializeJointPositionInterface();
++      position_joint_interface_running_ = true;
++      first_position_update_ = true;
++    } else if (position_joint_interface_running_ && !position_joint_interface_claimed_) {
++      robot_->stopRobot();
++      position_joint_interface_running_ = false;
++    }
++
++    if (!velocity_cartesian_interface_running_ && velocity_cartesian_interface_claimed_) {
++      std::fill(hw_cartesian_velocities_.begin(), hw_cartesian_velocities_.end(), 0);
++      robot_->stopRobot();
++      robot_->initializeCartesianVelocityInterface();
++      if (!elbow_command_interface_running_ && elbow_command_interface_claimed_) {
++        elbow_command_interface_running_ = true;
++        first_elbow_update_ = true;
++      }
++      velocity_cartesian_interface_running_ = true;
++    } else if (velocity_cartesian_interface_running_ && !velocity_cartesian_interface_claimed_) {
++      robot_->stopRobot();
++      // Elbow command interface can't be commanded without cartesian velocity or pose interface
++      if (elbow_command_interface_running_) {
++        elbow_command_interface_running_ = false;
++        elbow_command_interface_claimed_ = false;
++      }
++      velocity_cartesian_interface_running_ = false;
++    }
++
++    if (!pose_cartesian_interface_running_ && pose_cartesian_interface_claimed_) {
++      robot_->stopRobot();
++      robot_->initializeCartesianPoseInterface();
++      if (!elbow_command_interface_running_ && elbow_command_interface_claimed_) {
++        elbow_command_interface_running_ = true;
++        first_elbow_update_ = true;
++      }
++      pose_cartesian_interface_running_ = true;
++      initial_robot_state_update_ = true;
++      first_cartesian_pose_update_ = true;
++    } else if (pose_cartesian_interface_running_ && !pose_cartesian_interface_claimed_) {
++      robot_->stopRobot();
++      // Elbow command interface can't be commanded without cartesian pose or pose interface
++      if (elbow_command_interface_running_) {
++        elbow_command_interface_running_ = false;
++        elbow_command_interface_claimed_ = false;
++      }
++      pose_cartesian_interface_running_ = false;
++    }
++
++    // check if the elbow command is activated without cartesian command interface
++    if (elbow_command_interface_claimed_ &&
++        !(velocity_cartesian_interface_claimed_ || pose_cartesian_interface_claimed_)) {
++      RCLCPP_FATAL(getLogger(),
++                   "Elbow cannot be commanded without cartesian velocity or pose interface");
++      return hardware_interface::return_type::ERROR;
++    }
++
++    return hardware_interface::return_type::OK;
++  } catch (const franka::Exception& error) {
++    io_error_.store(true);
++    RCLCPP_ERROR(getLogger(),
++                 "Franka perform_command_mode_switch failed; further I/O is blocked pending "
++                 "operator review: %s",
++                 error.what());
++    return hardware_interface::return_type::ERROR;
++  }
+ }
+ 
+ hardware_interface::return_type FrankaHardwareInterface::prepare_command_mode_switch(
+--- a/franka_hardware/src/robot.cpp
++++ b/franka_hardware/src/robot.cpp
+@@ -295,62 +295,31 @@
+ }
+ 
+ void Robot::initializeTorqueInterface() {
+-  try {
+-    active_control_ = robot_->startTorqueControl();
+-  } catch (const franka::ControlException& e) {
+-    robot_->automaticErrorRecovery();
+-    active_control_ = robot_->startTorqueControl();
+-  }
++  active_control_ = robot_->startTorqueControl();
+   effort_interface_active_ = true;
+ }
+ 
+ void Robot::initializeJointVelocityInterface() {
+-  try {
+-    active_control_ = robot_->startJointVelocityControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  } catch (const franka::ControlException& e) {
+-    robot_->automaticErrorRecovery();
+-    active_control_ = robot_->startJointVelocityControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  }
+-
++  active_control_ = robot_->startJointVelocityControl(
++      research_interface::robot::Move::ControllerMode::kJointImpedance);
+   joint_velocity_interface_active_ = true;
+ }
+ 
+ void Robot::initializeJointPositionInterface() {
+-  try {
+-    active_control_ = robot_->startJointPositionControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  } catch (const franka::ControlException& e) {
+-    robot_->automaticErrorRecovery();
+-    active_control_ = robot_->startJointPositionControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  }
+-
++  active_control_ = robot_->startJointPositionControl(
++      research_interface::robot::Move::ControllerMode::kJointImpedance);
+   joint_position_interface_active_ = true;
+ }
+ 
+ void Robot::initializeCartesianVelocityInterface() {
+-  try {
+-    active_control_ = robot_->startCartesianVelocityControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  } catch (const franka::ControlException& e) {
+-    robot_->automaticErrorRecovery();
+-    active_control_ = robot_->startCartesianVelocityControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  }
++  active_control_ = robot_->startCartesianVelocityControl(
++      research_interface::robot::Move::ControllerMode::kJointImpedance);
+   cartesian_velocity_interface_active_ = true;
+ }
+ 
+ void Robot::initializeCartesianPoseInterface() {
+-  try {
+-    active_control_ = robot_->startCartesianPoseControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  } catch (const franka::ControlException& e) {
+-    robot_->automaticErrorRecovery();
+-    active_control_ = robot_->startCartesianPoseControl(
+-        research_interface::robot::Move::ControllerMode::kJointImpedance);
+-  }
++  active_control_ = robot_->startCartesianPoseControl(
++      research_interface::robot::Move::ControllerMode::kJointImpedance);
+   cartesian_pose_interface_active_ = true;
+ }
+ 
+--- a/franka_hardware/test/franka_hardware_interface_test.cpp
++++ b/franka_hardware/test/franka_hardware_interface_test.cpp
+@@ -753,6 +753,62 @@
+             hardware_interface::return_type::OK);
+ }
+ 
++TEST_F(FrankaHardwareInterfaceTest, readControlExceptionIsLatchedAndPreventsFurtherIO) {
++  EXPECT_CALL(*default_mock_robot, readOnce())
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  EXPECT_CALL(*default_mock_robot, writeOnce(testing::A<const std::vector<double>&>())).Times(0);
++  EXPECT_CALL(*default_mock_robot, automaticErrorRecovery()).Times(0);
++  EXPECT_EQ(default_franka_hardware_interface.read(rclcpp::Time(0), rclcpp::Duration(0, 0)),
++            hardware_interface::return_type::ERROR);
++  EXPECT_EQ(default_franka_hardware_interface.read(rclcpp::Time(0), rclcpp::Duration(0, 0)),
++            hardware_interface::return_type::ERROR);
++  EXPECT_EQ(default_franka_hardware_interface.write(rclcpp::Time(0), rclcpp::Duration(0, 0)),
++            hardware_interface::return_type::ERROR);
++  EXPECT_EQ(default_franka_hardware_interface.perform_command_mode_switch({}, {}),
++            hardware_interface::return_type::ERROR);
++}
++
++TEST_F(FrankaHardwareInterfaceTest, activationFailsWhenInitialReadFails) {
++  EXPECT_CALL(*default_mock_robot, readOnce())
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  EXPECT_EQ(default_franka_hardware_interface.on_activate(rclcpp_lifecycle::State()),
++            CallbackReturn::ERROR);
++}
++
++TEST_F(FrankaHardwareInterfaceTest, controlStartFailureIsReportedWithoutRetryOrRecovery) {
++  std::vector<std::string> start;
++  for (int i = 1; i <= 7; ++i)
++    start.push_back("fr3_joint" + std::to_string(i) + "/effort");
++  ASSERT_EQ(default_franka_hardware_interface.prepare_command_mode_switch(start, {}),
++            hardware_interface::return_type::OK);
++  EXPECT_CALL(*default_mock_robot, initializeTorqueInterface())
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  EXPECT_CALL(*default_mock_robot, automaticErrorRecovery()).Times(0);
++  EXPECT_EQ(default_franka_hardware_interface.perform_command_mode_switch(start, {}),
++            hardware_interface::return_type::ERROR);
++  EXPECT_EQ(default_franka_hardware_interface.perform_command_mode_switch(start, {}),
++            hardware_interface::return_type::ERROR);
++}
++
++TEST_F(FrankaHardwareInterfaceTest, writeNetworkExceptionIsLatched) {
++  std::vector<std::string> start;
++  for (int i = 1; i <= 7; ++i)
++    start.push_back("fr3_joint" + std::to_string(i) + "/effort");
++  ASSERT_EQ(default_franka_hardware_interface.prepare_command_mode_switch(start, {}),
++            hardware_interface::return_type::OK);
++  ASSERT_EQ(default_franka_hardware_interface.perform_command_mode_switch(start, {}),
++            hardware_interface::return_type::OK);
++  EXPECT_CALL(*default_mock_robot, writeOnce(testing::A<const std::vector<double>&>()))
++      .Times(1)
++      .WillOnce(testing::Throw(franka::NetworkException("link lost")));
++  EXPECT_EQ(default_franka_hardware_interface.write(rclcpp::Time(0), rclcpp::Duration(0, 0)),
++            hardware_interface::return_type::ERROR);
++  EXPECT_EQ(default_franka_hardware_interface.write(rclcpp::Time(0), rclcpp::Duration(0, 0)),
++            hardware_interface::return_type::ERROR);
++}
++
+ int main(int argc, char** argv) {
+   rclcpp::init(0, nullptr);
+   testing::InitGoogleTest(&argc, argv);
+--- a/franka_hardware/test/franka_robot_test.cpp
++++ b/franka_hardware/test/franka_robot_test.cpp
+@@ -1,4 +1,5 @@
+ #include "franka_robot_test.hpp"
++#include <franka/exception.h>
+ 
+ TEST_F(FrankaRobotTests, whenInitializeTorqueInterfaceCalled_thenStartTorqueControlCalled) {
+   EXPECT_CALL(*mock_libfranka_robot, startTorqueControl()).Times(1);
+@@ -133,10 +134,14 @@
+ TEST_F(
+     FrankaRobotTests,
+     givenJointPositionControlIsControlIsStarted_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled) {
+-  const std::vector<double> joint_positions{1, 0, 0, 0, 0, 0, 0};
++  const std::vector<double> joint_positions{0.1, -0.3, 0.1, -1.6, 0.1, 1.2, 0.5};
+   std::array<double, 7> joint_positions_array{};
+   std::copy(joint_positions.begin(), joint_positions.end(), joint_positions_array.begin());
+   const franka::JointPositions expected_joint_positions(joint_positions_array);
++  // A stationary reference remains unchanged by the configured filter and rate limiter.
++  franka::RobotState initial_state{};
++  initial_state.q = joint_positions_array;
++  initial_state.q_d = joint_positions_array;
+ 
+   auto expectCallFunction = [this]() {
+     EXPECT_CALL(*mock_libfranka_robot, startJointPositionControl(testing::_))
+@@ -146,7 +151,7 @@
+   testReadWriteOnce<void (franka_hardware::Robot::*)(), franka::JointPositions,
+                     std::vector<double>>(&franka_hardware::Robot::initializeJointPositionInterface,
+                                          expectCallFunction, joint_positions,
+-                                         expected_joint_positions);
++                                         expected_joint_positions, initial_state);
+ }
+ 
+ TEST_F(
+@@ -219,3 +224,43 @@
+   EXPECT_THROW(robot.writeOnce(cartesian_pose_vector), std::runtime_error);
+   EXPECT_THROW(robot.writeOnce(cartesian_pose_vector, elbow_vector), std::runtime_error);
+ }
++
++TEST_F(FrankaRobotTests, TorqueStartPropagatesControlExceptionWithoutRetry) {
++  EXPECT_CALL(*mock_libfranka_robot, startTorqueControl())
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  franka_hardware::Robot robot(std::move(mock_libfranka_robot), std::move(mock_model));
++  EXPECT_THROW(robot.initializeTorqueInterface(), franka::ControlException);
++}
++
++TEST_F(FrankaRobotTests, JointVelocityStartPropagatesControlExceptionWithoutRetry) {
++  EXPECT_CALL(*mock_libfranka_robot, startJointVelocityControl(testing::_))
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  franka_hardware::Robot robot(std::move(mock_libfranka_robot), std::move(mock_model));
++  EXPECT_THROW(robot.initializeJointVelocityInterface(), franka::ControlException);
++}
++
++TEST_F(FrankaRobotTests, JointPositionStartPropagatesControlExceptionWithoutRetry) {
++  EXPECT_CALL(*mock_libfranka_robot, startJointPositionControl(testing::_))
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  franka_hardware::Robot robot(std::move(mock_libfranka_robot), std::move(mock_model));
++  EXPECT_THROW(robot.initializeJointPositionInterface(), franka::ControlException);
++}
++
++TEST_F(FrankaRobotTests, CartesianVelocityStartPropagatesControlExceptionWithoutRetry) {
++  EXPECT_CALL(*mock_libfranka_robot, startCartesianVelocityControl(testing::_))
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  franka_hardware::Robot robot(std::move(mock_libfranka_robot), std::move(mock_model));
++  EXPECT_THROW(robot.initializeCartesianVelocityInterface(), franka::ControlException);
++}
++
++TEST_F(FrankaRobotTests, CartesianPoseStartPropagatesControlExceptionWithoutRetry) {
++  EXPECT_CALL(*mock_libfranka_robot, startCartesianPoseControl(testing::_))
++      .Times(1)
++      .WillOnce(testing::Throw(franka::ControlException("User Stop pressed")));
++  franka_hardware::Robot robot(std::move(mock_libfranka_robot), std::move(mock_model));
++  EXPECT_THROW(robot.initializeCartesianPoseInterface(), franka::ControlException);
++}
+--- a/franka_hardware/test/franka_robot_test.hpp
++++ b/franka_hardware/test/franka_robot_test.hpp
+@@ -98,9 +98,11 @@
+   void testReadWriteOnce(RobotInitFunction initFunction,
+                          std::function<void()> expectCallFunction,
+                          const RawControlInputType& control_input,
+-                         const ControlType& expected_active_control_input) {
++                         const ControlType& expected_active_control_input,
++                         const franka::RobotState& initial_state = franka::RobotState{}) {
+     EXPECT_CALL(*mock_active_control, writeOnce(expected_active_control_input));
+-    EXPECT_CALL(*mock_active_control, readOnce());
++    EXPECT_CALL(*mock_active_control, readOnce())
++        .WillOnce(testing::Return(std::make_pair(initial_state, franka::Duration(1))));
+     expectCallFunction();
+     franka_hardware::Robot robot(std::move(mock_libfranka_robot), std::move(mock_model));
+     (robot.*initFunction)();
