@@ -54,3 +54,13 @@ def test_aborted_attempt_not_counted_as_usable_rollout(tmp_path):
     assert status["real_rollouts"] == 0
     assert status["aborted"] == 1
     assert status["next_episode"] == 2
+
+
+def test_incomplete_episode_preserved_and_skipped(tmp_path):
+    folder = tmp_path / "episode_01"
+    folder.mkdir()
+    (folder / "policy_command_log.jsonl").write_text('{"action": [0]}\n')
+    status = progress(tmp_path)
+    assert status["incomplete_attempts"] == 1
+    assert status["real_rollouts"] == 0
+    assert status["next_episode"] == 2
