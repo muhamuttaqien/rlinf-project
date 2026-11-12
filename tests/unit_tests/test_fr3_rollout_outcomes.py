@@ -42,3 +42,15 @@ def test_progress_requires_labeled_physical_evidence(tmp_path):
     assert status["failures"] == 1
     assert status["next_episode"] == 2
     assert status["recap_dataset_ready"] is False
+
+
+def test_aborted_attempt_not_counted_as_usable_rollout(tmp_path):
+    folder = tmp_path / "episode_01"
+    folder.mkdir()
+    item = sample(folder, outcome="aborted")
+    (folder / "outcome.json").write_text(json.dumps(item))
+    status = progress(tmp_path)
+    assert status["recorded_attempts"] == 1
+    assert status["real_rollouts"] == 0
+    assert status["aborted"] == 1
+    assert status["next_episode"] == 2
