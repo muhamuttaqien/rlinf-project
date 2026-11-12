@@ -32,7 +32,7 @@ NODE_NAME = "rlinf_fr3_supervised_arm_pulse"
 AXIS = "linear_x"
 MAX_REQUEST = 0.05  # normalized operator request, not metres per second
 DEFAULT_REQUEST = 0.03
-MAX_PULSE_S = 0.15
+MAX_PULSE_S = 0.50  # Longer low-amplitude pulse to distinguish motion from pose noise
 POSE_MAX_AGE_S = 0.2
 MAX_OBSERVED_DISPLACEMENT_M = 0.01
 POST_PULSE_OBSERVE_S = 0.5
@@ -90,7 +90,7 @@ def qualify_pose(pose: tuple[float, float, float] | None, *,
 def validate_pulse_request(value: float, duration: float) -> None:
     if (not math.isfinite(value) or not 0 < abs(value) <= MAX_REQUEST
             or not math.isfinite(duration) or not 0 < duration <= MAX_PULSE_S):
-        raise Blocked("Only a single <=0.05 normalized X request, <=0.15s pulse is allowed")
+        raise Blocked("Only a single <=0.05 normalized X request, <=0.50s pulse is allowed")
 
 
 def run(*, execute: bool, request: float, duration: float) -> int:
