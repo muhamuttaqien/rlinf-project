@@ -241,6 +241,22 @@ def run(args):
                         inverse_actions({"actions": generated.detach().cpu().float().numpy()[0]})["actions"]
                     )[:, :7]
                 actions = validate_prediction(decoded)
+                # Reject invalid predictions BEFORE publishing to ROS. No clipping.
+                from toolkits.realworld_check.fr3_pi05_ros_executor import validate_chunk
+                try:
+                    stamp = time.monotonic_ns()
+                    validate_chunk(actions.tolist(), observation_ns=stamp,
+                                   issued_ns=stamp, now_ns=stamp)
+                except (ValueError, TypeError) as exc:
+                    stop_reason = "invalid_policy_action"
+                    (episode_dir/"invalid_policy_action.json").write_text(
+                        json.dumps({"chunk":chunk_i, "reason":str(exc),
+                                    "raw_action_7d":actions.tolist(),
+                                    "policy_commands_sent_before_fault":issued},
+                                   indent=2, allow_nan=False) + "\n",
+                        encoding="utf-8")
+                    print("Rejected invalid policy action: "+str(exc), flush=True)
+                    break
                 file = f"observation_{chunk_i:03d}.npz"
                 np.savez_compressed(
                     episode_dir/file,
@@ -275,9 +291,13 @@ def run(args):
             executor.send("end_episode")
             executor.wait("episode_ended")
         print(f"Policy rollout ended ({stop_reason}). Review peg-in-hole outcome.",flush=True)
-        label = input("Outcome [success/failure/aborted]: ").strip().lower()
-        if label not in ("success","failure","aborted"):
-            raise ValueError("Outcome not recorded: expected success/failure/aborted")
+        if stop_reason == "invalid_policy_action":
+            label = "aborted"
+            print("Automatically labeled aborted due to invalid policy action.", flush=True)
+        else:
+            label = input("Outcome [success/failure/aborted]: ").strip().lower()
+            if label not in ("success","failure","aborted"):
+                raise ValueError("Outcome not recorded: expected success/failure/aborted")
         manifest = {
             "episode_id":episode, "policy_checkpoint":str(ckpt),
             "policy_command_log":"policy_command_log.jsonl",
