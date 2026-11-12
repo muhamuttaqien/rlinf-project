@@ -75,8 +75,9 @@ def run(args) -> dict:
     from openpi import transforms
     from rlinf.models.embodiment.openpi import get_model
     from rlinf.models.embodiment.openpi.transforms.apply import (
-        apply_input_transform, apply_output_transform,
+        apply_input_transform,
     )
+    from rlinf.models.embodiment.openpi.dataconfig import get_openpi_config
     from rlinf.models.embodiment.openpi.transforms.pipeline import build_openpi_transforms
     from rlinf.robotics.parts.cameras import Camera, CameraInfo
 
@@ -92,12 +93,25 @@ def run(args) -> dict:
     stats_file = args.norm_dir.expanduser().resolve() / "norm_stats.json"
     if not stats_file.is_file():
         raise FileNotFoundError(f"Missing train-only normalization: {stats_file}")
-    input_steps, output_steps = build_openpi_transforms(
-        str(args.base_model.expanduser().resolve()), CONFIG_NAME,
-        data_kwargs={"norm_stats_path": str(stats_file)},
+    base_model = str(args.base_model.expanduser().resolve())
+    stats_kwargs = {"norm_stats_path": str(stats_file)}
+    input_steps, _ = build_openpi_transforms(
+        base_model, CONFIG_NAME, data_kwargs=stats_kwargs,
     )
     input_transform = transforms.compose(input_steps)
-    output_transform = transforms.compose(output_steps)
+    # The general OpenPI output pipeline also tries to unnormalize "state".
+    # SFT shadow inference provides only "actions", so apply the same
+    # action-only inverse used by fr3_request_sft_offline_eval.py.
+    train_cfg = get_openpi_config(
+        CONFIG_NAME, model_path=base_model, data_kwargs=stats_kwargs,
+    )
+    data_cfg = train_cfg.data.create(train_cfg.assets_dirs, train_cfg.model)
+    if data_cfg.norm_stats is None or "actions" not in data_cfg.norm_stats:
+        raise ValueError("Missing action normalization from train-only FR3 stats")
+    inverse_actions = transforms.Unnormalize(
+        {"actions": data_cfg.norm_stats["actions"]},
+        use_quantiles=data_cfg.use_quantile_norm,
+    )
     model = get_model(make_model_config(ckpt))
     model.eval().to("cuda")
     device = torch.device("cuda")
@@ -170,9 +184,10 @@ def run(args) -> dict:
                     )
                     if tuple(generated.shape) != (1, 10, 32):
                         raise ValueError("Unexpected model action tensor dimensions")
-                    decoded = apply_output_transform(
-                        output_transform, {"actions": generated}
-                    )["actions"].detach().cpu().numpy()[0]
+                    raw_actions = generated.detach().cpu().float().numpy()[0]
+                    decoded = np.asarray(
+                        inverse_actions({"actions": raw_actions})["actions"]
+                    )[:, :7]
                 prediction = validate_prediction(decoded)
 
                 # Save a local observation snapshot alongside logged predictions
