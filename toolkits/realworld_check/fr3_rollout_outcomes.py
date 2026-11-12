@@ -61,13 +61,14 @@ def progress(root: Path) -> dict:
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate episode IDs")
     return {
-        "real_rollouts": len(episodes),
+        "real_rollouts": sum(x["outcome"] in ("success", "failure") for x in episodes),
+        "recorded_attempts": len(episodes),
         "target": TARGET,
         "successes": sum(x["outcome"] == "success" for x in episodes),
         "failures": sum(x["outcome"] == "failure" for x in episodes),
         "aborted": sum(x["outcome"] == "aborted" for x in episodes),
         "next_episode": next((i for i in range(1, TARGET + 1) if i not in ids), None),
-        "outcomes_complete": len(episodes) == TARGET,
+        "outcomes_complete": sum(x["outcome"] in ("success", "failure") for x in episodes) == TARGET,
         "recap_dataset_ready": False,  # Export and real transition validation still required.
     }
 
