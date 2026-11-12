@@ -125,7 +125,7 @@ def run(args):
     current = progress(args.root)
     episode = current["next_episode"]
     if episode is None:
-        raise RuntimeError("All 20 episodes already registered")
+        raise RuntimeError("20 usable physical outcomes collected or attempt ID limit reached")
     if not torch.cuda.is_available():
         raise RuntimeError("GPU checkpoint inference unavailable")
     if not 1 <= args.max_episode_seconds <= 15:
@@ -175,7 +175,7 @@ def run(args):
     }
     executor = None
     issued = 0
-    print(f"Episode {episode}/20. Ensure SpaceMouse publisher is STOPPED. "
+    print(f"Attempt {episode} (target 20 usable outcomes). Ensure SpaceMouse publisher is STOPPED. "
           "Physically supervise with hardware E-stop available.", flush=True)
 
     with ExitStack() as stack:
