@@ -19,6 +19,7 @@ rollouts, no recovery/reset calls. Do not use near obstacles or people.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import time
@@ -34,6 +35,9 @@ DEFAULT_REQUEST = 0.03
 MAX_PULSE_S = 0.15
 POSE_MAX_AGE_S = 0.2
 MAX_OBSERVED_DISPLACEMENT_M = 0.01
+POST_PULSE_OBSERVE_S = 0.5
+MIN_DETECTABLE_X_M = 0.0002  # diagnostic threshold, not a safety threshold
+EXPECTED_TYPE = "geometry_msgs/msg/Twist"
 
 
 class Blocked(RuntimeError):
@@ -49,8 +53,23 @@ def qualify_graph(publishers: list, subscribers: list, *,
     elif publishers:
         names = [p.node_name for p in publishers]
         raise Blocked(f"Existing command publisher(s): {names}; stop SpaceMouse first")
-    if not any(s.node_name == CONTROLLER for s in subscribers):
-        raise Blocked("Active FR3 joint_impedance_ik_controller subscriber not found")
+    # The workstation's Jazzy graph reports Humble/Nuc endpoints with
+    # _NODE_NAME_UNKNOWN_ even when a separately verified active controller
+    # is subscribed. Require exactly one matching-Twist subscriber instead
+    # of treating a DDS node-name reporting limitation as missing control.
+    if len(subscribers) != 1:
+        raise Blocked(
+            f"Expected one FR3 arm subscriber, found {len(subscribers)}"
+        )
+    peer = subscribers[0]
+    name = peer.node_name
+    topic_type = getattr(peer, "topic_type", None)
+    if name not in (CONTROLLER, "_NODE_NAME_UNKNOWN_"):
+        raise Blocked(f"Unexpected motion subscriber node: {name}")
+    if topic_type is not None and topic_type != EXPECTED_TYPE:
+        raise Blocked(f"Unexpected motion subscriber type: {topic_type}")
+    if name == "_NODE_NAME_UNKNOWN_" and topic_type != EXPECTED_TYPE:
+        raise Blocked("Unnamed subscriber requires verified Twist type")
 
 
 def qualify_pose(pose: tuple[float, float, float] | None, *,
@@ -92,6 +111,7 @@ def run(*, execute: bool, request: float, duration: float) -> int:
     pose_received = None
     publisher = None
     nonzero_sent = 0
+    max_travel_m = 0.0
 
     def on_pose(message: PoseStamped) -> None:
         nonlocal position, pose_received
@@ -109,12 +129,21 @@ def run(*, execute: bool, request: float, duration: float) -> int:
                      now=time.monotonic(), origin=origin)
 
     try:
-        deadline = time.monotonic() + 5.0
+        deadline = time.monotonic() + 10.0
+        last_reason = "ROS discovery incomplete"
         while time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.05)
-            if position is not None:
+            try:
+                check(own=False)
                 break
-        check(own=False)
+            except Blocked as exc:
+                last_reason = str(exc)
+                # A competing command publisher is never treated as a
+                # transient discovery failure.
+                if "Existing command publisher" in last_reason:
+                    raise
+        else:
+            raise Blocked(f"ROS graph/pose preflight timed out: {last_reason}")
 
         if not execute:
             print("PASS: read-only graph/pose preflight. 0 robot commands; "
@@ -148,14 +177,34 @@ def run(*, execute: bool, request: float, duration: float) -> int:
         while time.monotonic() - begin < duration:
             rclpy.spin_once(node, timeout_sec=0.005)
             check(own=True, origin=initial)
+            max_travel_m = max(max_travel_m, math.dist(initial, position))
             if time.monotonic() >= next_send:
                 publisher.publish(pulse)
                 nonzero_sent += 1
                 next_send += 0.05
         # A neutral message requests target hold; does NOT e-stop robot.
         publisher.publish(neutral)
-        print(f"Pulse complete; nonzero requests sent: {nonzero_sent}. "
-              "No gripper commands.")
+        # Observe residual motion with neutral commands and the same watchdog.
+        end_observe = time.monotonic() + POST_PULSE_OBSERVE_S
+        while time.monotonic() < end_observe:
+            rclpy.spin_once(node, timeout_sec=0.02)
+            check(own=True, origin=initial)
+            publisher.publish(neutral)
+            max_travel_m = max(max_travel_m, math.dist(initial, position))
+        delta = tuple(b - a for a, b in zip(initial, position))
+        x_detected = delta[0] * (1 if request > 0 else -1) >= MIN_DETECTABLE_X_M
+        result = {
+            "mode": "single_supervised_arm_pulse",
+            "request_6d": [request, 0., 0., 0., 0., 0.],
+            "pulse_s": duration,
+            "nonzero_ros_publishes": nonzero_sent,
+            "measured_tcp_delta_mm": [round(d * 1000, 3) for d in delta],
+            "max_measured_tcp_displacement_mm": round(max_travel_m * 1000, 3),
+            "requested_x_direction_observed": bool(x_detected),
+            "identity_policy_mapping_approved": False,
+            "note": "One brief X pulse cannot verify all six axes, time alignment or controller acceptance.",
+        }
+        print(json.dumps(result, indent=2))
         return 0
     finally:
         if publisher is not None:
