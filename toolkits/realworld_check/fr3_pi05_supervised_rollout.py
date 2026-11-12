@@ -72,7 +72,9 @@ class Executor:
 
     def send(self, op, **fields):
         if self.proc.poll() is not None:
-            raise RuntimeError("ROS executor stopped")
+            faults = [e.get("reason", "") for e in self.events if e.get("event") == "fault"]
+            detail = faults[-1] if faults else f"exit code {self.proc.returncode}"
+            raise RuntimeError(f"ROS executor stopped: {detail}")
         self.proc.stdin.write(json.dumps({"op": op, **fields}, allow_nan=False) + "\n")
         self.proc.stdin.flush()
 
@@ -130,8 +132,8 @@ def run(args):
     if args.base_serial == args.wrist_serial:
         raise ValueError("Camera serials must differ")
     episode_dir = args.root / f"episode_{episode:02d}"
-    if episode_dir.exists():
-        raise FileExistsError(f"Episode folder already exists: {episode_dir}")
+    if episode_dir.exists() and any(episode_dir.iterdir()):
+        raise FileExistsError(f"Episode folder contains existing data: {episode_dir}")
 
     stats_file = args.norm_dir / "norm_stats.json"
     stats_kwargs = {"norm_stats_path": str(stats_file.resolve())}
@@ -182,15 +184,17 @@ def run(args):
         for camera in cameras.values():
             camera.connect()
             stack.callback(camera.disconnect)
-        executor = Executor(ros_python=args.ros_python)
-        stack.callback(executor.close)
-        executor.wait("ready", timeout=8)
         if input("Type RUN for ONE supervised physical episode: ").strip() != "RUN":
             print("Cancelled; no policy commands.")
             return
-        episode_dir.mkdir(parents=True)
+        # The ROS executor's live watchdog must not run while the operator
+        # is deciding whether to start. Launch it only after confirmation.
+        executor = Executor(ros_python=args.ros_python)
+        stack.callback(executor.close)
+        executor.wait("ready", timeout=8)
         executor.send("begin_episode")
         executor.wait("episode_started")
+        episode_dir.mkdir(parents=True, exist_ok=True)
 
         with (episode_dir/"policy_command_log.jsonl").open("x") as commands, (
                 episode_dir/"measured_state_log.jsonl").open("x") as states:
