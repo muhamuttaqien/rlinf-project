@@ -1,0 +1,71 @@
+--- a/test/joint_impedance_ik_controller_test.cpp
++++ b/test/joint_impedance_ik_controller_test.cpp
+@@ -116,6 +116,28 @@
+       std::this_thread::sleep_for(5ms);
+     }
+   }
++  std::array<double, 7> torque_equilibrium() const {
++    std::array<double, 7> joints;
++    // The fixture uses K=10, D=0 and constant Coriolis=0.25 at the hardware boundary.
++    for (size_t i = 0; i < 7; ++i)
++      joints[i] = q[i] + (torque[i] - 0.25) / 10.0;
++    return joints;
++  }
++  KDL::Frame flange_pose(const std::array<double, 7>& joints) const {
++    std::ifstream file(TEST_URDF_PATH);
++    std::string description((std::istreambuf_iterator<char>(file)),
++                            std::istreambuf_iterator<char>());
++    KDL::Tree tree;
++    KDL::Chain chain;
++    EXPECT_TRUE(kdl_parser::treeFromString(description, tree));
++    EXPECT_TRUE(tree.getChain("base", "fr3_link8", chain));
++    KDL::JntArray positions(7);
++    for (size_t i = 0; i < 7; ++i)
++      positions(i) = joints[i];
++    KDL::Frame pose;
++    EXPECT_GE(KDL::ChainFkSolverPos_recursive(chain).JntToCart(positions, pose), 0);
++    return pose;
++  }
+   std::array<double, 7> q{0.1, -0.3, 0.1, -1.6, 0.1, 1.2, 0.5};
+   std::array<double, 7> dq{}, effort{}, torque{};
+   ConstantModel model;
+@@ -215,3 +237,39 @@
+   for (double value : torque)
+     EXPECT_NEAR(value, 0.25, 1e-12);
+ }
++
++TEST_F(JointImpedanceIKControllerTest, smallNormalizedXRequestProducesSignedTorqueEquilibrium) {
++  activate();
++  const auto start = flange_pose(q);
++  for (const double request : {0.03, -0.03}) {
++    geometry_msgs::msg::Twist input;
++    input.linear.x = request;
++    exercise_input(input, 80);
++    const auto displacement = flange_pose(torque_equilibrium()).p - start.p;
++    EXPECT_NEAR(displacement.x(), 0.007 * request, 2e-6);
++    EXPECT_NEAR(displacement.y(), 0.0, 2e-6);
++    EXPECT_NEAR(displacement.z(), 0.0, 2e-6);
++  }
++}
++
++TEST_F(JointImpedanceIKControllerTest, repeatedRequestFollowsMeasuredPoseWithoutOpenLoopIntegration) {
++  activate();
++  const auto start = flange_pose(q);
++  geometry_msgs::msg::Twist input;
++  input.linear.x = 0.03;
++  exercise_input(input, 80);
++  const auto first_equilibrium = torque_equilibrium();
++  EXPECT_NEAR((flange_pose(first_equilibrium).p - start.p).x(), 0.00021, 2e-6);
++  const auto first_torque = torque;
++  exercise_input(input, 80);
++  for (size_t i = 0; i < 7; ++i)
++    EXPECT_NEAR(torque[i], first_torque[i], 1e-10);
++
++  // Simulate an ideal measured response at the hardware edge, without a physical robot.
++  q = first_equilibrium;
++  exercise_input(input, 80);
++  const auto displacement = flange_pose(torque_equilibrium()).p - start.p;
++  EXPECT_NEAR(displacement.x(), 0.00042, 4e-6);
++  EXPECT_NEAR(displacement.y(), 0.0, 4e-6);
++  EXPECT_NEAR(displacement.z(), 0.0, 4e-6);
++}
