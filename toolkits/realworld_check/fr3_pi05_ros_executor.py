@@ -20,12 +20,16 @@ import select
 import sys
 import time
 
+from fr3_pi05_request_adapter import (
+    GripperRequestFilter, identity_arm_request, validate_action_chunk,
+)
+
 ARM_TOPIC = "/franka_controller/target_cartesian_velocity_percent"
 GRIPPER_TOPIC = "/gripper_client/target_gripper_width_percent"
 POSE_TOPIC = "/franka_robot_state_broadcaster/current_pose"
 NAME = "rlinf_fr3_pi05_executor"
 PERIOD_S = 0.1  # SFT policy labels at 10 Hz
-ARM_GAIN = 0.15  # normalized request scaling, NOT m/s
+LEGACY_GAIN = 0.15  # existing experimental motion limit; NOT trained mapping
 POSE_TIMEOUT_S = 0.25
 MAX_EPISODE_S = 20.0
 MAX_TRAVEL_M = 0.08
@@ -39,15 +43,7 @@ def validate_chunk(chunk, *, observation_ns: int, issued_ns: int, now_ns: int) -
             or now_ns - observation_ns > 1_000_000_000
             or now_ns - issued_ns > 300_000_000):
         raise ValueError("Stale observation or issued request")
-    out = []
-    for row in chunk:
-        if (not isinstance(row, list) or len(row) != 7
-                or any(type(v) not in (int, float) or not math.isfinite(v) for v in row)):
-            raise ValueError("Expected finite numeric 7D request")
-        if any(abs(v) > 1 for v in row[:6]) or not -0.05 <= row[6] <= 1.05:
-            raise ValueError("Action outside trained normalized request bounds")
-        out.append([float(x) for x in row])
-    return out
+    return validate_action_chunk(chunk)
 
 
 def main() -> int:
@@ -72,6 +68,12 @@ def main() -> int:
     publisher = None
     gripper_pub = None
     total_commands = 0
+    # Identity mapping must be explicitly enabled after physical interface review.
+    mapping_mode = os.environ.get("FR3_PI05_MAPPING_MODE", "legacy_limited")
+    if mapping_mode not in ("identity_verified", "legacy_limited"):
+        raise RuntimeError("Unknown FR3 request mapping mode")
+    gain = 1.0 if mapping_mode == "identity_verified" else LEGACY_GAIN
+    gripper_filter = GripperRequestFilter(confirmations=3, min_goal_interval_s=0.8)
 
     def emit(**fields):
         print(json.dumps(fields, allow_nan=False), flush=True)
@@ -141,7 +143,8 @@ def main() -> int:
         for _ in range(12):
             rclpy.spin_once(node, timeout_sec=0.05)
         exclusive()
-        emit(event="ready", arm_topic=ARM_TOPIC, gripper_topic=GRIPPER_TOPIC)
+        emit(event="ready", arm_topic=ARM_TOPIC, gripper_topic=GRIPPER_TOPIC,
+             mapping_mode=mapping_mode, arm_gain=gain)
 
         while True:
             rclpy.spin_once(node, timeout_sec=0.01)
@@ -155,27 +158,22 @@ def main() -> int:
                     emit(event="chunk_done", commands_sent=total_commands)
                 else:
                     values = batch[next_action]
+                    # Raw normalized SpaceMouse request axis order (not SI velocity).
+                    arm = identity_arm_request(values)
+                    sent_arm = [x * gain for x in arm]
                     msg = Twist()
-                    msg.linear.x, msg.linear.y, msg.linear.z = [
-                        x * ARM_GAIN for x in values[:3]
-                    ]
-                    msg.angular.x, msg.angular.y, msg.angular.z = [
-                        x * ARM_GAIN for x in values[3:6]
-                    ]
+                    msg.linear.x, msg.linear.y, msg.linear.z = sent_arm[:3]
+                    msg.angular.x, msg.angular.y, msg.angular.z = sent_arm[3:]
                     publisher.publish(msg)
                     total_commands += 1
                     g = values[6]
-                    gripper_event = "hold"
-                    state = "close" if g <= 0.30 else "open" if g >= 0.70 else None
-                    if state is not None and state != last_gripper:
+                    gripper_event = gripper_filter.step(g, now=time.monotonic())
+                    if gripper_event != "hold":
                         gripper_msg = Float32()
-                        gripper_msg.data = 0. if state == "close" else 1.
+                        gripper_msg.data = 0. if gripper_event == "close" else 1.
                         gripper_pub.publish(gripper_msg)
-                        gripper_event = state
-                        last_gripper = state
                     emit(event="action", command_index=next_action,
-                         requested_7d=values, sent_arm_6d=[
-                             float(v) * ARM_GAIN for v in values[:6]],
+                         requested_7d=values, sent_arm_6d=sent_arm,
                          gripper_event=gripper_event,
                          tcp_xyz=pose, monotonic_ns=time.monotonic_ns(),
                          commands_sent=total_commands)
@@ -194,6 +192,7 @@ def main() -> int:
                     origin = tuple(pose)
                     started = time.monotonic()
                     last_gripper = None
+                    gripper_filter.reset()
                     total_commands = 0
                     emit(event="episode_started", tcp_xyz=origin)
                 elif op == "chunk":
