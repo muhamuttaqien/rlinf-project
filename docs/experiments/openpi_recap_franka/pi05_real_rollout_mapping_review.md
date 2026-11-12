@@ -86,3 +86,46 @@ cannot verify the physical controller.
 A real peg-insertion policy rollout can be evaluated only *after* verifying
 these; do not infer task success from ROS command count, inverse
 normalization, or the same physical robot.
+
+## Supervised arm-only mapping check (single pulse, not a policy rollout)
+
+The user independently inspected the active NUC process and source:
+- `/proc/2676273/maps` identified the running library in
+  `~/Desktop/aist-gamma/franka_controller_ws/build/franka_arm_controllers/libfranka_arm_controllers.so`.
+- The October 26 build timestamp is later than the controller source timestamp.
+  This is evidence of the build order, **not a cryptographic binary/source match**.
+- `arm_mounting_orientation=[0,0,0]` and `command_timeout=0.25` seconds.
+- The inspected C++ applies `0.007 * normalized_linear_request` and
+  `0.03 * normalized_angular_request` to its Cartesian IK target,
+  rejecting stale/out-of-range normalized requests.
+
+The prior arm pulse utility now accepts the exact single
+`geometry_msgs/msg/Twist` subscriber when ROS Jazzy reports its NUC
+node name as `_NODE_NAME_UNKNOWN_`, while still rejecting competing
+publishers, extra subscribers, wrong type, stale pose and excessive travel.
+
+On the **workstation**, first run the entirely read-only graph/pose check:
+
+```bash
+git pull --ff-only origin branch-openpi-recap-franka
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q \
+  tests/unit_tests/test_fr3_supervised_arm_pulse.py
+
+ROS_DOMAIN_ID=70 ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET \
+RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+/usr/bin/python3 -m toolkits.realworld_check.fr3_supervised_arm_pulse
+```
+
+Only following a physically verified clear workspace and local operator
+approval, a **separate arm-only calibration** can be considered using
+the existing interactive `--execute` option. It sends one small,
+bounded X request, requires a fresh pose and publisher exclusivity,
+publishes neutral requests, and measures the TCP delta over the
+post-pulse observation window. The utility does **not** send gripper
+commands, use π₀.₅ predictions or increment RECAP rollout counts.
+
+**Do not use this result to enable identity π₀.₅ execution automatically.**
+A single short X-axis check cannot establish all axes, signed frame
+alignment, timing equivalence, full trajectory safety, or controller
+accepted-target tracking. The neutral request is not a safety-rated
+stop. The Franka hardware E-stop must remain accessible.
