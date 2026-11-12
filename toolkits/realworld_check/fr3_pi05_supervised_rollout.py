@@ -195,16 +195,9 @@ def run(args):
         executor.send("begin_episode")
         executor.wait("episode_started")
         episode_dir.mkdir(parents=True, exist_ok=True)
-        stop_requested = threading.Event()
-
-        def operator_stop():
-            try:
-                input("Press ENTER to end this rollout after its current action chunk: ")
-            except EOFError:
-                pass
-            stop_requested.set()
-
-        threading.Thread(target=operator_stop, daemon=True).start()
+        import select
+        import sys
+        print("Rollout active: press ENTER to stop after the current chunk.", flush=True)
         episode_deadline = time.monotonic() + args.max_episode_seconds
         stop_reason = "time_limit"
 
@@ -212,7 +205,8 @@ def run(args):
                 episode_dir/"measured_state_log.jsonl").open("x") as states:
             chunk_i = 0
             while time.monotonic() < episode_deadline:
-                if stop_requested.is_set():
+                if select.select([sys.stdin], [], [], 0)[0]:
+                    sys.stdin.readline()
                     stop_reason = "operator_stop"
                     break
                 if any(e.get("event") in ("fault", "exited") for e in executor.events):
