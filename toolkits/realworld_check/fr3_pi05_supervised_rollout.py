@@ -127,8 +127,8 @@ def run(args):
         raise RuntimeError("All 20 episodes already registered")
     if not torch.cuda.is_available():
         raise RuntimeError("GPU checkpoint inference unavailable")
-    if args.max_chunks < 1 or args.max_chunks > 10:
-        raise ValueError("max-chunks must be 1..10")
+    if not 1 <= args.max_episode_seconds <= 15:
+        raise ValueError("max-episode-seconds must be within 1..15 for supervised execution")
     if args.base_serial == args.wrist_serial:
         raise ValueError("Camera serials must differ")
     episode_dir = args.root / f"episode_{episode:02d}"
@@ -195,10 +195,26 @@ def run(args):
         executor.send("begin_episode")
         executor.wait("episode_started")
         episode_dir.mkdir(parents=True, exist_ok=True)
+        stop_requested = threading.Event()
+
+        def operator_stop():
+            try:
+                input("Press ENTER to end this rollout after its current action chunk: ")
+            except EOFError:
+                pass
+            stop_requested.set()
+
+        threading.Thread(target=operator_stop, daemon=True).start()
+        episode_deadline = time.monotonic() + args.max_episode_seconds
+        stop_reason = "time_limit"
 
         with (episode_dir/"policy_command_log.jsonl").open("x") as commands, (
                 episode_dir/"measured_state_log.jsonl").open("x") as states:
-            for chunk_i in range(args.max_chunks):
+            chunk_i = 0
+            while time.monotonic() < episode_deadline:
+                if stop_requested.is_set():
+                    stop_reason = "operator_stop"
+                    break
                 if any(e.get("event") in ("fault", "exited") for e in executor.events):
                     raise RuntimeError("ROS executor fault")
                 t0 = time.monotonic()
@@ -261,9 +277,10 @@ def run(args):
                 issued += len(action_events)
                 print(f"Episode {episode}: {issued} ROS arm commands sent "
                       f"({time.monotonic()-t0:.2f}s/chunk)",flush=True)
+                chunk_i += 1
             executor.send("end_episode")
             executor.wait("episode_ended")
-        print("Robot commands ended. Review peg-in-hole outcome.",flush=True)
+        print(f"Policy rollout ended ({stop_reason}). Review peg-in-hole outcome.",flush=True)
         label = input("Outcome [success/failure/aborted]: ").strip().lower()
         if label not in ("success","failure","aborted"):
             raise ValueError("Outcome not recorded: expected success/failure/aborted")
@@ -273,6 +290,7 @@ def run(args):
             "measured_state_log":"measured_state_log.jsonl",
             "outcome":label,"operator_reviewed":True,
             "robot_commands_sent":issued, "shadow_only":False,
+            "stop_reason":stop_reason, "control_mode":"supervised_closed_loop_pi05",
             "note":"ROS publish events are not proof of controller acceptance or task success",
         }
         (episode_dir/"outcome.json").write_text(
@@ -293,7 +311,8 @@ def main():
     p.add_argument("--wrist-serial",default="218622277827")
     p.add_argument("--ros-python",default="/usr/bin/python3")
     p.add_argument("--prompt",default="Insert the peg into the hole.")
-    p.add_argument("--max-chunks",type=int,default=3)
+    p.add_argument("--max-episode-seconds",type=float,default=15.0,
+                   help="Time limit in seconds, maximum 15; press ENTER to stop sooner")
     p.add_argument("--seed",type=int,default=0)
     a=p.parse_args()
     run(a)
