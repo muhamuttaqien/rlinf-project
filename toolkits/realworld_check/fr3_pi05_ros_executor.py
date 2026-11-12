@@ -1,0 +1,222 @@
+# Copyright 2026 The RLinf Authors.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
+"""ROS Jazzy 3.12 process: supervised π0.5 request execution on the FR3.
+
+STDIN: JSON lines begin_episode/chunk/end_episode/quit.
+STDOUT: JSON events, including actual ROS publish counts.
+Requires ROS_DOMAIN_ID=70, exclusive motion publisher, fresh measured pose.
+A neutral request/ROS watchdog is NOT a safety-rated stop. Operator must keep
+the approved Franka enable/E-stop available throughout physical execution.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import os
+import select
+import sys
+import time
+
+ARM_TOPIC = "/franka_controller/target_cartesian_velocity_percent"
+GRIPPER_TOPIC = "/gripper_client/target_gripper_width_percent"
+POSE_TOPIC = "/franka_robot_state_broadcaster/current_pose"
+NAME = "rlinf_fr3_pi05_executor"
+PERIOD_S = 0.1  # SFT policy labels at 10 Hz
+ARM_GAIN = 0.15  # normalized request scaling, NOT m/s
+POSE_TIMEOUT_S = 0.25
+MAX_EPISODE_S = 20.0
+MAX_TRAVEL_M = 0.08
+
+
+def validate_chunk(chunk, *, observation_ns: int, issued_ns: int, now_ns: int) -> list[list[float]]:
+    if not isinstance(chunk, list) or len(chunk) != 10:
+        raise ValueError("Expected exactly ten 7D requests")
+    if (not all(type(t) is int for t in (observation_ns, issued_ns))
+            or not 0 < observation_ns <= issued_ns <= now_ns
+            or now_ns - observation_ns > 1_000_000_000
+            or now_ns - issued_ns > 300_000_000):
+        raise ValueError("Stale observation or issued request")
+    out = []
+    for row in chunk:
+        if (not isinstance(row, list) or len(row) != 7
+                or any(type(v) not in (int, float) or not math.isfinite(v) for v in row)):
+            raise ValueError("Expected finite numeric 7D request")
+        if any(abs(v) > 1 for v in row[:6]) or not -0.05 <= row[6] <= 1.05:
+            raise ValueError("Action outside trained normalized request bounds")
+        out.append([float(x) for x in row])
+    return out
+
+
+def main() -> int:
+    if os.environ.get("ROS_DOMAIN_ID") != "70":
+        raise RuntimeError("This executor requires the explicit FR3 domain 70")
+    from geometry_msgs.msg import PoseStamped, Twist
+    from std_msgs.msg import Float32
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import qos_profile_sensor_data
+
+    rclpy.init()
+    node = Node(NAME, enable_rosout=False, start_parameter_services=False)
+    pose = None
+    pose_at = 0.
+    origin = None
+    started = 0.
+    batch = []
+    next_action = 0
+    next_at = 0.
+    last_gripper = None
+    publisher = None
+    gripper_pub = None
+    total_commands = 0
+
+    def emit(**fields):
+        print(json.dumps(fields, allow_nan=False), flush=True)
+
+    def pose_cb(msg):
+        nonlocal pose, pose_at
+        p = msg.pose.position
+        pose = (float(p.x), float(p.y), float(p.z))
+        pose_at = time.monotonic()
+
+    node.create_subscription(PoseStamped, POSE_TOPIC, pose_cb, qos_profile_sensor_data)
+
+    def fresh_pose():
+        if (pose is None or not all(map(math.isfinite, pose))
+                or time.monotonic() - pose_at > POSE_TIMEOUT_S):
+            raise RuntimeError("FR3 pose missing or stale")
+        if origin is not None and math.dist(origin, pose) > MAX_TRAVEL_M:
+            raise RuntimeError("Measured FR3 displacement exceeded 8 cm limit")
+        if origin is not None and time.monotonic() - started > MAX_EPISODE_S:
+            raise RuntimeError("Supervised episode time limit reached")
+
+    def exclusive():
+        publishers = node.get_publishers_info_by_topic(ARM_TOPIC)
+        if len(publishers) != 1 or publishers[0].node_name != NAME:
+            raise RuntimeError("SpaceMouse/other publisher detected: exclusive control lost")
+        if not node.get_subscriptions_info_by_topic(ARM_TOPIC):
+            raise RuntimeError("No FR3 controller subscriber")
+        if gripper_pub is not None:
+            writers = node.get_publishers_info_by_topic(GRIPPER_TOPIC)
+            if len(writers) != 1 or writers[0].node_name != NAME:
+                raise RuntimeError("Competing gripper publisher detected")
+            if not node.get_subscriptions_info_by_topic(GRIPPER_TOPIC):
+                raise RuntimeError("Robotiq bridge subscriber missing")
+
+    def neutral():
+        if publisher is not None:
+            publisher.publish(Twist())
+
+    try:
+        deadline = time.monotonic() + 5.
+        while time.monotonic() < deadline and pose is None:
+            rclpy.spin_once(node, timeout_sec=0.05)
+        fresh_pose()
+        if node.get_publishers_info_by_topic(ARM_TOPIC):
+            raise RuntimeError("Stop SpaceMouse publisher before running the policy")
+        if not node.get_subscriptions_info_by_topic(ARM_TOPIC):
+            raise RuntimeError("No arm controller on motion topic")
+        # Gripper bridge must be present and free of another command publisher.
+        if node.get_publishers_info_by_topic(GRIPPER_TOPIC):
+            raise RuntimeError("Stop SpaceMouse gripper publisher before policy rollout")
+        if not node.get_subscriptions_info_by_topic(GRIPPER_TOPIC):
+            raise RuntimeError("Robotiq cross-domain bridge subscriber not found")
+        publisher = node.create_publisher(Twist, ARM_TOPIC, 10)
+        gripper_pub = node.create_publisher(Float32, GRIPPER_TOPIC, 10)
+        # ROS graph propagation.
+        for _ in range(12):
+            rclpy.spin_once(node, timeout_sec=0.05)
+        exclusive()
+        emit(event="ready", arm_topic=ARM_TOPIC, gripper_topic=GRIPPER_TOPIC)
+
+        while True:
+            rclpy.spin_once(node, timeout_sec=0.01)
+            fresh_pose()
+            exclusive()
+            now = time.monotonic()
+            if batch and now >= next_at:
+                if next_action >= len(batch):
+                    neutral()
+                    batch = []
+                    emit(event="chunk_done", commands_sent=total_commands)
+                else:
+                    values = batch[next_action]
+                    msg = Twist()
+                    msg.linear.x, msg.linear.y, msg.linear.z = [
+                        x * ARM_GAIN for x in values[:3]
+                    ]
+                    msg.angular.x, msg.angular.y, msg.angular.z = [
+                        x * ARM_GAIN for x in values[3:6]
+                    ]
+                    publisher.publish(msg)
+                    total_commands += 1
+                    g = values[6]
+                    gripper_event = "hold"
+                    state = "close" if g <= 0.30 else "open" if g >= 0.70 else None
+                    if state is not None and state != last_gripper:
+                        gripper_msg = Float32()
+                        gripper_msg.data = 0. if state == "close" else 1.
+                        gripper_pub.publish(gripper_msg)
+                        gripper_event = state
+                        last_gripper = state
+                    emit(event="action", command_index=next_action,
+                         requested_7d=values, sent_arm_6d=[
+                             float(v) * ARM_GAIN for v in values[:6]],
+                         gripper_event=gripper_event,
+                         tcp_xyz=pose, monotonic_ns=time.monotonic_ns(),
+                         commands_sent=total_commands)
+                    next_action += 1
+                    next_at += PERIOD_S
+            if select.select([sys.stdin], [], [], 0)[0]:
+                line = sys.stdin.readline()
+                if not line:  # parent died: never continue policy control
+                    break
+                item = json.loads(line)
+                op = item.get("op")
+                if op == "begin_episode":
+                    if origin is not None or batch:
+                        raise RuntimeError("Episode already active")
+                    fresh_pose()
+                    origin = tuple(pose)
+                    started = time.monotonic()
+                    last_gripper = None
+                    total_commands = 0
+                    emit(event="episode_started", tcp_xyz=origin)
+                elif op == "chunk":
+                    if origin is None or batch:
+                        raise RuntimeError("No active episode or previous chunk not finished")
+                    batch = validate_chunk(
+                        item.get("values"),
+                        observation_ns=item.get("observation_ns"),
+                        issued_ns=item.get("issued_ns"),
+                        now_ns=time.monotonic_ns(),
+                    )
+                    next_action = 0
+                    next_at = time.monotonic()
+                elif op == "end_episode":
+                    neutral()
+                    batch = []
+                    origin = None
+                    emit(event="episode_ended", commands_sent=total_commands)
+                elif op == "quit":
+                    break
+                else:
+                    raise RuntimeError("Unexpected executor operation")
+        return 0
+    except Exception as exc:
+        emit(event="fault", reason=str(exc), commands_sent=total_commands)
+        return 2
+    finally:
+        if publisher is not None:
+            for _ in range(5):
+                neutral()
+                rclpy.spin_once(node, timeout_sec=0.02)
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
