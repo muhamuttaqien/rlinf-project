@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 
 TARGET = 20
+MAX_ATTEMPTS = 9999
 OUTCOMES = {"success", "failure", "aborted"}
 REQUIRED = {"episode_id", "policy_checkpoint", "policy_command_log",
             "measured_state_log", "outcome", "operator_reviewed"}
@@ -26,8 +27,8 @@ REQUIRED = {"episode_id", "policy_checkpoint", "policy_command_log",
 def validate_episode(entry: dict, *, root: Path) -> dict:
     if not isinstance(entry, dict) or not REQUIRED.issubset(entry):
         raise ValueError(f"Missing episode fields: {sorted(REQUIRED - set(entry))}")
-    if not isinstance(entry["episode_id"], int) or not 1 <= entry["episode_id"] <= TARGET:
-        raise ValueError("episode_id must be 1..20")
+    if not isinstance(entry["episode_id"], int) or not 1 <= entry["episode_id"] <= MAX_ATTEMPTS:
+        raise ValueError("episode_id must be 1..9999")
     if entry["outcome"] not in OUTCOMES:
         raise ValueError("outcome must be success, failure, or aborted")
     if entry["operator_reviewed"] is not True:
@@ -50,7 +51,7 @@ def validate_episode(entry: dict, *, root: Path) -> dict:
 
 def progress(root: Path) -> dict:
     root = root.resolve()
-    found = sorted(root.glob("episode_??/outcome.json"))
+    found = sorted(root.glob("episode_*/outcome.json"))
     episodes = []
     for file in found:
         episode = validate_episode(json.loads(file.read_text()), root=file.parent)
@@ -62,9 +63,10 @@ def progress(root: Path) -> dict:
         raise ValueError("Duplicate episode IDs")
     # Never overwrite a partially recorded physical episode after a fault.
     occupied_ids = {
-        i for i in range(1, TARGET + 1)
-        if (root / f"episode_{i:02d}").exists()
-        and any((root / f"episode_{i:02d}").iterdir())
+        int(folder.name[8:]) for folder in root.glob("episode_*")
+        if folder.is_dir() and folder.name[8:].isdigit()
+        and 1 <= int(folder.name[8:]) <= MAX_ATTEMPTS
+        and any(folder.iterdir())
     }
     return {
         "real_rollouts": sum(x["outcome"] in ("success", "failure") for x in episodes),
@@ -74,7 +76,9 @@ def progress(root: Path) -> dict:
         "successes": sum(x["outcome"] == "success" for x in episodes),
         "failures": sum(x["outcome"] == "failure" for x in episodes),
         "aborted": sum(x["outcome"] == "aborted" for x in episodes),
-        "next_episode": next((i for i in range(1, TARGET + 1) if i not in occupied_ids), None),
+        "next_episode": (None if sum(x["outcome"] in ("success", "failure") for x in episodes) >= TARGET
+                         else next((i for i in range(1, MAX_ATTEMPTS + 1)
+                                    if i not in occupied_ids), None)),
         "outcomes_complete": sum(x["outcome"] in ("success", "failure") for x in episodes) == TARGET,
         "recap_dataset_ready": False,  # Export and real transition validation still required.
     }
