@@ -132,7 +132,6 @@ def run(args):
     episode_dir = args.root / f"episode_{episode:02d}"
     if episode_dir.exists():
         raise FileExistsError(f"Episode folder already exists: {episode_dir}")
-    episode_dir.mkdir(parents=True)
 
     stats_file = args.norm_dir / "norm_stats.json"
     stats_kwargs = {"norm_stats_path": str(stats_file.resolve())}
@@ -189,6 +188,7 @@ def run(args):
         if input("Type RUN for ONE supervised physical episode: ").strip() != "RUN":
             print("Cancelled; no policy commands.")
             return
+        episode_dir.mkdir(parents=True)
         executor.send("begin_episode")
         executor.wait("episode_started")
 
