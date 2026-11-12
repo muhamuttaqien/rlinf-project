@@ -45,9 +45,10 @@ EXECUTOR = Path(__file__).with_name("fr3_pi05_ros_executor.py")
 
 class Executor:
     """Read executor stdout independently so ROS keeps spinning during inference."""
-    def __init__(self, *, ros_python: str):
+    def __init__(self, *, ros_python: str, mapping_mode: str = "legacy_limited"):
         self.q = queue.Queue()
-        env = {**os.environ, "ROS_DOMAIN_ID": "70",
+        env = {**os.environ, "FR3_PI05_MAPPING_MODE": mapping_mode,
+               "ROS_DOMAIN_ID": "70",
                "ROS_AUTOMATIC_DISCOVERY_RANGE": "SUBNET",
                "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp"}
         self.proc = subprocess.Popen(
@@ -184,12 +185,15 @@ def run(args):
         for camera in cameras.values():
             camera.connect()
             stack.callback(camera.disconnect)
-        if input("Type RUN for ONE supervised physical episode: ").strip() != "RUN":
+        approval = ("RUN VERIFIED" if args.verified_request_mapping else "RUN")
+        mode = "identity_verified" if args.verified_request_mapping else "legacy_limited"
+        print(f"Controller request mapping: {mode}", flush=True)
+        if input(f"Type {approval} for ONE supervised physical episode: ").strip() != approval:
             print("Cancelled; no policy commands.")
             return
         # The ROS executor's live watchdog must not run while the operator
         # is deciding whether to start. Launch it only after confirmation.
-        executor = Executor(ros_python=args.ros_python)
+        executor = Executor(ros_python=args.ros_python, mapping_mode=mode)
         stack.callback(executor.close)
         executor.wait("ready", timeout=13)
         executor.send("begin_episode")
@@ -305,6 +309,7 @@ def run(args):
             "outcome":label,"operator_reviewed":True,
             "robot_commands_sent":issued, "shadow_only":False,
             "stop_reason":stop_reason, "control_mode":"supervised_closed_loop_pi05",
+            "request_mapping_mode": mode,
             "note":"ROS publish events are not proof of controller acceptance or task success",
         }
         (episode_dir/"outcome.json").write_text(
@@ -328,6 +333,8 @@ def main():
     p.add_argument("--max-episode-seconds",type=float,default=15.0,
                    help="Time limit in seconds, maximum 15; press ENTER to stop sooner")
     p.add_argument("--seed",type=int,default=0)
+    p.add_argument("--verified-request-mapping",action="store_true",
+                   help="Use identity arm request mapping only after separate physical controller/frames/timing verification")
     a=p.parse_args()
     run(a)
 
