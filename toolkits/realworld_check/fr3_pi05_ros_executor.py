@@ -111,19 +111,30 @@ def main() -> int:
             publisher.publish(Twist())
 
     try:
-        deadline = time.monotonic() + 5.
-        while time.monotonic() < deadline and pose is None:
+        # DDS discovery is asynchronous (especially with the NUC's ROS
+        # Humble -> workstation Jazzy endpoints). Wait for both known
+        # subscribers instead of failing the instant the first pose arrives.
+        deadline = time.monotonic() + 10.0
+        arm_subs = []
+        gripper_subs = []
+        while time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=0.05)
+            # Never accept an active SpaceMouse or other competing publisher.
+            if node.get_publishers_info_by_topic(ARM_TOPIC):
+                raise RuntimeError("Stop SpaceMouse arm publisher before policy rollout")
+            if node.get_publishers_info_by_topic(GRIPPER_TOPIC):
+                raise RuntimeError("Stop SpaceMouse gripper publisher before policy rollout")
+            arm_subs = node.get_subscriptions_info_by_topic(ARM_TOPIC)
+            gripper_subs = node.get_subscriptions_info_by_topic(GRIPPER_TOPIC)
+            if pose is not None and arm_subs and gripper_subs:
+                break
         fresh_pose()
-        if node.get_publishers_info_by_topic(ARM_TOPIC):
-            raise RuntimeError("Stop SpaceMouse publisher before running the policy")
-        if not node.get_subscriptions_info_by_topic(ARM_TOPIC):
-            raise RuntimeError("No arm controller on motion topic")
-        # Gripper bridge must be present and free of another command publisher.
-        if node.get_publishers_info_by_topic(GRIPPER_TOPIC):
-            raise RuntimeError("Stop SpaceMouse gripper publisher before policy rollout")
-        if not node.get_subscriptions_info_by_topic(GRIPPER_TOPIC):
-            raise RuntimeError("Robotiq cross-domain bridge subscriber not found")
+        if not arm_subs or not gripper_subs:
+            raise RuntimeError(
+                "ROS discovery timeout: arm subscribers="
+                f"{len(arm_subs)}, gripper subscribers={len(gripper_subs)}. "
+                "No robot commands sent."
+            )
         publisher = node.create_publisher(Twist, ARM_TOPIC, 10)
         gripper_pub = node.create_publisher(Float32, GRIPPER_TOPIC, 10)
         # ROS graph propagation.
