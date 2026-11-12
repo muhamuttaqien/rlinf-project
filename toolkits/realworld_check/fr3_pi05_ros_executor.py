@@ -20,9 +20,15 @@ import select
 import sys
 import time
 
-from fr3_pi05_request_adapter import (
-    GripperRequestFilter, identity_arm_request, validate_action_chunk,
-)
+# Works both as a directly launched ROS Python script and a package import.
+if __package__:
+    from .fr3_pi05_request_adapter import (
+        GripperRequestFilter, identity_arm_request, validate_action_chunk,
+    )
+else:
+    from fr3_pi05_request_adapter import (
+        GripperRequestFilter, identity_arm_request, validate_action_chunk,
+    )
 
 ARM_TOPIC = "/franka_controller/target_cartesian_velocity_percent"
 GRIPPER_TOPIC = "/gripper_client/target_gripper_width_percent"
