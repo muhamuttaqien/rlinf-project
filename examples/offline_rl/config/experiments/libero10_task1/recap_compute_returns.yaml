@@ -1,5 +1,5 @@
 # @package _global_
-# Task-specific LIBERO-10 Task 1 RECAP: compute return/reward sidecars.
+# LIBERO-10 Task 1 RECAP: compute return/reward sidecars.
 # Launcher: bash examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh experiments/libero10_task1/recap_compute_returns
 data:
   data_root: null
