@@ -1,9 +1,9 @@
 """Read-only preflight for task-specific LIBERO-10 Task 1 RECAP datasets.
 
 Run before launching GPU training:
-    python -m toolkits.recap_libero_10_preflight
-    python -m toolkits.recap_libero_10_preflight --stage returns
-    python -m toolkits.recap_libero_10_preflight --stage advantages
+    python -m toolkits.recap_libero10_task1_preflight
+    python -m toolkits.recap_libero10_task1_preflight --stage returns
+    python -m toolkits.recap_libero10_task1_preflight --stage advantages
 
 This checks real LeRobot Parquet action, camera, success, episode and task metadata.
 A 20-episode visualization gallery does not satisfy this preflight.
