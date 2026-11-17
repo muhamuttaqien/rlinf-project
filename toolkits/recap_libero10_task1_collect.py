@@ -1,13 +1,13 @@
-"""Collect task-specific LIBERO-10 Task 1 LeRobot data for RECAP.
+"""Collect LIBERO-10 Task 1 LeRobot data for RECAP.
 
 Creates three disjoint datasets: successful SFT rollouts, mixed policy rollouts,
-and held-out mixed evaluation rollouts. These are autonomous successful SFT rollouts, NOT expert demonstrations.
+and held-out mixed evaluation rollouts. The SFT split contains successful\nautonomous SFT policy rollouts, NOT expert demonstrations.
 Actual action, observation, task and success information are recorded at every
 simulator step; video-only SIM-7 evaluation artifacts are not sufficient.
 
 Usage:
-    python -m toolkits.recap_libero_10_collect --split all
-    python -m toolkits.recap_libero_10_collect --split sft --sft-successes 30
+    python -m toolkits.recap_libero10_task1_collect --split all
+    python -m toolkits.recap_libero10_task1_collect --split sft --sft-successes 30
 
 The collector never silently overwrites a dataset, even after an interruption.
 """
