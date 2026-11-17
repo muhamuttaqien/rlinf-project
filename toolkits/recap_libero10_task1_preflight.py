@@ -34,6 +34,8 @@ def _dataset_episodes(dataset: Path) -> tuple[int, int, int, str]:
         raise ValueError(f"{dataset}: no LeRobot data parquet files")
     episodes: dict[int, dict] = {}
     prompt = ""
+    # LeRobot task_index is local to the dataset (0 for its sole instruction),
+    # unlike the LIBERO benchmark task index (1 in collection_manifest.json).
     columns_to_check = ("episode_index", "frame_index", "is_success", "task_index")
     for file in parquet_files:
         schema = pq.ParquetFile(file).schema_arrow
@@ -50,8 +52,8 @@ def _dataset_episodes(dataset: Path) -> tuple[int, int, int, str]:
             if frame in meta["frames"] or meta["success"] != success:
                 raise ValueError(f"{file}: inconsistent frame index or success flag in episode {ep}")
             meta["frames"].add(frame)
-        if "task_index" in data and any(int(i) != 1 for i in data["task_index"]):
-            raise ValueError(f"{file}: this dataset contains multiple task indices")
+        if "task_index" in data and any(int(i) != 0 for i in data["task_index"]):
+            raise ValueError(f"{file}: expected local LeRobot task_index=0 for the sole instruction")
     if not episodes or sorted(episodes) != list(range(len(episodes))):
         raise ValueError(f"{dataset}: episode indices must be contiguous from zero")
     for ep, meta in episodes.items():
