@@ -152,6 +152,7 @@ def main() -> int:
     arm_publications = 0
     last_publish_ns = None
     max_publish_gap_ns = 0
+    episode_ended = False
     gain = 1.0 if mapping_mode == "identity_verified" else LEGACY_GAIN
     gripper_filter = GripperRequestFilter(confirmations=3, min_goal_interval_s=0.8)
 
@@ -293,6 +294,7 @@ def main() -> int:
                         )
                     fresh_pose()
                     origin = tuple(pose)
+                    episode_ended = False
                     started = time.monotonic()
                     gripper_filter.reset()
                     total_commands = 0
@@ -313,9 +315,12 @@ def main() -> int:
                     last_action = None
                     next_publish_ns = time.monotonic_ns()
                 elif op == "end_episode":
+                    if episode_ended:
+                        continue
                     schedule.clear()
                     origin = None
                     neutral()
+                    episode_ended = True
                     emit(
                         event="episode_ended",
                         commands_sent=total_commands,

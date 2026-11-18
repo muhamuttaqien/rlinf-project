@@ -5,6 +5,9 @@ its completed mapping gate, offline timing evidence, and the checks required bef
 operator-approved real-world test. Read the timing result first, then the
 request-unit comparison and validation limits. [中文](pi05_execution_pipeline_offline.zh.md)
 
+The later [Episode 8 shutdown report](pi05_episode8_shutdown.md) documents the
+terminal-event race fix and preparation for the qualified 1.0 SpaceMouse mapping.
+
 ## Timing And Command Ownership
 
 The verified gap comes from serial execution in

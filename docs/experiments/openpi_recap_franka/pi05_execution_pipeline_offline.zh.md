@@ -2,6 +2,8 @@
 
 本报告说明 2026-11-18 实现的有界命令刷新机制、完整 mapping 门槛、离线时序证据，以及下一次单独获得操作员批准的实机测试所需的检查。先阅读时序结果，再查看请求单位、缩放比较与验证范围。[English](pi05_execution_pipeline_offline.md)
 
+后续的 [Episode 8 停止处理报告](pi05_episode8_shutdown.zh.md)说明了终止事件竞态修正，以及完成资格验证后使用 1.0 SpaceMouse mapping 的准备步骤。
+
 ## 时序与命令所有权
 
 已确认的间隔来自 `fr3_pi05_supervised_rollout.py` 的串行流程：等待 `chunk_done`，采集相机与状态，转换观测，运行推理，反归一化，验证，保存观测，然后提交下一组动作。原 ROS executor 每隔 100 ms 发布一个动作，共十个；在一秒边界发布一次 neutral，随后等待。stdin 的 `readline()` 还可能因不完整消息而阻塞。后者是已确认的阻塞路径，但没有证据表明它造成了已记录的间隔。

@@ -20,18 +20,35 @@ from pathlib import Path
 TARGET = 20
 MAX_ATTEMPTS = 9999
 OUTCOMES = {"success", "failure", "aborted"}
-REQUIRED = {"episode_id", "policy_checkpoint", "policy_command_log",
-            "measured_state_log", "outcome", "operator_reviewed"}
+REQUIRED = {
+    "episode_id",
+    "policy_checkpoint",
+    "policy_command_log",
+    "measured_state_log",
+    "outcome",
+    "operator_reviewed",
+}
 
 
 def validate_episode(entry: dict, *, root: Path) -> dict:
     if not isinstance(entry, dict) or not REQUIRED.issubset(entry):
         raise ValueError(f"Missing episode fields: {sorted(REQUIRED - set(entry))}")
-    if not isinstance(entry["episode_id"], int) or not 1 <= entry["episode_id"] <= MAX_ATTEMPTS:
+    if (
+        not isinstance(entry["episode_id"], int)
+        or not 1 <= entry["episode_id"] <= MAX_ATTEMPTS
+    ):
         raise ValueError("episode_id must be 1..9999")
     if entry["outcome"] not in OUTCOMES:
         raise ValueError("outcome must be success, failure, or aborted")
-    if entry["operator_reviewed"] is not True:
+    if (
+        "execution_interface_qualified" in entry
+        and type(entry["execution_interface_qualified"]) is not bool
+    ):
+        raise ValueError("execution_interface_qualified must be a boolean")
+    pending_abort = (
+        entry["outcome"] == "aborted" and entry["operator_reviewed"] is False
+    )
+    if entry["operator_reviewed"] is not True and not pending_abort:
         raise ValueError("Outcome must be operator-reviewed")
     if "global_step_3000" not in entry["policy_checkpoint"]:
         raise ValueError("Not the trained pi0.5 SFT checkpoint")
@@ -42,9 +59,11 @@ def validate_episode(entry: dict, *, root: Path) -> dict:
         path = Path(name)
         if not path.is_absolute():
             path = root / path
-        if not path.is_file() or path.stat().st_size == 0:
+        if not path.is_file() or (path.stat().st_size == 0 and not pending_abort):
             raise ValueError(f"{key} missing or empty: {path}")
-    if entry.get("shadow_only") or entry.get("robot_commands_sent", 0) <= 0:
+    if entry.get("shadow_only") or (
+        entry.get("robot_commands_sent", 0) <= 0 and not pending_abort
+    ):
         raise ValueError("Shadow-only/no-command observations are not real rollouts")
     return entry
 
@@ -61,33 +80,46 @@ def progress(root: Path) -> dict:
     ids = [item["episode_id"] for item in episodes]
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate episode IDs")
+    usable = [
+        item
+        for item in episodes
+        if item["outcome"] in ("success", "failure")
+        and item.get("execution_interface_qualified") is not False
+    ]
     # Never overwrite a partially recorded physical episode after a fault.
     occupied_ids = {
-        int(folder.name[8:]) for folder in root.glob("episode_*")
-        if folder.is_dir() and folder.name[8:].isdigit()
+        int(folder.name[8:])
+        for folder in root.glob("episode_*")
+        if folder.is_dir()
+        and folder.name[8:].isdigit()
         and 1 <= int(folder.name[8:]) <= MAX_ATTEMPTS
         and any(folder.iterdir())
     }
     return {
-        "real_rollouts": sum(x["outcome"] in ("success", "failure") for x in episodes),
+        "real_rollouts": len(usable),
         "recorded_attempts": len(episodes),
         "incomplete_attempts": len(occupied_ids - set(ids)),
         "target": TARGET,
-        "successes": sum(x["outcome"] == "success" for x in episodes),
-        "failures": sum(x["outcome"] == "failure" for x in episodes),
+        "successes": sum(x["outcome"] == "success" for x in usable),
+        "failures": sum(x["outcome"] == "failure" for x in usable),
         "aborted": sum(x["outcome"] == "aborted" for x in episodes),
-        "next_episode": (None if sum(x["outcome"] in ("success", "failure") for x in episodes) >= TARGET
-                         else next((i for i in range(1, MAX_ATTEMPTS + 1)
-                                    if i not in occupied_ids), None)),
-        "outcomes_complete": sum(x["outcome"] in ("success", "failure") for x in episodes) == TARGET,
+        "next_episode": (
+            None
+            if len(usable) >= TARGET
+            else next(
+                (i for i in range(1, MAX_ATTEMPTS + 1) if i not in occupied_ids), None
+            )
+        ),
+        "outcomes_complete": len(usable) == TARGET,
         "recap_dataset_ready": False,  # Export and real transition validation still required.
     }
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--root", type=Path,
-                   default=Path("/data1/Muttaqien/fr3_pi05_real_rollouts_20"))
+    p.add_argument(
+        "--root", type=Path, default=Path("/data1/Muttaqien/fr3_pi05_real_rollouts_20")
+    )
     p.add_argument("--record", type=Path, help="Existing operator-labeled outcome.json")
     args = p.parse_args()
     args.root.mkdir(parents=True, exist_ok=True)

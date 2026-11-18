@@ -21,7 +21,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import queue
 import select
 import subprocess
 import sys
@@ -96,9 +95,11 @@ class Executor:
             raise ValueError(
                 "Expected legacy_limited without approval or explicitly approved identity_verified"
             )
-        self.q = queue.Queue()
-        self.write_lock = threading.Lock()
-        self.stop_lock = threading.Lock()
+        self.event_condition = threading.Condition()
+        self.consumed_events = set()
+        self.episode_end = None
+        self.write_lock = threading.RLock()
+        self.stop_sent = False
         self.stopped = threading.Event()
         self.closed = threading.Event()
         self.stop_reason = None
@@ -141,23 +142,30 @@ class Executor:
                     event.get("event"), str
                 ):
                     raise ValueError("Expected an executor event object")
-                self.events.append(event)
-                self.q.put(event)
+                self._record_event(event)
                 if event.get("event") == "fault":
-                    self.stop_reason = "executor_fault"
-                    self.stopped.set()
+                    self.request_stop("executor_fault")
             except ValueError:
                 event = {"event": "fault", "reason": "Malformed ROS executor event"}
-                self.events.append(event)
-                self.q.put(event)
+                self._record_event(event)
                 self.request_stop("executor_fault")
-        self.stop_reason = self.stop_reason or "executor_exit"
-        self.stopped.set()
-        self.q.put({"event": "exited", "reason": "Executor process closed"})
+        with self.write_lock:
+            self.stop_reason = self.stop_reason or "executor_exit"
+            self.stopped.set()
+        self._record_event({"event": "exited", "reason": "Executor process closed"})
+
+    def _record_event(self, event: dict) -> None:
+        with self.event_condition:
+            self.events.append(event)
+            if event["event"] == "episode_ended" and self.episode_end is None:
+                self.episode_end = event
+            self.event_condition.notify_all()
 
     def send(self, op, **fields):
         with self.write_lock:
-            if op in ("chunk", "begin_episode") and self.stopped.is_set():
+            if op in ("chunk", "begin_episode") and (
+                self.stopped.is_set() or self.episode_end is not None
+            ):
                 raise RolloutStopped(self.stop_reason)
             if self.proc.poll() is not None:
                 faults = [
@@ -174,15 +182,18 @@ class Executor:
 
     def request_stop(self, reason: str) -> None:
         """Revoke future chunks before asking ROS to cancel the active chunk."""
-        with self.stop_lock:
-            if self.stopped.is_set():
-                return
-            self.stop_reason = reason
+        with self.write_lock:
+            self.stop_reason = self.stop_reason or reason
             self.stopped.set()
+            if self.stop_sent or self.episode_end is not None:
+                return
+            self.stop_sent = True
             try:
                 self.send("end_episode")
             except (OSError, RuntimeError):
                 pass
+        with self.event_condition:
+            self.event_condition.notify_all()
 
     def monitor_stop(
         self, deadline: float, operator_input: TextIO | None = None
@@ -209,21 +220,45 @@ class Executor:
         self.stop_monitor.start()
 
     def wait(self, event_name: str, *, timeout=10):
+        """Consume only the requested event; retain the terminal acknowledgement."""
         end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            if self.stopped.is_set() and event_name != "episode_ended":
-                raise RolloutStopped(self.stop_reason)
-            try:
-                item = self.q.get(timeout=min(0.1, max(0.01, end - time.monotonic())))
-            except queue.Empty:
-                continue
-            if item.get("event") in ("fault", "exited"):
-                raise RuntimeError(
-                    "ROS executor: " + item.get("reason", "unknown fault")
-                )
-            if item.get("event") == event_name:
-                return item
-        raise TimeoutError(f"Executor never returned {event_name}")
+        with self.event_condition:
+            while True:
+                for index, item in enumerate(self.events):
+                    if item["event"] == "fault" and index not in self.consumed_events:
+                        self.consumed_events.add(index)
+                        raise RuntimeError(
+                            "ROS executor: " + item.get("reason", "unknown fault")
+                        )
+                if event_name == "episode_ended" and self.episode_end is not None:
+                    return self.episode_end
+                if event_name != "episode_ended" and (
+                    self.stopped.is_set() or self.episode_end is not None
+                ):
+                    raise RolloutStopped(self.stop_reason or "episode_ended")
+                for index, item in enumerate(self.events):
+                    if index in self.consumed_events:
+                        continue
+                    if item["event"] in ("fault", "exited", event_name):
+                        self.consumed_events.add(index)
+                        if item["event"] in ("fault", "exited"):
+                            raise RuntimeError(
+                                "ROS executor: " + item.get("reason", "unknown fault")
+                            )
+                        return item
+                remaining = end - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"Executor never returned {event_name}")
+                self.event_condition.wait(timeout=remaining)
+
+    def finish_episode(self, reason: str, *, timeout: float = 10) -> dict:
+        """Stop once and await acknowledgement; close the child on failure."""
+        self.request_stop(reason)
+        try:
+            return self.wait("episode_ended", timeout=timeout)
+        except (TimeoutError, RuntimeError):
+            self.close()
+            raise
 
     def close(self):
         self.closed.set()
@@ -284,6 +319,74 @@ def submit_and_archive_chunk(
         "submitted_ns": submitted_ns,
         "archive_done_ns": time.monotonic_ns(),
     }
+
+
+def archive_action_events(
+    action_events: list[dict],
+    *,
+    commands: TextIO,
+    states: TextIO,
+    decoded: np.ndarray,
+    observation: dict,
+    observation_file: str,
+    chunk_index: int,
+) -> None:
+    """Flush every executed action, including a stopped chunk's partial result."""
+    for e in action_events:
+        commands.write(
+            json.dumps(
+                {
+                    **e,
+                    "raw_predicted_7d": decoded[e["command_index"]].tolist(),
+                },
+                allow_nan=False,
+            )
+            + "\n"
+        )
+        states.write(
+            json.dumps(
+                {
+                    "monotonic_ns": e["monotonic_ns"],
+                    "tcp_xyz": e["tcp_xyz"],
+                    "observation_file": observation_file,
+                    "chunk": chunk_index,
+                    "observed_state19": observation["observation/state"].tolist(),
+                },
+                allow_nan=False,
+            )
+            + "\n"
+        )
+    commands.flush()
+    states.flush()
+
+
+def record_episode_outcome(episode_dir: Path, manifest: dict) -> None:
+    """Create an outcome record without overwriting an existing result."""
+    with (episode_dir / "outcome.json").open("x", encoding="utf-8") as stream:
+        json.dump(manifest, stream, indent=2, allow_nan=False)
+        stream.write("\n")
+
+
+def review_episode_outcome(
+    stop_reason: str,
+    *,
+    execution_error: str | None = None,
+    shutdown_error: str | None = None,
+) -> tuple[str, bool]:
+    """Require operator labels after graceful stops; retain faults as pending aborts."""
+    if (
+        stop_reason not in ("time_limit", "operator_stop")
+        or execution_error is not None
+        or shutdown_error is not None
+    ):
+        return "aborted", False
+    try:
+        label = input("Outcome [success/failure/aborted]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return "aborted", False
+    if label not in ("success", "failure", "aborted"):
+        raise ValueError("Outcome not recorded: expected success/failure/aborted")
+    return label, True
 
 
 def run(args):
@@ -449,6 +552,8 @@ def run(args):
         executor.monitor_stop(episode_deadline)
         stop_reason = "time_limit"
         episode_end = None
+        execution_error = None
+        shutdown_error = None
 
         with (
             (episode_dir / "policy_command_log.jsonl").open("x") as commands,
@@ -461,7 +566,9 @@ def run(args):
                     stop_reason = executor.stop_reason
                     break
                 if any(e.get("event") in ("fault", "exited") for e in executor.events):
-                    raise RuntimeError("ROS executor fault")
+                    stop_reason = "executor_fault"
+                    executor.request_stop(stop_reason)
+                    break
                 t0 = time.monotonic()
                 acquisition_started_ns = time.monotonic_ns()
                 frames = read_camera_pair(cameras, max_age_s=0.5, max_skew_s=0.1)
@@ -545,9 +652,18 @@ def run(args):
                         observation=raw,
                     )
                     executor.wait("chunk_done", timeout=4)
-                except RolloutStopped:
-                    stop_reason = executor.stop_reason
-                    episode_end = executor.wait("episode_ended")
+                except (RolloutStopped, TimeoutError, RuntimeError, OSError) as exc:
+                    stop_reason = executor.stop_reason or (
+                        "chunk_timeout"
+                        if isinstance(exc, TimeoutError)
+                        else "executor_fault"
+                    )
+                    if not isinstance(exc, RolloutStopped):
+                        execution_error = str(exc)
+                    try:
+                        episode_end = executor.finish_episode(stop_reason)
+                    except (TimeoutError, RuntimeError) as shutdown_exc:
+                        shutdown_error = str(shutdown_exc)
                 new_events = executor.events[before:]
                 action_events = [e for e in new_events if e.get("event") == "action"]
                 timings.write(
@@ -566,78 +682,70 @@ def run(args):
                     + "\n"
                 )
                 timings.flush()
-                for e in action_events:
-                    commands.write(
-                        json.dumps(
-                            {
-                                **e,
-                                "raw_predicted_7d": decoded[
-                                    e["command_index"]
-                                ].tolist(),
-                            },
-                            allow_nan=False,
-                        )
-                        + "\n"
-                    )
-                    states.write(
-                        json.dumps(
-                            {
-                                "monotonic_ns": e["monotonic_ns"],
-                                "tcp_xyz": e["tcp_xyz"],
-                                "observation_file": file,
-                                "chunk": chunk_i,
-                                "observed_state19": raw["observation/state"].tolist(),
-                            },
-                            allow_nan=False,
-                        )
-                        + "\n"
-                    )
-                commands.flush()
-                states.flush()
+                archive_action_events(
+                    action_events,
+                    commands=commands,
+                    states=states,
+                    decoded=decoded,
+                    observation=raw,
+                    observation_file=file,
+                    chunk_index=chunk_i,
+                )
                 issued += len(action_events)
                 if executor.stopped.is_set():
                     stop_reason = executor.stop_reason
                     break
                 if len(action_events) != 10:
-                    raise RuntimeError("Incomplete physical command chunk")
+                    stop_reason = "incomplete_chunk"
+                    execution_error = (
+                        f"Expected ten action events, found {len(action_events)}"
+                    )
+                    break
                 print(
                     f"Episode {episode}: {issued} policy actions sent (100 Hz arm refresh) "
                     f"({time.monotonic() - t0:.2f}s/chunk)",
                     flush=True,
                 )
                 chunk_i += 1
-            executor.request_stop(stop_reason)
-            if episode_end is None:
-                episode_end = executor.wait("episode_ended")
+            if episode_end is None and shutdown_error is None:
+                try:
+                    episode_end = executor.finish_episode(stop_reason)
+                except (TimeoutError, RuntimeError) as exc:
+                    shutdown_error = str(exc)
             executor.stop_monitor.join(timeout=1)
+        episode_end = episode_end or executor.episode_end
         print(
             f"Policy rollout ended ({stop_reason}). Review peg-in-hole outcome.",
             flush=True,
         )
-        if stop_reason == "invalid_policy_action":
-            label = "aborted"
+        label, operator_reviewed = review_episode_outcome(
+            stop_reason, execution_error=execution_error, shutdown_error=shutdown_error
+        )
+        if not operator_reviewed:
             print(
-                "Automatically labeled aborted due to invalid policy action.",
+                "Automatically labeled aborted; operator outcome review is pending.",
                 flush=True,
             )
-        else:
-            label = input("Outcome [success/failure/aborted]: ").strip().lower()
-            if label not in ("success", "failure", "aborted"):
-                raise ValueError(
-                    "Outcome not recorded: expected success/failure/aborted"
-                )
         manifest = {
             "episode_id": episode,
             "policy_checkpoint": str(ckpt),
             "policy_command_log": "policy_command_log.jsonl",
             "measured_state_log": "measured_state_log.jsonl",
             "outcome": label,
-            "operator_reviewed": True,
+            "operator_reviewed": operator_reviewed,
+            "execution_interface_qualified": verification is not None,
             "robot_commands_sent": issued,
             "shadow_only": False,
             "policy_actions_sent": issued,
-            "arm_publications": episode_end["arm_publications"],
-            "max_publish_gap_ns": episode_end["max_publish_gap_ns"],
+            "arm_publications": episode_end["arm_publications"]
+            if episode_end
+            else None,
+            "max_publish_gap_ns": episode_end["max_publish_gap_ns"]
+            if episode_end
+            else None,
+            "shutdown_confirmed": episode_end is not None,
+            "shutdown_error": shutdown_error,
+            "execution_error": execution_error,
             "executor_event_log": "executor_events.jsonl",
             "pipeline_timing_log": "pipeline_timing.jsonl",
             "mapping_verification_sha256": verification["record_sha256"]
@@ -651,9 +759,7 @@ def run(args):
             "request_mapping_mode": mode,
             "note": "ROS publish events are not proof of controller acceptance or task success",
         }
-        (episode_dir / "outcome.json").write_text(
-            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-        )
+        record_episode_outcome(episode_dir, manifest)
         print(json.dumps(progress(args.root), indent=2))
 
 
@@ -685,7 +791,7 @@ def main():
     p.add_argument(
         "--verified-request-mapping",
         action="store_true",
-        help="Request identity mapping with a physical verification record and per-run operator consent",
+        help="Match SpaceMouse at gain 1.0 after physical qualification and per-run consent; default is attenuated legacy diagnostics",
     )
     p.add_argument(
         "--mapping-verification",

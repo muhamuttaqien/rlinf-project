@@ -950,3 +950,266 @@ def test_real_loop_gripper_saturation_preserves_displacement_stop(ros_runtime):
         for t, topic, v in runtime.publications
         if topic == executor.ARM_TOPIC and t > fault_at
     )
+
+
+@pytest.fixture
+def shutdown_executor(tmp_path, monkeypatch):
+    """A pipe child emits a partial chunk and selectable shutdown responses."""
+    import sys
+
+    from toolkits.realworld_check import fr3_pi05_supervised_rollout as rollout
+
+    child = tmp_path / "shutdown_executor.py"
+    child.write_text("""import json, sys
+def emit(**event):
+    print(json.dumps(event), flush=True)
+emit(event="ready")
+response = "ack"
+stops = 0
+for line in sys.stdin:
+    item = json.loads(line)
+    op = item["op"]
+    if op == "chunk":
+        response = item.get("response", "ack")
+        for i in range(6):
+            emit(event="action", command_index=i, requested_7d=[0.4]*6+[1.0],
+                 sent_arm_6d=[0.4]*6, gripper_event="hold", tcp_xyz=[0,0,0],
+                 monotonic_ns=i+1, commands_sent=i+1)
+        emit(event="chunk_started")
+        if response == "early":
+            emit(event="episode_ended", commands_sent=6, arm_publications=56,
+                 max_publish_gap_ns=10000000, stop_requests=0)
+    elif op == "end_episode":
+        stops += 1
+        if response == "exit":
+            break
+        if response in ("fault", "fault_ack"):
+            emit(event="fault", reason="simulated shutdown fault")
+            if response == "fault_ack":
+                emit(event="episode_ended", commands_sent=6, arm_publications=56,
+                     max_publish_gap_ns=10000000, stop_requests=stops)
+        elif response == "ack":
+            emit(event="episode_ended", commands_sent=6, arm_publications=56,
+                 max_publish_gap_ns=10000000, stop_requests=stops)
+    elif op == "inspect":
+        emit(event="inspection", stop_requests=stops)
+    elif op == "quit":
+        break
+""")
+    monkeypatch.setattr(rollout, "EXECUTOR", child)
+    executor = rollout.Executor(ros_python=sys.executable)
+    try:
+        executor.wait("ready")
+        yield executor
+    finally:
+        executor.close()
+
+
+@pytest.mark.parametrize("trigger", ["time_limit", "operator_stop"])
+def test_episode8_shutdown_during_chunk_wait_retains_single_ack(
+    shutdown_executor, trigger
+):
+    import os
+
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import RolloutStopped
+
+    executor = shutdown_executor
+    executor.send("chunk")
+    executor.wait("chunk_started")
+    read_fd, write_fd = os.pipe()
+    with os.fdopen(read_fd) as operator_input:
+        try:
+            executor.monitor_stop(
+                time.monotonic() + (0.03 if trigger == "time_limit" else 10),
+                operator_input,
+            )
+            if trigger == "operator_stop":
+                os.write(write_fd, b"\n")
+            with pytest.raises(RolloutStopped, match=trigger):
+                executor.wait("chunk_done", timeout=1)
+            ended = executor.wait("episode_ended", timeout=1)
+            assert ended["commands_sent"] == 6
+            assert executor.finish_episode(trigger, timeout=0) == ended
+            assert executor.wait("episode_ended", timeout=0) == ended
+            executor.request_stop("duplicate_stop")
+            executor.send("inspect")
+            executor.close()
+            assert [e for e in executor.events if e["event"] == "inspection"][0][
+                "stop_requests"
+            ] == 1
+            assert (
+                len([e for e in executor.events if e["event"] == "episode_ended"]) == 1
+            )
+            with pytest.raises(RolloutStopped):
+                executor.send("chunk")
+        finally:
+            os.close(write_fd)
+
+
+def test_terminal_ack_before_stop_is_retained(shutdown_executor):
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import RolloutStopped
+
+    executor = shutdown_executor
+    executor.send("chunk", response="early")
+    with pytest.raises(RolloutStopped):
+        executor.wait("chunk_done", timeout=1)
+    ended = executor.finish_episode("time_limit", timeout=1)
+    assert ended["commands_sent"] == 6
+    executor.send("inspect")
+    assert executor.wait("episode_ended") == ended
+    executor.close()
+    assert [e for e in executor.events if e["event"] == "inspection"][0][
+        "stop_requests"
+    ] == 0
+
+
+@pytest.mark.parametrize("response", ["ack", "silent", "exit", "fault", "fault_ack"])
+def test_chunk_timeout_closes_failed_shutdown_and_preserves_partial_outcome(
+    shutdown_executor, tmp_path, response
+):
+    import json
+
+    import numpy as np
+
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import (
+        RolloutStopped,
+        archive_action_events,
+        record_episode_outcome,
+    )
+    from toolkits.realworld_check.fr3_rollout_outcomes import progress
+
+    executor = shutdown_executor
+    executor.send("chunk", response=response)
+    executor.wait("chunk_started")
+    with pytest.raises(TimeoutError, match="chunk_done"):
+        executor.wait("chunk_done", timeout=0.02)
+    if response == "ack":
+        assert executor.finish_episode("chunk_timeout", timeout=1)["commands_sent"] == 6
+    else:
+        with pytest.raises((TimeoutError, RuntimeError)):
+            executor.finish_episode("chunk_timeout", timeout=0.05)
+        assert executor.closed.is_set()
+        assert executor.proc.poll() is not None
+        if response == "fault_ack":
+            assert executor.episode_end["commands_sent"] == 6
+    with pytest.raises(RolloutStopped):
+        executor.send("chunk")
+    episode = tmp_path / "episode_01"
+    episode.mkdir()
+    actions = [e for e in executor.events if e["event"] == "action"]
+    with (
+        (episode / "commands.jsonl").open("x") as commands,
+        (episode / "states.jsonl").open("x") as states,
+    ):
+        archive_action_events(
+            actions,
+            commands=commands,
+            states=states,
+            decoded=np.full((10, 7), 0.4),
+            observation={"observation/state": np.arange(19)},
+            observation_file="observation_003.npz",
+            chunk_index=3,
+        )
+    records = [
+        json.loads(line)
+        for line in (episode / "commands.jsonl").read_text().splitlines()
+    ]
+    assert len(records) == 6
+    assert [r["command_index"] for r in records] == list(range(6))
+    assert all(r["raw_predicted_7d"] == [0.4] * 7 for r in records)
+    assert len((episode / "states.jsonl").read_text().splitlines()) == 6
+    manifest = {
+        "episode_id": 1,
+        "policy_checkpoint": "/global_step_3000/full_weights.pt",
+        "policy_command_log": "commands.jsonl",
+        "measured_state_log": "states.jsonl",
+        "outcome": "aborted",
+        "operator_reviewed": False,
+        "robot_commands_sent": 6,
+        "stop_reason": executor.stop_reason,
+        "execution_interface_qualified": False,
+    }
+    record_episode_outcome(episode, manifest)
+    original = (episode / "outcome.json").read_bytes()
+    with pytest.raises(FileExistsError):
+        record_episode_outcome(episode, {**manifest, "outcome": "success"})
+    assert (episode / "outcome.json").read_bytes() == original
+    assert json.loads(original)["stop_reason"] == "chunk_timeout"
+    assert progress(tmp_path)["real_rollouts"] == 0
+    assert progress(tmp_path)["aborted"] == 1
+
+
+def test_duplicate_stop_is_idempotent_and_revokes_partial_chunk(mapped_ros_runtime):
+    runtime, executor, _ = mapped_ros_runtime
+    stop_at = 2_400_000_000
+    runtime.pending.extend(
+        [
+            (stop_at, lambda: runtime.send("end_episode")),
+            (stop_at + 2_000_000, lambda: runtime.send("end_episode")),
+        ]
+    )
+    assert executor.main() == 0
+    events = runtime.events()
+    ended = [e for e in events if e["event"] == "episode_ended"]
+    assert len(ended) == 1
+    assert 0 < ended[0]["commands_sent"] < 10
+    assert all(
+        not any(v)
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC and t >= stop_at
+    )
+
+
+def test_every_refresh_uses_only_current_sample(mapped_ros_runtime):
+    runtime, executor, gain = mapped_ros_runtime
+    runtime.values = [
+        [(i + 1) / 10, -0.2, 0.3, -0.4, 0.5, -0.6, 1.0] for i in range(10)
+    ]
+    assert executor.main() == 0
+    start = 2_032_000_000
+    moving = [
+        (t, v)
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC and any(v)
+    ]
+    assert len(moving) == 100
+    for stamp, values in moving:
+        index = (stamp - start) // 100_000_000
+        assert 0 <= index < 10
+        assert values == tuple(x * gain for x in runtime.values[index][:6])
+
+
+@pytest.mark.parametrize("reason", ["time_limit", "operator_stop"])
+@pytest.mark.parametrize("outcome", ["success", "failure", "aborted"])
+def test_graceful_stop_keeps_operator_outcome(monkeypatch, reason, outcome):
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import (
+        review_episode_outcome,
+    )
+
+    monkeypatch.setattr("builtins.input", lambda prompt: outcome)
+    assert review_episode_outcome(reason) == (outcome, True)
+
+
+@pytest.mark.parametrize(
+    "failure", ["chunk_timeout", "executor_fault", "shutdown_timeout", "eof"]
+)
+def test_fault_or_missing_review_remains_unreviewed_abort(monkeypatch, failure):
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import (
+        review_episode_outcome,
+    )
+
+    prompts = []
+
+    def missing_review(prompt):
+        prompts.append(prompt)
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", missing_review)
+    reason = "time_limit" if failure in ("shutdown_timeout", "eof") else failure
+    kwargs = (
+        {"shutdown_error": "no acknowledgement"}
+        if failure == "shutdown_timeout"
+        else {}
+    )
+    assert review_episode_outcome(reason, **kwargs) == ("aborted", False)
+    assert bool(prompts) == (failure == "eof")
