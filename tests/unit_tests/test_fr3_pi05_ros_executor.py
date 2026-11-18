@@ -866,3 +866,87 @@ def test_rollout_identity_gate_runs_before_model_or_hardware_setup():
                 verified_request_mapping=False, mapping_verification="unused.json"
             )
         )
+
+
+def test_real_loop_gripper_overshoots_keep_arm_and_debounced_goals(ros_runtime):
+    runtime, executor = ros_runtime
+    arm = [0.4, -0.3, 0.2, -0.1, 0.05, -0.025]
+    runtime.values = [arm + [g] for g in [-0.057] * 3 + [1.057] * 7]
+    assert executor.main() == 0
+    events = runtime.events()
+    actions = [e for e in events if e["event"] == "action"]
+    assert len(actions) == 10
+    assert all(
+        e["sent_arm_6d"] == [x * executor.LEGACY_GAIN for x in arm] for e in actions
+    )
+    assert [e["requested_7d"][6] for e in actions] == [0.0] * 3 + [1.0] * 7
+    assert [e["gripper_event"] for e in actions[:3]] == ["hold", "hold", "close"]
+    assert all(e["gripper_event"] == "hold" for e in actions[3:])
+    assert [
+        v for _, topic, v in runtime.publications if topic == executor.GRIPPER_TOPIC
+    ] == [0.0]
+
+
+@pytest.mark.parametrize(
+    "channel,value",
+    [
+        (6, -0.060001),
+        (6, 1.060001),
+        (6, -1.0),
+        (6, 2.0),
+        (6, float("nan")),
+        (6, float("inf")),
+        (6, -float("inf")),
+        (0, 1.000001),
+    ],
+)
+def test_real_loop_invalid_chunk_aborts_and_neutralizes_without_retry(
+    ros_runtime, channel, value
+):
+    runtime, executor = ros_runtime
+    fault_at = 3_200_000_000
+    invalid = [[0.4, 0, 0, 0, 0, 0, -0.057] for _ in range(10)]
+    invalid[-1][channel] = value
+
+    def send_invalid():
+        runtime.send(
+            "chunk", values=invalid, observation_ns=runtime.ns, issued_ns=runtime.ns
+        )
+
+    runtime.pending.extend(
+        [(fault_at, send_invalid), (fault_at + 10_000_000, runtime.chunk)]
+    )
+    assert executor.main() == 2
+    events = runtime.events()
+    assert len([e for e in events if e["event"] == "action"]) == 10
+    faults = [e for e in events if e["event"] == "fault"]
+    assert len(faults) == 1
+    assert faults[0]["commands_sent"] == 10
+    assert not any(
+        topic == executor.GRIPPER_TOPIC
+        for t, topic, _ in runtime.publications
+        if t >= fault_at
+    )
+    arm_after_fault = [
+        v
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC and t >= fault_at
+    ]
+    assert arm_after_fault
+    assert all(not any(v) for v in arm_after_fault)
+
+
+def test_real_loop_gripper_saturation_preserves_displacement_stop(ros_runtime):
+    runtime, executor = ros_runtime
+    runtime.values = [[0.4, 0, 0, 0, 0, 0, 1.057]] * 10
+    fault_at = 2_400_000_000
+    runtime.pending.append((fault_at, lambda: setattr(runtime, "pose_x", 0.081)))
+    assert executor.main() == 2
+    faults = [e for e in runtime.events() if e["event"] == "fault"]
+    assert len(faults) == 1
+    assert "8 cm" in faults[0]["reason"]
+    assert all(
+        not any(v)
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC and t > fault_at
+    )

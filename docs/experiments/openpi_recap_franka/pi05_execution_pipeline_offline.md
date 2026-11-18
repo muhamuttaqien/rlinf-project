@@ -164,8 +164,10 @@ but does not establish that removing it is safe or sufficient. The default remai
 `legacy_limited`; the strengthened `identity_verified` gate is described above.
 No physical gain or mapping is automatically changed. The request data config
 has no `DeltaActions`/`AbsoluteActions` transform; its output adapter only
-slices the seven request channels. No duplicate HID transform, clipping,
-coordinate rotation or SI conversion is applied by this execution pipeline.
+slices the seven request channels. The six arm dimensions retain their decoded
+values through validation, without another HID transform, coordinate rotation
+or SI conversion. The later [gripper validation correction](pi05_gripper_validation.md)
+bounds only the seventh dimension and records the original prediction.
 
 For a future mapping review, first freeze the deployed binary/source identity,
 mounting/tool frames, axis signs and update semantics. Then obtain separate

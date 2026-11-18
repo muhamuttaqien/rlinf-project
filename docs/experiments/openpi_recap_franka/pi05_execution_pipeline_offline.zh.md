@@ -71,7 +71,7 @@ executor 进程现在独立按 10 ms 周期发布。每组仍然只有十个 pol
 | angular Y | 0.1227 | 0.1190 | 0.0179 | 0.1190 |
 | angular Z | 0.1151 | 0.1218 | 0.0183 | 0.1218 |
 
-Episode 6 中每条 arm 发送值都等于解码预测乘以 0.15，最大绝对残差为零。这确认了训练后的衰减，但不能证明移除衰减是安全或充分的。默认模式仍为 `legacy_limited`；加强后的 `identity_verified` 门槛见上文。不会自动改变物理增益或 mapping。Request data config 不包含 `DeltaActions`/`AbsoluteActions`，output adapter 仅截取七个请求通道。执行流水线不重复应用 HID 变换，也不进行 clipping、坐标旋转或 SI 单位换算。
+Episode 6 中每条 arm 发送值都等于解码预测乘以 0.15，最大绝对残差为零。这确认了训练后的衰减，但不能证明移除衰减是安全或充分的。默认模式仍为 `legacy_limited`；加强后的 `identity_verified` 门槛见上文。不会自动改变物理增益或 mapping。Request data config 不包含 `DeltaActions`/`AbsoluteActions`，output adapter 仅截取七个请求通道。六个 arm 维度在校验后保留解码值，不重复应用 HID 变换，也不进行坐标旋转或 SI 单位换算。后续的[夹爪校验修正](pi05_gripper_validation.zh.md)仅限制第七维，并记录原始预测。
 
 后续 mapping 审查应先固定部署二进制与源码对应关系、安装及工具坐标系、轴方向和更新语义。随后单独取得操作员批准，进行有界、仅 arm 的带符号轴向标定，同时记录 controller receipt/reference 诊断与 TCP 实测响应。先在当前增益下验证 neutral、stop 和保持时序，再考虑另行批准的增益修改。一次 X 轴 pulse 或 topic 名称一致不足以验证六个轴。现有门槛见 [mapping review](pi05_real_rollout_mapping_review.md)。先前 X-only pulse 报告了 +0.383 mm X 和 -0.539 mm Z；尚未解释的跨轴响应与未标定的 flange-to-peg TCP，使离线检查无法确认物理方向兼容。代码不会据此猜测轴重映射。Gripper debounce 也与直接按键控制存在有意差异：需要三个置信度足够的 policy 动作，相邻 goal 至少间隔 0.8 s；100 Hz arm 刷新不会增加确认次数。
 

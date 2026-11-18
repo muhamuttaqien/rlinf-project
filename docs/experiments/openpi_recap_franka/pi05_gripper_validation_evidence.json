@@ -1,0 +1,1082 @@
+{
+  "mode": "offline_read_only_saved_predictions",
+  "robot_commands_sent": 0,
+  "gripper_label_semantics": "latched request: 0=close, 1=open; not measured position",
+  "admission_overshoot": 0.06,
+  "bound_basis": "Largest saved observed overshoot 0.05716913694965839, rounded outward to the next 0.01 of the unit label span. Empirical admission bound, not a model guarantee.",
+  "datasets": [
+    {
+      "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1",
+      "samples": 12288,
+      "gripper_values": [
+        0.0,
+        1.0
+      ],
+      "gripper_counts": [
+        8191,
+        4097
+      ],
+      "parquet_sources": [
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000000.parquet",
+          "sha256": "3f2aa14752f842ecb1adb565a47129b04eae92de9a3eb076c53ec107d896ac7a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000001.parquet",
+          "sha256": "15e79550e874bf9da39436d591a80cd57e78fe30c28efba9ca438f3359716855"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000002.parquet",
+          "sha256": "3b008ccc9c56a2ae2976c61532ab0c04033a5753d8850d07fdc3acf47f48997e"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000003.parquet",
+          "sha256": "5133bb07219e85cf394c44ba0f447326866c67f58e78fb17b0550b630f4c166c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000004.parquet",
+          "sha256": "aa394188c1b7f0700b545c702e6c0ddd044a93be5cc6801196d14cc4de2246ea"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000005.parquet",
+          "sha256": "19c4a843051df5d21d9063169803db7925f43a1c90221f5b1ad506c89c1b2184"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000006.parquet",
+          "sha256": "6422a5fcada72e5d73f2aaa6b3ecc5af6a7c0e7da6bb44071bd96da9c5ed0324"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000007.parquet",
+          "sha256": "0236128821905aed0b08d0a019acaa70f4ead888c3fd456ff10a45a39025f9d1"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000008.parquet",
+          "sha256": "ad5d3a46f6f00dd83c63263b45f0f3d590bc225f579565bbce78274fa25afed2"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000009.parquet",
+          "sha256": "a3b2bcc40701b9d2176ce367ca0579a45f19d6f69fda01b8597b17b3b1882210"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000010.parquet",
+          "sha256": "3adf21d504cc820745f61a1548f5bf77b2dde3f2f34d02bdf57d357adccac99a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000011.parquet",
+          "sha256": "efd994011a64eedd5fcdddb96cb2dc906327d2067eb2c4cc3e89496fb38f7464"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000012.parquet",
+          "sha256": "c57b19459b490dd839b3a48ed92c48a11da0fd7c51f789373e1e3fd0c60c94e3"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000013.parquet",
+          "sha256": "45cc76191b3ac0a31b512864c17ecb50c97541a1a24d2e9a37705b09478612d9"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000014.parquet",
+          "sha256": "16c3dfe2d7fc0165e5cebb0a250bd779d9ffa7f702962fa3983e0f8c6a2b575c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000015.parquet",
+          "sha256": "eb78cd412017e850c4fcb23cfa4b8872448c92dbc8a553ac3451e854c345407b"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000016.parquet",
+          "sha256": "c84bba21a31504fa7dd49ab55505bf3767e18a4fe22b72b377a9ec6d4b23c1e1"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000017.parquet",
+          "sha256": "d9e7e55c7c5aa862a2ba3ebfa09919dd0579395eac6f3faf9ac48ffed8701bde"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000018.parquet",
+          "sha256": "41715afb5182afd4c3dc5c4e4ae6688169888c091a3e6858c7e794c4b7ff8cdc"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000019.parquet",
+          "sha256": "93481ad1ec9000fd117f02ffaccd9c4be46c7d00f7dc2c5f2ebfc8cc666813cc"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000020.parquet",
+          "sha256": "894e96b14cd0936d55a83d7ad88b47e23b4753439f904d6c6170b23b30a299f4"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000021.parquet",
+          "sha256": "6d5f35f2f274c34527b429f9602dec7be584150a9687334d49238fa952273846"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000022.parquet",
+          "sha256": "2e2e1d0b071394b8a76fdcc1bcc279c6f033c2fa4c9f3aad39630272ffbcac28"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000023.parquet",
+          "sha256": "40015d11ce125aaa908aa0d9c1169647517bb383fbcfa3918311f3d72bec99a1"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000024.parquet",
+          "sha256": "b1b5e8ff6880e74185740e9e38b5878d8fe28f88204740f53de4fcec14b76116"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000025.parquet",
+          "sha256": "b5272a8c51cdc31315858c1fc1a18ec8d8074b1165d0fc06317a516f24bc77e0"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000026.parquet",
+          "sha256": "69332216f9d347397e1223c258ef2a037a8760773702c0ad782c1101cb9cc3ff"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000027.parquet",
+          "sha256": "37c92098a27784f7b39b35a30d10117c877f7e01940fc8a5ff5d276f09b2ba55"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000028.parquet",
+          "sha256": "1c7b2bbd216881ec1628605520e8567409586c7826536b2e75ebb1b907bae5f9"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000029.parquet",
+          "sha256": "a1859f2dfa2842ea045be4ad89b35c63cff79d2f34a3e09bb781d2fd40edc3a0"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000030.parquet",
+          "sha256": "927a576b73b00f7639cf90fc36aca1d88ae5381e82dbd9e008f5e04f89ce835f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000031.parquet",
+          "sha256": "0caf7c0566fedc1b9a4a879bb34d00ad027f219cd2fa074d7f8162d97c333273"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000032.parquet",
+          "sha256": "1cf8e6c7d502684ee22a92b4a56261e630a8791533354ab160a25a07f66ad6a7"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000033.parquet",
+          "sha256": "f39eadb3a8d4cb86c04fc8b095f327482b5b4f701317fb39baf88bb1d060a00e"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000034.parquet",
+          "sha256": "d0bbb108f3249e22f7815e5c122a7d1c300b942c7561fd8affd9c963fbc1abe9"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000035.parquet",
+          "sha256": "e6f1d6aab5a0f758dbec642f4621be5b963f4f03374aec974a6a6976cf3f2aa2"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000036.parquet",
+          "sha256": "5fa5decf4c021c5723885ef6027063510e21055efa58630b9109170dd3e6f12d"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000037.parquet",
+          "sha256": "2059c0b8160e6814263643c6bbad64fe6eb83ecd89ac83faf6030a3b3463d1b6"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000038.parquet",
+          "sha256": "13aaa6469c30799406d5f609dd94937b4b413b145fba2f27818ce0ff8d1bf241"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000039.parquet",
+          "sha256": "4c1c12d72cc829970753346ef1f403288da464f71996d984d382ad76f772d371"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000040.parquet",
+          "sha256": "b46d1da7e15287df1938db3a6d5fb5377eeb431298d316c6a84d6e7704f3cc4e"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000041.parquet",
+          "sha256": "07cc8c5889cfc7650ab7dd568999048151b30bc823d48bfe73dedbb65b561033"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000042.parquet",
+          "sha256": "fcb94969ca753225ee10197bfa243d44baad4cbdbb048813e28b0a68f36c6379"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000043.parquet",
+          "sha256": "710dfb1606efe76dac089fb2aa40071926a5d90009c1501b27dd464f183fd21b"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000044.parquet",
+          "sha256": "001cd752df115a0ca6a413bfae701795b9f742c0e1d6b4eb8227f4ccaa34938b"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000045.parquet",
+          "sha256": "6db434684a9d1e33518b49c75aaf33954fc00b9c978a232adedb20ae2f0342ea"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000046.parquet",
+          "sha256": "27483f1e95a0ea3df48a5aea3b4acb4a8576617ff6fbec546b56d74c583bf89a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000047.parquet",
+          "sha256": "1dbadcbddb69c7df273581b2d09df6ecf75e5c1c289f76a436873c495c6b91e4"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000048.parquet",
+          "sha256": "3512785e7c3b59342f42f75ce9eac022efd3fad99c7fbea2f3e8621c6c54b8b3"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000049.parquet",
+          "sha256": "c4d82f11caa0f84585146eadaec23061dfe6a677b16f1299d3e935afe561f8a4"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000050.parquet",
+          "sha256": "bfd3e08143ca3958957aff1b610ac0c65c17682513d3d506cbe40dda88c26d36"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000051.parquet",
+          "sha256": "0fdac21254c0810f299a50a08e1b1839a110123296c73d8346ec40835da80969"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000052.parquet",
+          "sha256": "6d148b047540c70b4523fec510e5e2ad4108fe2dc346aa51dae4b0fcb76a11c5"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000053.parquet",
+          "sha256": "4d82d34f3b9b19a29e84137cb90eb2ef0eafc18679cff3cf649fea0ee4681b77"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000054.parquet",
+          "sha256": "1fd6955b4231f76cd39b233c45aa06169d172de517621087897741da0b500e90"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000055.parquet",
+          "sha256": "9e19b4b3e510172d02c2eb83bb870c719aa6490eb7a4a8f44eeb9fe0acfa89ab"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000056.parquet",
+          "sha256": "624ec21f3291754544d0198f9ff11faa15cd341c18dc25ce087198ba93483f56"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000057.parquet",
+          "sha256": "42032b674a67c7a5249c9a89da27fbf04b7ecac8afe92b96c2666e795e188345"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000058.parquet",
+          "sha256": "9e2eeccd037f797f522a5731cc026f85a64b400ddb3a3d9618e28473c48948e4"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000059.parquet",
+          "sha256": "a5938c3107459950c43ecb3789cc9b0ac64640d571e225a09b3ced9db3bb7250"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000060.parquet",
+          "sha256": "c92bbe14bf0d1ddcd892e85ed2eb3d584048b71bd33985223eaaa2370d23968f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000061.parquet",
+          "sha256": "feef2062fac857757a728484f8eb377a371562e4cdfeb64803daf9350e07e90a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000062.parquet",
+          "sha256": "08d192173f7f88a76701a49e34393ef86683f9bf31f423796895d271c3696308"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000063.parquet",
+          "sha256": "e8988ccb15d59b07b8e912c0bae72257032ecd28de333e15064964ed86d9ad89"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000064.parquet",
+          "sha256": "9c23a086e1a6f32a9cfaea863bb16bbbe5e0fd9d05a7274aad1978753a09a077"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000065.parquet",
+          "sha256": "a7c211e43cb66e380924624ef167773781626106be158d5a73e0decc561ae402"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000066.parquet",
+          "sha256": "b4577c47ba5d1e7ca9b8b5c7a9fb9aa162b74fb57f8226a618335d699563acbc"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000067.parquet",
+          "sha256": "4ccda951b8539c5c48e83fa272afc820d7c9bc97d5f6c7d3cf2441dce435fc8d"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000068.parquet",
+          "sha256": "0a315b452f3cf1830a7db44bfd15773e203a51ec5adebac657594635ab6ca832"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000069.parquet",
+          "sha256": "89630e84045dda22e5abc47d4c667f0a9044a262621f515353f10aecce45c072"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000070.parquet",
+          "sha256": "b215f1aeb478b318bc7969030f8759dd6382250c1c2158c6eb9d8e0bdb1b8332"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000071.parquet",
+          "sha256": "11503befa97e375d03a351ee2cab8c5b41a94da8edccc2323f825cb844b5469c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000072.parquet",
+          "sha256": "7f5a0c7accd0193b9992f126f7437cd2a42444480c09b1d943e129d41c73c108"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000073.parquet",
+          "sha256": "df923f0d8423550e5bed699b933cb058a53bdbf86a3043e3fda62a328f6ea400"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000074.parquet",
+          "sha256": "532d175b568a7eac6a6a7042661f71d889d08f4061de824028c29c0faf10202f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000075.parquet",
+          "sha256": "5edd7c200fb9d74afaf6de3fac3bcd906deef50cb36a23a797dd6255aa7913eb"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000076.parquet",
+          "sha256": "eabdea9629f57acb96291a5b8f96534f7467ced703ab656fb6ebe05376fc6520"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000077.parquet",
+          "sha256": "86628f515b722182fb506819e3cb3fd578b74533f5d960f642009c0f428c7d56"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000078.parquet",
+          "sha256": "0695db662d14fbc12c74751740a18696985337e0c7017aeee6b16a2a5b5e0fed"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1/data/chunk-000/episode_000079.parquet",
+          "sha256": "aca6b8e88b13462bf325d55779c9da63bb8c95348a154967846f4dec6d34daf9"
+        }
+      ]
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1",
+      "samples": 3078,
+      "gripper_values": [
+        0.0,
+        1.0
+      ],
+      "gripper_counts": [
+        2031,
+        1047
+      ],
+      "parquet_sources": [
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000000.parquet",
+          "sha256": "3654e002b2762fe567a121c4cb30d5913b38e13b8807161ecdda8b39bfbfa956"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000001.parquet",
+          "sha256": "5f1bba399be8a6552adf64d2f1650dc14d6de01d0feca36b1a844b9ea6a4f760"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000002.parquet",
+          "sha256": "2a313785e5b82ef0a0be9ca91873cc53eb4becaa07ac116c8f5ca1e437b41fe1"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000003.parquet",
+          "sha256": "8c3408f487a1751e7684dff0dd44278387faccf8d82f92249451a784f8270e3a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000004.parquet",
+          "sha256": "d2c8de2daffd36cd2d0068635d169669326b334c57199e94df12d25d96e085f0"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000005.parquet",
+          "sha256": "06d065be3714c34df08664d065631406d88501f46276a1a3556ccc27a861eea7"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000006.parquet",
+          "sha256": "4c12c2d1dc0a571cefa4280569f878a3d6d5316995fd8b6ce7bb75c64299bf84"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000007.parquet",
+          "sha256": "e4410f6d462191d099e55a5940333fbe4e9832bc831acac8501f9bc14858a6c8"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000008.parquet",
+          "sha256": "a870acd65b53a6e160082768a7ef17f7e9870cab4b9e749163a7b46c8feb1ad2"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000009.parquet",
+          "sha256": "1aff0b877ffe177c6be26b8370fe872fb15aae1298b6a83e2018da4b1aea1555"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000010.parquet",
+          "sha256": "38f596b140f59da0b40d3798dacb7fb4e2a24f58a12de3474dd7aa5447178b0a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000011.parquet",
+          "sha256": "39f55f2a82b47a6da9b69a2e2e9e05aee6507fef81a0033503f7536810e2c9ca"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000012.parquet",
+          "sha256": "7a8ae52181a9251ee764cf30eae169fd9447cedab70b3d1afda3977a26cf74cf"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000013.parquet",
+          "sha256": "a0fa95ab31b2b6f7fd04d60a6a90e1ebd930c71a6bb36e1408b183ed8357c969"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000014.parquet",
+          "sha256": "e63dac4a5246faa75ee49ef793d3d0e051df3424b74500027546d16516f0bf01"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000015.parquet",
+          "sha256": "cdf3e7521acbc4e2133c5e7ff174405ea844d8c05c0945f3d29e7c031a8ea983"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000016.parquet",
+          "sha256": "bde02d430cbf4e99edb75dc3ba6e4c200e7bb211b7d5ac310823c00f6a825995"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000017.parquet",
+          "sha256": "6f5cb8e5171ce435a4260b4588495c5853e1fac5f60fcb8d39c0de71f464c2a6"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000018.parquet",
+          "sha256": "a6be9051ad210c539f6f08435faa4cfc52f6b276aa3534296df0b45b67f922ae"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1/data/chunk-000/episode_000019.parquet",
+          "sha256": "560d88def07364e5fec2a9ee25c7a87db48c965cbd276f9d2b4caef370db7e59"
+        }
+      ]
+    }
+  ],
+  "prediction_sources": [
+    {
+      "path": "/data1/Muttaqien/fr3_shadow_v1/shadow_predictions.jsonl",
+      "sha256": "85c7904eb943e83619f7927e32d3e4c8a4113be889caaca18e87968c49d9334f",
+      "samples": 3000,
+      "minimum": -0.02103265242987871,
+      "maximum": 1.047689770299196,
+      "below_zero": 505,
+      "above_one": 236,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_live_shadow_v2/predictions.jsonl",
+      "sha256": "744615ecc6048dd5ac570f8b52efbeb224bced38e3853d60252f326a8a94cd36",
+      "samples": 50,
+      "minimum": -0.02261593219232559,
+      "maximum": 1.0412746351761817,
+      "below_zero": 2,
+      "above_one": 31,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/policy_command_log.jsonl",
+      "sha256": "7568af67f2a43cf956fbb75f1c19bcaaecfca36416cf6beb043f75a06ffe6764",
+      "samples": 30,
+      "minimum": -0.010030160443663597,
+      "maximum": 1.0416305944707394,
+      "below_zero": 5,
+      "above_one": 16,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/policy_command_log.jsonl",
+      "sha256": "fcbed6ffb6705692febdf4d2f5e56dbc83044a5ca7f103baa8f2d68a8a049b61",
+      "samples": 30,
+      "minimum": 0.9831747111629247,
+      "maximum": 1.047120426162958,
+      "below_zero": 0,
+      "above_one": 20,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/policy_command_log.jsonl",
+      "sha256": "56555041e1d0ec73ac5c36232a86bab5f2ebc4eaeef8e90a46dfb94743eda476",
+      "samples": 80,
+      "minimum": -0.049073864419579505,
+      "maximum": 1.0420175482115746,
+      "below_zero": 10,
+      "above_one": 38,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/policy_command_log.jsonl",
+      "sha256": "cd007d8f7ac0a8a62596c64c9ee18be399027ab9c0fc6ff70c3db073afba7fc0",
+      "samples": 40,
+      "minimum": 0.9765947690322995,
+      "maximum": 1.0258649117434024,
+      "below_zero": 0,
+      "above_one": 16,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/policy_command_log.jsonl",
+      "sha256": "ae37a8c0d99e40958de3d2bb88929f951d8fb18c7626f948970eeb41ae0450ce",
+      "samples": 110,
+      "minimum": 0.9754039862481951,
+      "maximum": 1.0468727090115546,
+      "below_zero": 0,
+      "above_one": 58,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/policy_command_log.jsonl",
+      "sha256": "7236e41b1f6b76bae9663b9f98af89674c90f224d8a252a7ffe3b9def28d3147",
+      "samples": 110,
+      "minimum": 0.9766859046252965,
+      "maximum": 1.0449002701342105,
+      "below_zero": 0,
+      "above_one": 60,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/policy_command_log.jsonl",
+      "sha256": "77651ac53c8c8b7d4b77b90afa601b13bfa3b9ea4711b54a000130c9e00dcefc",
+      "samples": 30,
+      "minimum": -0.009126672334671019,
+      "maximum": 1.0258343941347599,
+      "below_zero": 4,
+      "above_one": 12,
+      "outside_old_bounds": 0,
+      "outside_new_bounds": 0,
+      "nonfinite": 0,
+      "selection_bias": "Only previously admitted/executed actions; excludes rejected chunks"
+    }
+  ],
+  "normalization": {
+    "path": "/data1/Muttaqien/fr3_peg_request_norm_v1/norm_stats.json",
+    "sha256": "9bc91e36bd59e20e57f073a578a5c8e23977598a58f6ccd0f793c410522f9cba",
+    "gripper_stats": {
+      "mean": 0.3334147135416667,
+      "std": 0.4714332851375357,
+      "q01": 0.0,
+      "q99": 1.0
+    },
+    "inverse_quantile_formula": "g = (z + 1) / 2 * (q99 - q01 + 1e-6) + q01; no clipping"
+  },
+  "empty_sources": [
+    {
+      "path": "/data1/Muttaqien/fr3_live_shadow_v1/predictions.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "episodes": [
+    {
+      "episode_id": 1,
+      "outcome": "aborted",
+      "robot_commands_sent": 30,
+      "outcome_file_present": true,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/measured_state_log.jsonl",
+          "sha256": "0ac9e14da4e255a3ddea870dcb9f15db2406d8ccfafe5b17f243148622a9367a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/observation_000.npz",
+          "sha256": "8a1354e208c9af6186736bb1be5eac76380817e671aa2002ee05fbe252a7e83a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/observation_001.npz",
+          "sha256": "43a1af74960b5644d6abc9874babab8ce55d1c0d1b26594d998571b098f650b1"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/observation_002.npz",
+          "sha256": "859e31ce0808286cb0a50b6b6d6a73e7696ec9d3353e83d7df42885c81f483b9"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/outcome.json",
+          "sha256": "24d6ce92e993a7c0f02584c31160a150f9c38c2f2dac3a70c02c3230c685e881"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/policy_command_log.jsonl",
+          "sha256": "7568af67f2a43cf956fbb75f1c19bcaaecfca36416cf6beb043f75a06ffe6764"
+        }
+      ]
+    },
+    {
+      "episode_id": 2,
+      "outcome": "aborted",
+      "robot_commands_sent": 30,
+      "outcome_file_present": true,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/measured_state_log.jsonl",
+          "sha256": "3ee29595fbc7a8c6ee848dad8b086f16b3eb51d0cb5e6d9ad78c0f87dea3125c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/observation_000.npz",
+          "sha256": "24701ca297cac70faadf69ddf186b67e282bd8b9de1a3a0b40c730b1b3525c2b"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/observation_001.npz",
+          "sha256": "56aa45331b1d896ebf23ed58b0e4f38a82e86b2a5334079548c7b5c4a4a2473f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/observation_002.npz",
+          "sha256": "bf5552862d5c8e617e1e0a73ddf4c30c951ceb15e4bc4b87f82b4daad67e52ef"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/outcome.json",
+          "sha256": "399ccf440c1af4ef59cf63e21cba09021fa7bc49dccc72b9e5f610e92dd03d22"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/policy_command_log.jsonl",
+          "sha256": "fcbed6ffb6705692febdf4d2f5e56dbc83044a5ca7f103baa8f2d68a8a049b61"
+        }
+      ]
+    },
+    {
+      "episode_id": 3,
+      "outcome": null,
+      "robot_commands_sent": null,
+      "outcome_file_present": false,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/measured_state_log.jsonl",
+          "sha256": "3b11d0a2cf7d16a0f591ebd795a142b3b1592d85e3560614c4548c794fd2dd5a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_000.npz",
+          "sha256": "d0c4a9198fd009f40fd6666a1e854d47e9e82f9f0b755a4446d8e4f5f36fef0f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_001.npz",
+          "sha256": "fcc390bfc483e9624e7aebe4d5fb8eeec4c53cf07f31c0c5c5508e7316774a6c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_002.npz",
+          "sha256": "69ebea3ac7777143147259b3a6a555926d767485cf979af16a4cea2ddc9e4377"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_003.npz",
+          "sha256": "e4074b43d376e33225d80a9270b865f09c53a8d982b0f8902db89b5e73ad45bb"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_004.npz",
+          "sha256": "eeb63224843464911c166e8bec0a1a7e1395ed9b648e94ef9b59544ed2526734"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_005.npz",
+          "sha256": "12b99497fc97f37e1bb19348be4ba58dfa69bfafb4f3a58eda76d5fd1ff8dd7d"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_006.npz",
+          "sha256": "514cc50f1f72649a48427a4b6a59d0864231944da8b6b6d2beded3729b6aa60f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_007.npz",
+          "sha256": "0922540370f4c829fd48b4e0ffb7d824ffd973a6f08c77963d0b9ae358ff28bd"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/observation_008.npz",
+          "sha256": "6c5578e45217bc3327136bae6b68e576afeb1bf9d577f59cf590ac3bf56c678f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/policy_command_log.jsonl",
+          "sha256": "56555041e1d0ec73ac5c36232a86bab5f2ebc4eaeef8e90a46dfb94743eda476"
+        }
+      ]
+    },
+    {
+      "episode_id": 4,
+      "outcome": "aborted",
+      "robot_commands_sent": 40,
+      "outcome_file_present": true,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/measured_state_log.jsonl",
+          "sha256": "5c0ac2f08a34a6b32747a208371031d6c152a9901ece05a6a760347f27249a34"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/observation_000.npz",
+          "sha256": "e8d2dce3eb6c508de77a3f66be6b93d6cf446b2328e2f33ff1a63f4696a566a9"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/observation_001.npz",
+          "sha256": "3b62874745d695fe1a80eb234625e2a58ca48541e71baa4744e8429f041f257e"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/observation_002.npz",
+          "sha256": "9f654a331d511dbee22a92fc7e97107ac93962fa3fe5b9d031a7c8d591a15387"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/observation_003.npz",
+          "sha256": "158ed141e5b103b7510b3e2a999b170c153a984a0be9409f312fad54833d182c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/outcome.json",
+          "sha256": "ef8a3e3972528a95c2c9a60df03600d958608f251cc12f0e60c35fa10f7e3b63"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/policy_command_log.jsonl",
+          "sha256": "cd007d8f7ac0a8a62596c64c9ee18be399027ab9c0fc6ff70c3db073afba7fc0"
+        }
+      ]
+    },
+    {
+      "episode_id": 5,
+      "outcome": "aborted",
+      "robot_commands_sent": 110,
+      "outcome_file_present": true,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/measured_state_log.jsonl",
+          "sha256": "402a31e907d2f7fd31d54331107158c86bc754951b026d7a4b1654d98b051e2d"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_000.npz",
+          "sha256": "f443b11871dc395eb09f8de2ef81caa623a3d00a20e047ce5148a1b7c928e29c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_001.npz",
+          "sha256": "3386257f2897148c42ec3676801e9531517c257536b25f9417b0bdd2d98458ba"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_002.npz",
+          "sha256": "8ffd12a820875c4189db8bd35dbac385ec95b67671781cea7c5503d4d07ccc16"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_003.npz",
+          "sha256": "706899258baa1276a6c6397891e2fb95f19d5be18fda8530241462453212438a"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_004.npz",
+          "sha256": "42047927ff1dffb45b9de150bc3ab3d07ed98a75baa9f6b57fc00977b839f353"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_005.npz",
+          "sha256": "b1265e3a71e64e25aceaf84759752f09aca8bb5c49d116b1b7c06430a785ed84"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_006.npz",
+          "sha256": "988cd9aa0138a64c3cadc7ab8d0f28285f7fb9357fe9383594403a66f45aacaf"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_007.npz",
+          "sha256": "970c8747037e1e210b30fafbe930c0a215c62f939189ca96576be427230ac380"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_008.npz",
+          "sha256": "7a62fe73ba12e4d73f4f7cdeba759e2e231612b2d38cf84cc62433611ada87a5"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_009.npz",
+          "sha256": "1ca121d85b6d9b46fa9474211e7544f676d3c04cc3d83f12203c76e3a23ae9be"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/observation_010.npz",
+          "sha256": "1386b07c06ea099a3879b0f6a1f28c88273ba233e5e1866be11208a2e0e8d647"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/outcome.json",
+          "sha256": "71e73ae55b893d697763bfcb8d340816402e2a39931a4af84115152a24a64626"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/policy_command_log.jsonl",
+          "sha256": "ae37a8c0d99e40958de3d2bb88929f951d8fb18c7626f948970eeb41ae0450ce"
+        }
+      ]
+    },
+    {
+      "episode_id": 6,
+      "outcome": "aborted",
+      "robot_commands_sent": 110,
+      "outcome_file_present": true,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/measured_state_log.jsonl",
+          "sha256": "dc4b48eeb330617ca76cf66eb518b4084378b6ec4cab5e265e1f62146de86573"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_000.npz",
+          "sha256": "3e220b79a89046e2e268b7481d6683941a9c3770933673b80657a8552e4ff644"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_001.npz",
+          "sha256": "d04a2c6b29171cd562daaba4e92733d1cc4329b43924fec4d740b3d26b4a0026"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_002.npz",
+          "sha256": "c1205c55f7e057a7cd0f2f91f63d4e3df1ce396251ebe07fbd7e73eccd9d5a7f"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_003.npz",
+          "sha256": "f75d18a1ce175069b30431ca7916cc3b025d0121aaecb4b86b48d6a9620c6a79"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_004.npz",
+          "sha256": "40229a2f5849cff6316b714f0d404c5f3545971035e15b63dc158f521dd79e03"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_005.npz",
+          "sha256": "44c5c9ca88691b27fe22bfa51e59c8e831692ca114d0bd221b3ef78763cc1e07"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_006.npz",
+          "sha256": "5252810398280e2ae6aa88cf991baa8ebbf23777720831769c408a731c9ec4b8"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_007.npz",
+          "sha256": "8dacb929f6c1e49207ccddbb7c314199fac23874715a443666d5ee7b04f98185"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_008.npz",
+          "sha256": "61aad1e63f197b758df0a25a5a71856b39ad4806725fd8c30d0e722602559203"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_009.npz",
+          "sha256": "3c712d7e20c1e8fb17d4afaf9295ae2e78bce19b22e9f48a28102a168e45a526"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_010.npz",
+          "sha256": "f8f71c91961ff6b1fce94b369bd1429a4c2500c3aa673ae5a9ef6ec80004e68c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/outcome.json",
+          "sha256": "352b371c0ee68b0c27a8933efc3c538180149389286b281f70741df4fc6257bc"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/policy_command_log.jsonl",
+          "sha256": "7236e41b1f6b76bae9663b9f98af89674c90f224d8a252a7ffe3b9def28d3147"
+        }
+      ]
+    },
+    {
+      "episode_id": 7,
+      "outcome": "aborted",
+      "robot_commands_sent": 30,
+      "outcome_file_present": true,
+      "files": [
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/executor_events.jsonl",
+          "sha256": "df0f6bf591b1d080c0f2c62929cc157eaf4ae561b12d66253d527636725181ba"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/invalid_policy_action.json",
+          "sha256": "a06508863863d30ced301e8b2641094911f7a19185dfd5745fde0609218d1ffe"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/measured_state_log.jsonl",
+          "sha256": "2f1b9d2d0e83819be495aa90730f3b8ce9477e401aff8a67094df6e3385f4016"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/observation_000.npz",
+          "sha256": "385b80919e52d5cd7184883a8473dc4b11d4741d9b4903351d7cc340e9a03980"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/observation_001.npz",
+          "sha256": "16d2d8b84cc30351a257fb2420a602144d61ed0404d497ba966ee2a673b22ea1"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/observation_002.npz",
+          "sha256": "805686e8d7d91485dff0f68666d2ea83056fb908af0123d31c614763af84e15c"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/outcome.json",
+          "sha256": "c246e23c6a2eac1408c776a49ba2517b64414587c92bf0f0d2cf925219175d30"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/pipeline_timing.jsonl",
+          "sha256": "ecc4e6891e89b042442c8b824d42eba270ce15dbc22c01dfd25e60ac324d3fd2"
+        },
+        {
+          "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/policy_command_log.jsonl",
+          "sha256": "77651ac53c8c8b7d4b77b90afa601b13bfa3b9ea4711b54a000130c9e00dcefc"
+        }
+      ]
+    }
+  ],
+  "episode7_rejected_chunk": {
+    "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/invalid_policy_action.json",
+    "sha256": "a06508863863d30ced301e8b2641094911f7a19185dfd5745fde0609218d1ffe",
+    "chunk": 3,
+    "reason": "Action 0 latched_gripper_open_request=-0.0527637 outside allowed [-0.05, 1.05]",
+    "raw_action_7d_repr": "[[-0.03529825443822088, 0.14740152207060153, 0.15606554496296632, -0.1819744888768266, -0.06883009420524638, -0.08012470090414142, -0.05276369364422559], [-0.02812840576016029, 0.1813778715327271, 0.1468427848650169, -0.22691108189788617, -0.0771127061157606, -0.06856296539723833, -0.05716913694965839], [-0.0798668354172789, 0.21958108356557215, 0.1951193108771968, -0.23498429224370854, -0.07352543060756106, -0.1158669414588997, 0.03989628966736793], [-0.2211509627009366, 0.195202870992639, 0.16626272443618972, -0.17985427372924312, -0.03336738020912405, -0.07499030636158649, 0.9420903805278539], [-0.2967363503282277, 0.12961144371764477, 0.14377387953651877, -0.13853197620816862, -0.014748524865342116, -0.0724132844535248, 0.9783097155867219], [-0.35461662954480144, 0.029735120200795717, 0.17534817193533547, -0.10306429999208977, 0.01352138638051692, -0.0526771786560416, 1.0123291602163313], [-0.3777237150396262, -0.09835207407106938, 0.23421922966037256, -0.10900006901950307, 0.04822874022361251, -0.04645287009315807, 0.9945320299543141], [-0.3312441354240843, -0.2787466315007027, 0.39955193322389826, -0.14245361494798278, 0.1061679038399877, -0.03757721147643356, 1.0088470533864498], [-0.2538871310864469, -0.3887022177719113, 0.6409791534155166, -0.2090452015390361, 0.1896912018031766, -0.0652015166341891, 1.0189351496027708], [-0.1547071922013602, -0.4180751944214042, 0.8576946898545993, -0.28035605012876547, 0.25555790946991, -0.0491190554999244, 1.0168355142862795]]",
+    "policy_commands_sent_before_fault": 30,
+    "raw_action_7d": [
+      [
+        -0.03529825443822088,
+        0.14740152207060153,
+        0.15606554496296632,
+        -0.1819744888768266,
+        -0.06883009420524638,
+        -0.08012470090414142,
+        -0.05276369364422559
+      ],
+      [
+        -0.02812840576016029,
+        0.1813778715327271,
+        0.1468427848650169,
+        -0.22691108189788617,
+        -0.0771127061157606,
+        -0.06856296539723833,
+        -0.05716913694965839
+      ],
+      [
+        -0.0798668354172789,
+        0.21958108356557215,
+        0.1951193108771968,
+        -0.23498429224370854,
+        -0.07352543060756106,
+        -0.1158669414588997,
+        0.03989628966736793
+      ],
+      [
+        -0.2211509627009366,
+        0.195202870992639,
+        0.16626272443618972,
+        -0.17985427372924312,
+        -0.03336738020912405,
+        -0.07499030636158649,
+        0.9420903805278539
+      ],
+      [
+        -0.2967363503282277,
+        0.12961144371764477,
+        0.14377387953651877,
+        -0.13853197620816862,
+        -0.014748524865342116,
+        -0.0724132844535248,
+        0.9783097155867219
+      ],
+      [
+        -0.35461662954480144,
+        0.029735120200795717,
+        0.17534817193533547,
+        -0.10306429999208977,
+        0.01352138638051692,
+        -0.0526771786560416,
+        1.0123291602163313
+      ],
+      [
+        -0.3777237150396262,
+        -0.09835207407106938,
+        0.23421922966037256,
+        -0.10900006901950307,
+        0.04822874022361251,
+        -0.04645287009315807,
+        0.9945320299543141
+      ],
+      [
+        -0.3312441354240843,
+        -0.2787466315007027,
+        0.39955193322389826,
+        -0.14245361494798278,
+        0.1061679038399877,
+        -0.03757721147643356,
+        1.0088470533864498
+      ],
+      [
+        -0.2538871310864469,
+        -0.3887022177719113,
+        0.6409791534155166,
+        -0.2090452015390361,
+        0.1896912018031766,
+        -0.0652015166341891,
+        1.0189351496027708
+      ],
+      [
+        -0.1547071922013602,
+        -0.4180751944214042,
+        0.8576946898545993,
+        -0.28035605012876547,
+        0.25555790946991,
+        -0.0491190554999244,
+        1.0168355142862795
+      ]
+    ],
+    "samples": 10,
+    "minimum": -0.05716913694965839,
+    "maximum": 1.0189351496027708,
+    "below_zero": 2,
+    "above_one": 4,
+    "outside_old_bounds": 2,
+    "outside_new_bounds": 0,
+    "nonfinite": 0
+  },
+  "offline_replay": {
+    "sources": [
+      {
+        "path": "/data1/Muttaqien/fr3_shadow_v1/shadow_predictions.jsonl",
+        "samples": 3000,
+        "saturated_gripper_values": 741,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_live_shadow_v2/predictions.jsonl",
+        "samples": 50,
+        "saturated_gripper_values": 33,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_01/policy_command_log.jsonl",
+        "samples": 30,
+        "saturated_gripper_values": 21,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_02/policy_command_log.jsonl",
+        "samples": 30,
+        "saturated_gripper_values": 20,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/policy_command_log.jsonl",
+        "samples": 80,
+        "saturated_gripper_values": 48,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_04/policy_command_log.jsonl",
+        "samples": 40,
+        "saturated_gripper_values": 16,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_05/policy_command_log.jsonl",
+        "samples": 110,
+        "saturated_gripper_values": 58,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/policy_command_log.jsonl",
+        "samples": 110,
+        "saturated_gripper_values": 60,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/policy_command_log.jsonl",
+        "samples": 30,
+        "saturated_gripper_values": 16,
+        "arm_bytes_unchanged": true,
+        "open_close_hold_sequence_unchanged": true
+      },
+      {
+        "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_07/invalid_policy_action.json",
+        "samples": 10,
+        "saturated_gripper_values": 6,
+        "arm_bytes_unchanged": true,
+        "admitted_offline": true
+      }
+    ],
+    "episode_1_to_7_hashes_unchanged": true,
+    "robot_commands_sent": 0,
+    "new_model_inference": false
+  }
+}

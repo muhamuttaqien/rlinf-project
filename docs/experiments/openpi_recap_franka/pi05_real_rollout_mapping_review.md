@@ -31,7 +31,10 @@ contracts, stop handling and the next operator approval gate.
 `fr3_pi05_request_adapter.py`: offline-testable 7D request validation,
 identity arm mapping (same six axis order, no arbitrary gain), and a
 three-consecutive-step gripper request filter with 0.8 s minimum interval
-between new open/close goals. No values are silently clipped or renormalized.
+between new open/close goals. The [gripper validation report](pi05_gripper_validation.md)
+([中文](pi05_gripper_validation.zh.md)) documents bounded saturation of the
+seventh dimension and retention of raw predictions. The six arm dimensions
+pass through validation unchanged.
 
 `fr3_pi05_ros_executor.py`: shares the adapter for action validation and
 gripper filtering. Two explicit mapping modes:

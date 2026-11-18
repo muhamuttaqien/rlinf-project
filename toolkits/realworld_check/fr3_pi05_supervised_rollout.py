@@ -497,8 +497,7 @@ def run(args):
                 if executor.stopped.is_set():
                     stop_reason = executor.stop_reason
                     break
-                # Reject nonfinite or out-of-domain predictions before ROS.
-                # Save unmodified prediction text even for NaN/Inf, with no clipping.
+                # Preserve decoded predictions for audit, including NaN/Inf faults.
                 from toolkits.realworld_check.fr3_pi05_ros_executor import (
                     validate_chunk,
                 )
@@ -506,11 +505,13 @@ def run(args):
                 try:
                     actions = validate_prediction(decoded)
                     stamp = time.monotonic_ns()
-                    validate_chunk(
-                        actions.tolist(),
-                        observation_ns=observation_ns,
-                        issued_ns=stamp,
-                        now_ns=stamp,
+                    actions = np.asarray(
+                        validate_chunk(
+                            actions.tolist(),
+                            observation_ns=observation_ns,
+                            issued_ns=stamp,
+                            now_ns=stamp,
+                        )
                     )
                 except (ValueError, TypeError) as exc:
                     stop_reason = "invalid_policy_action"
@@ -566,7 +567,18 @@ def run(args):
                 )
                 timings.flush()
                 for e in action_events:
-                    commands.write(json.dumps(e, allow_nan=False) + "\n")
+                    commands.write(
+                        json.dumps(
+                            {
+                                **e,
+                                "raw_predicted_7d": decoded[
+                                    e["command_index"]
+                                ].tolist(),
+                            },
+                            allow_nan=False,
+                        )
+                        + "\n"
+                    )
                     states.write(
                         json.dumps(
                             {

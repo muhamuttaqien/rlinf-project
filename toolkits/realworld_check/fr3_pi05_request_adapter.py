@@ -31,6 +31,8 @@ ARM_AXES = (
     "angular_z",
 )
 GRIPPER_AXIS = "latched_gripper_open_request"
+# Saved prediction envelope, rounded outward to 1% of the binary label span.
+GRIPPER_PREDICTION_OVERSHOOT = 0.06
 MAPPING_CHECKS = tuple(
     f"{axis}_{direction}" for axis in ARM_AXES for direction in ("positive", "negative")
 ) + (
@@ -114,7 +116,12 @@ def load_mapping_verification(path: str | Path | None) -> dict:
 
 
 def validate_action_chunk(chunk) -> list[list[float]]:
-    """Validate decoded 10x7 original request units; never clip a prediction."""
+    """Validate decoded 10x7 requests and bound only binary gripper estimates.
+
+    Arm requests pass through unchanged within [-1, 1]. Finite gripper
+    estimates within 0.06 of [0, 1] saturate to that label range; larger
+    overshoots fail the entire chunk. The input is never mutated.
+    """
     if not isinstance(chunk, list) or len(chunk) != 10:
         raise ValueError("Expected exactly ten 7D decoded request actions")
     validated = []
@@ -128,13 +135,17 @@ def validate_action_chunk(chunk) -> list[list[float]]:
                     f"Action {i}, channel {j}: nonfinite/non-numeric request"
                 )
             value = float(value)
-            lo, hi = (-1.0, 1.0) if j < 6 else (-0.05, 1.05)
+            lo, hi = (
+                (-1.0, 1.0)
+                if j < 6
+                else (-GRIPPER_PREDICTION_OVERSHOOT, 1.0 + GRIPPER_PREDICTION_OVERSHOOT)
+            )
             if not lo <= value <= hi:
                 axis = ARM_AXES[j] if j < 6 else GRIPPER_AXIS
                 raise ValueError(
                     f"Action {i} {axis}={value:.6g} outside allowed [{lo}, {hi}]"
                 )
-            values.append(value)
+            values.append(value if j < 6 else min(1.0, max(0.0, value)))
         validated.append(values)
     return validated
 

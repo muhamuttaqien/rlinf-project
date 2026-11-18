@@ -63,6 +63,94 @@ def test_reset_removes_old_request_state():
     assert g.step(0.0, now=0.4) == "hold"
 
 
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (0.0, 0.0),
+        (0.30, 0.30),
+        (0.5, 0.5),
+        (0.70, 0.70),
+        (1.0, 1.0),
+        (-0.001, 0.0),
+        (-0.05276369364422559, 0.0),
+        (-0.05716913694965839, 0.0),
+        (-0.06, 0.0),
+        (1.001, 1.0),
+        (1.05716913694965839, 1.0),
+        (1.06, 1.0),
+    ],
+)
+def test_gripper_saturation_preserves_arm_and_input(raw, expected):
+    import math
+
+    arm = [-1.0, -0.0, 0.125, -0.25, 0.5, 1.0]
+    chunk = [arm + [raw] for _ in range(10)]
+    adapted = validate_action_chunk(chunk)
+    assert adapted == [arm + [expected] for _ in range(10)]
+    assert chunk == [arm + [raw] for _ in range(10)]
+    assert math.copysign(1.0, adapted[0][1]) == -1.0
+    assert identity_arm_request(chunk[0]) == tuple(arm)
+    assert validate_action_chunk(adapted) == adapted
+
+
+@pytest.mark.parametrize("channel", range(7))
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_nonfinite_prediction_rejects_entire_chunk(channel, value):
+    chunk = [[0.0] * 7 for _ in range(10)]
+    chunk[-1][channel] = value
+    with pytest.raises(ValueError, match="nonfinite"):
+        validate_action_chunk(chunk)
+
+
+@pytest.mark.parametrize("value", [-0.0600000001, 1.0600000001, -0.1, 1.1, -1.0, 2.0])
+def test_gripper_saturation_rejects_larger_errors(value):
+    with pytest.raises(ValueError, match="latched_gripper_open_request"):
+        validate_action_chunk([[0.0] * 6 + [value] for _ in range(10)])
+
+
+@pytest.mark.parametrize("channel", range(6))
+@pytest.mark.parametrize("value", [-1.000001, 1.000001])
+def test_gripper_saturation_never_relaxes_arm_limits(channel, value):
+    chunk = [[0.0] * 6 + [-0.057] for _ in range(10)]
+    chunk[-1][channel] = value
+    with pytest.raises(ValueError, match=ARM_AXES[channel]):
+        validate_action_chunk(chunk)
+
+
+def test_saturation_preserves_gripper_thresholds_debounce_and_goal_interval():
+    requests = [1.04, 0.69, 0.70, 1.06, 1.02, 1.01, -0.057, 0.30, -0.06, 0.0]
+    times = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.3]
+    chunk = [[0.0] * 6 + [g] for g in requests]
+    adapted = validate_action_chunk(chunk)
+    gripper = GripperRequestFilter()
+    assert [gripper.step(row[6], now=t) for row, t in zip(adapted, times)] == [
+        "hold",
+        "hold",
+        "hold",
+        "hold",
+        "open",
+        "hold",
+        "hold",
+        "hold",
+        "hold",
+        "close",
+    ]
+
+
+def test_episode7_saved_rejected_chunk_is_admitted_without_changing_arm():
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / (
+        "docs/experiments/openpi_recap_franka/pi05_gripper_validation_evidence.json"
+    )
+    chunk = json.loads(path.read_text())["episode7_rejected_chunk"]["raw_action_7d"]
+    adapted = validate_action_chunk(chunk)
+    assert [row[:6] for row in adapted] == [row[:6] for row in chunk]
+    assert [row[6] for row in adapted[:3]] == [0.0, 0.0, chunk[2][6]]
+    assert all(0.0 <= row[6] <= 1.0 for row in adapted)
+
+
 def test_mapping_verification_preserves_operator_attestation(fr3_mapping_verification):
     import hashlib
 
