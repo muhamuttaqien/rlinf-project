@@ -1,6 +1,6 @@
 # FR3 Mapping Calibration Operator Procedure
 
-Prepare and inspect one bounded calibration case at a time, then review its evidence against the [17-check qualification checklist](pi05_physical_mapping_qualification.md). This interface is verified offline only. All physical checks remain pending, and whether scaling 1.0 resolves weak movement remains a physical question. [中文](pi05_calibration_operator.zh.md)
+Prepare and inspect one bounded calibration case at a time, then review its evidence against the [17-check qualification checklist](pi05_physical_mapping_qualification.md). Motion execution is verified offline; the read-only technical preflight has also been checked against the live NUC. All physical checks remain pending, and whether scaling 1.0 resolves weak movement remains a physical question. [中文](pi05_calibration_operator.zh.md)
 
 ## Prepare the Installation Evidence
 
@@ -36,21 +36,35 @@ The five 100 ms arm slots use a single signed axis with magnitudes `0.030, 0.024
 For the later operator session, source Jazzy and the matching message definitions, including `franka_msgs` and `controller_manager_msgs`, in a fresh workstation shell. Stop competing publishers through their normal owning interfaces. The following preflight subscribes and calls only the read-only controller-list service; it creates **zero command publishers**:
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-export ROS_DOMAIN_ID=70 ROS_LOCALHOST_ONLY=0
-PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
+source toolkits/realworld_check/fr3_calibration_env.sh /tmp/fr3_calibration/jazzy_msgs/install
+/usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
   --case linear_x_positive \
   --deployment /tmp/fr3_calibration/deployment.json --preflight
 ```
 
-Require one correctly typed subscriber on each command topic, no competing writers, fresh pose/joints/full robot state and gripper position, an active joint-impedance controller claiming seven effort interfaces, safe robot mode/current errors, and two fresh diagnostic reports. `FR3_DIAG_V1` must include the existing joint-error/PD/total-effort peak fields. Missing message definitions, diagnostics or telemetry block execution; the tool does not install, activate or modify anything to fix them. A command-topic recorder adds a subscriber and fails the strict graph check; capture sender events and controller diagnostics instead.
+The helper sources Jazzy and the verified message overlay, preserves their Python paths, adds the repository, and checks native type support without initializing ROS. Use `/usr/bin/python3` (Python 3.12), preserving that environment; `PYTHONPATH=.` would hide the ROS packages. The message-only workspace at `/tmp/fr3_calibration/jazzy_msgs` contains the NUC-matched `franka_msgs` and `controller_manager_msgs` definitions. Its custom interfaces were copied from the installed Humble package and compiled locally for Jazzy. Jazzy's stock `ControllerState` has extra fields, so its controller service package must also match the NUC. The overlay changes neither the system ROS installation nor the NUC.
+
+To rebuild the prepared local sources, use a fresh shell and the existing source/manifest evidence rather than downloading a different version:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+(
+  cd /tmp/fr3_calibration/jazzy_msgs
+  /usr/bin/colcon build --base-paths src --packages-select franka_msgs controller_manager_msgs \
+    --executor sequential --cmake-args -DBUILD_TESTING=OFF -DPython3_EXECUTABLE=/usr/bin/python3
+)
+```
+
+The `--preflight` path verifies artifact hashes, configured base/EE transforms and live telemetry while accepting unfilled motion-preparation fields. It reports those fields with `motion_authorized=false` and cannot create command publishers. Execution still loads the full deployment, requires its approvals and calibrated TCP, and asks for case-specific consent. Leave pending approvals untouched after a successful technical preflight.
+
+Require one correctly typed subscriber on each command topic, no competing writers, fresh pose/joints/full robot state and physical gripper position, an active joint-impedance controller claiming seven effort interfaces, safe robot mode/current errors, and two fresh diagnostic reports. `FR3_DIAG_V1` must include the existing joint-error/PD/total-effort peak fields. Missing message definitions, diagnostics or telemetry block execution; the tool does not install, activate or modify anything to fix them. A command-topic recorder adds a subscriber and fails the strict graph check; capture sender events and controller diagnostics instead.
 
 ## Execute One Case Only in a Separately Approved Session
 
 Begin with +X and review its measured response before any further direction. The following is a future operator command, **not executed during preparation**:
 
 ```bash
-PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
+/usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
   --case linear_x_positive \
   --deployment /tmp/fr3_calibration/deployment.json \
   --output /tmp/fr3_calibration/x_positive_01 --execute
@@ -77,7 +91,9 @@ Use the following single-case names after resolving +X; issue separate commands 
 
 ## Inspect and Review Genuine Measurements
 
-Each run creates `session.json`, `events.jsonl`, `telemetry.jsonl`, `summary.json`, copied installation inputs and a hashed `manifest.json`. The capture preserves the controller's `/rosout` diagnostics, pose, measured/desired joints, full robot state, read-only controller status and domain-71 gripper state/status. Full robot-state evidence is sampled at up to 100 Hz, retaining a receipt counter; it is not a complete 1 kHz recording. Host monotonic receipts align local streams; ROS header clocks remain separate.
+Each run creates `session.json`, `events.jsonl`, `telemetry.jsonl`, `summary.json`, copied installation inputs and a hashed `manifest.json`. Mixed `/joint_states` messages are filtered by the configured physical joint name before updating its receipt timestamp. Normalized surrogate messages never replace the physical sample or refresh its watchdog.
+
+The capture preserves the controller's `/rosout` diagnostics, pose, measured/desired joints, full robot state, read-only controller status and domain-71 gripper state/status. Full robot-state evidence is sampled at up to 100 Hz, retaining a receipt counter; it is not a complete 1 kHz recording. Host monotonic receipts align local streams; ROS header clocks remain separate.
 
 ```bash
 .venv/bin/python -m toolkits.realworld_check.fr3_mapping_evidence verify-session \
@@ -122,3 +138,5 @@ This validates completeness and transitive integrity; it cannot authenticate a p
 Run `test_fr3_mapping_calibration.py` and `test_fr3_mapping_evidence.py` in separate CPU pytest processes, plus the existing request-adapter, executor, outcomes, deployment-audit and X-pulse suites. The new tests drive the real state machine and ROS publication methods at fake hardware boundaries. Synthetic review fixtures stay in pytest temporary directories and never become physical records. The branch omits upstream CI workflows; restore path-filter coverage before upstream submission. An AI assistant prepared and tested this interface. No controller operation, physical movement, new inference, gain/limit/weight change or SpaceMouse edit was performed.
 
 The completed offline run passed **379 tests across nine component files**, plus two fake-hardware cases using actual Jazzy message classes under Python 3.12. EN/ZH builds, local links and command parity, Ruff lint/format and whitespace checks passed. The global docs check retains 24 existing symbol findings and 61 RST warnings (zero errors) in unchanged pages. See the [offline evidence record](pi05_calibration_offline_evidence.json) for source hashes and limits.
+
+The [preflight fix evidence](pi05_calibration_preflight_evidence.json) records interface compatibility and live read-only verification. It does not approve physical mapping or movement.

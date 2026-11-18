@@ -198,44 +198,47 @@ class Plan:
         return arm, grip
 
 
-def load_deployment(path: Path) -> dict:
-    """Verify copied installation artifacts and explicit operator preparation.
+def load_deployment(path: Path, *, read_only: bool = False) -> dict:
+    """Verify installation artifacts, requiring operator preparation for execution.
 
     Local hashes cannot identify the live NUC process. The operator must match
-    that installation again at the case-specific console confirmation.
+    that installation again at the case-specific console confirmation. Read-only
+    loading permits pending motion approvals and an unknown physical TCP.
     """
     raw = json.loads(path.read_text())
     if raw.get("schema") != "fr3_mapping_calibration_deployment_v1":
         raise Blocked("Expected calibration deployment schema v1")
-    for name in (
-        "operator",
+    required = (
         "base_frame",
         "pose_frame",
-        "tool_frame",
         "diagnostic_logger",
         "gripper_joint",
         "gripper_bridge_node",
-    ):
+    )
+    for name in required + (() if read_only else ("operator", "tool_frame")):
         if not isinstance(raw.get(name), str) or not raw[name].strip():
             raise Blocked(f"Expected explicit deployment field: {name}")
-    for name in (
+    approvals = (
         "live_installation_matched",
         "frames_calibrated",
         "hardware_stop_checked",
         "workspace_clear",
         "historical_errors_reviewed",
-    ):
-        if raw.get(name) is not True:
+    )
+    for name in approvals:
+        if not read_only and raw.get(name) is not True:
             raise Blocked(f"Operator preparation not confirmed: {name}")
     for name, limit in (("translation_limit_m", 0.01), ("rotation_limit_rad", 0.01)):
         value = raw.get(name)
-        if (
+        if not read_only and (
             type(value) not in (float, int)
             or not math.isfinite(value)
             or not 0 < value <= limit
         ):
             raise Blocked(f"Expected {name} in (0, {limit}], found {value!r}")
-    for name in ("base_to_pose", "ee_to_flange", "ee_to_tcp"):
+    for name in ("base_to_pose", "ee_to_flange") + (
+        () if read_only else ("ee_to_tcp",)
+    ):
         pose(raw[name])
     files = []
     for name in ("controller_binary", "controller_config"):
@@ -271,7 +274,41 @@ def load_deployment(path: Path) -> dict:
         "sha256": sha256(path),
         "scope": scope,
         "scope_sha256": json_digest(scope),
+        "read_only": read_only,
     }
+
+
+def motion_preparation_pending(record: dict) -> list[str]:
+    """Report unresolved preparation fields without granting motion authority."""
+    pending = [
+        name
+        for name in ("operator", "tool_frame")
+        if not isinstance(record.get(name), str) or not record[name].strip()
+    ]
+    try:
+        pose(record["ee_to_tcp"])
+    except (Blocked, KeyError, TypeError):
+        pending.append("ee_to_tcp")
+    for name, maximum in (("translation_limit_m", 0.01), ("rotation_limit_rad", 0.01)):
+        value = record.get(name)
+        if (
+            type(value) not in (int, float)
+            or not math.isfinite(value)
+            or not 0 < value <= maximum
+        ):
+            pending.append(name)
+    pending.extend(
+        name
+        for name in (
+            "live_installation_matched",
+            "frames_calibrated",
+            "hardware_stop_checked",
+            "workspace_clear",
+            "historical_errors_reviewed",
+        )
+        if record.get(name) is not True
+    )
+    return pending
 
 
 def deployment_scope(raw: dict) -> dict:
@@ -368,8 +405,11 @@ class Telemetry:
         result = {
             "ee": ee,
             "flange": compose(ee, pose(raw["ee_to_flange"])),
-            "tcp": compose(ee, pose(raw["ee_to_tcp"])),
         }
+        if not deployment.get("read_only"):
+            result["tcp"] = compose(ee, pose(raw["ee_to_tcp"]))
+        elif origin is not None:
+            raise Blocked("Read-only deployment cannot monitor an active motion case")
         for name in ("measured_joints", "desired_joints"):
             m = self.latest[name]["message"]
             if m["name"] != [f"fr3_joint{i}" for i in range(1, 8)]:
@@ -833,7 +873,7 @@ def main() -> None:
         parser.error(
             "--deployment is required; --execute also requires a new --output directory"
         )
-    deployment = load_deployment(args.deployment)
+    deployment = load_deployment(args.deployment, read_only=args.preflight)
     if os.environ.get("ROS_DOMAIN_ID") != "70":
         parser.error(
             "Set explicit ROS_DOMAIN_ID=70; gripper observation uses domain 71"
@@ -846,7 +886,14 @@ def main() -> None:
     with RosRuntime(deployment, gripper=plan.gripper) as runtime:
         if args.preflight:
             collect_baseline(runtime, deployment)
-            result = {"status": "read_only_preflight", "robot_commands_sent": 0}
+            result = {
+                "status": "read_only_preflight",
+                "robot_commands_sent": 0,
+                "motion_authorized": False,
+                "motion_preparation_pending": motion_preparation_pending(
+                    deployment["record"]
+                ),
+            }
         else:
             result = execute_case(runtime, plan, args.deployment, args.output, console)
     sys.stdout.write(json.dumps(result, indent=2, allow_nan=False) + "\n")

@@ -27,6 +27,7 @@ from toolkits.realworld_check.fr3_mapping_calibration import (
     Plan,
     _local_claim,
     check_endpoints,
+    collect_baseline,
     compose,
     execute_case,
     load_deployment,
@@ -600,3 +601,100 @@ def test_ros_context_cleanup_continues_after_an_endpoint_failure(setup):
         runtime.__exit__()
     assert closed == ["executor", "node", "context"]
     runtime.__exit__()
+
+
+def test_read_only_preflight_accepts_pending_approvals_but_execution_still_refuses(
+    setup, tmp_path
+):
+    from toolkits.realworld_check.fr3_mapping_calibration_ros import RosRuntime
+
+    path, _ = setup
+    raw = json.loads(path.read_text())
+    for name in (
+        "operator",
+        "tool_frame",
+        "ee_to_tcp",
+        "translation_limit_m",
+        "rotation_limit_rad",
+    ):
+        raw[name] = None
+    for name in (
+        "live_installation_matched",
+        "frames_calibrated",
+        "hardware_stop_checked",
+        "workspace_clear",
+        "historical_errors_reviewed",
+    ):
+        raw[name] = False
+    path.write_text(json.dumps(raw))
+    deployment = load_deployment(path, read_only=True)
+    runtime = FakeRuntime(deployment)
+    collect_baseline(runtime, deployment)
+    assert runtime.arm_pub is None and runtime.gripper_pub is None
+    assert json.loads(path.read_text()) == raw
+    with pytest.raises(Blocked, match="Read-only"):
+        RosRuntime(deployment, gripper=False).enable_publishers()
+    with pytest.raises(Blocked, match="operator"):
+        execute_case(
+            runtime,
+            Plan("linear_x_positive"),
+            path,
+            tmp_path / "forbidden",
+            FakeConsole(runtime),
+        )
+
+
+def test_read_only_still_checks_controller_evidence_hashes(setup):
+    path, _ = setup
+    (path.parent / "FAKE_CONTROLLER.so").write_bytes(b"changed")
+    with pytest.raises(Blocked, match="hash mismatch"):
+        load_deployment(path, read_only=True)
+
+
+def test_mixed_joint_states_do_not_replace_or_refresh_physical_gripper_state(setup):
+    from toolkits.realworld_check.fr3_mapping_calibration_ros import RosRuntime
+
+    _, deployment = setup
+    runtime = RosRuntime(deployment, gripper=False)
+    runtime.convert = lambda message: message
+    clock = [1_000_000_000]
+    runtime.now_ns = lambda: clock[0]
+    receive = runtime._receiver("gripper_state", "/joint_states")
+    receive(
+        {
+            "name": ["test_robotiq_joint"],
+            "position": [0.78],
+            "velocity": [],
+            "effort": [],
+        }
+    )
+    first = runtime.telemetry.latest["gripper_state"]
+    clock[0] += 300_000_000
+    receive({"name": ["robotiq_normalized_joint"], "position": [0.89]})
+    assert runtime.telemetry.latest["gripper_state"] is first
+    assert first["received_monotonic_ns"] == 1_000_000_000
+    assert first["message"]["position"] == [0.78]
+    assert runtime.ignored_gripper_messages == 1 and runtime.error is None
+    receive({"name": ["test_robotiq_joint"], "position": [0.77]})
+    assert (
+        runtime.telemetry.latest["gripper_state"]["received_monotonic_ns"] == clock[0]
+    )
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"name": ["test_robotiq_joint"], "position": []},
+        {"name": ["test_robotiq_joint"], "position": [float("nan")]},
+        {"name": ["test_robotiq_joint", "test_robotiq_joint"], "position": [0.1, 0.2]},
+    ],
+)
+def test_invalid_physical_gripper_sample_fails_closed(setup, message):
+    from toolkits.realworld_check.fr3_mapping_calibration_ros import RosRuntime
+
+    _, deployment = setup
+    runtime = RosRuntime(deployment, gripper=False)
+    runtime.convert = lambda message: message
+    runtime._receiver("gripper_state", "/joint_states")(message)
+    assert isinstance(runtime.error, Blocked)
+    assert "gripper_state" not in runtime.telemetry.latest

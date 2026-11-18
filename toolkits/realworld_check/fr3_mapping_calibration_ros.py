@@ -43,6 +43,32 @@ def json_message(value, path: str = "") -> tuple[object, list[str]]:
     return value, []
 
 
+def select_gripper_joint(message: dict, joint: str) -> dict | None:
+    """Select the physical joint; unrelated messages never refresh its watchdog."""
+    names = message.get("name", [])
+    if joint not in names:
+        return None
+    if names.count(joint) != 1:
+        raise Blocked(f"Expected one physical gripper joint: {joint}")
+    index = names.index(joint)
+    positions = message.get("position", [])
+    if (
+        len(positions) <= index
+        or type(positions[index]) not in (float, int)
+        or not math.isfinite(positions[index])
+    ):
+        raise Blocked(f"Missing or nonfinite measured gripper position: {joint}")
+    selected = {
+        "header": message.get("header", {}),
+        "name": [joint],
+        "position": [positions[index]],
+    }
+    for field in ("velocity", "effort"):
+        values = message.get(field, [])
+        selected[field] = [values[index]] if len(values) > index else []
+    return selected
+
+
 class RosRuntime:
     """Own read-only ROS contexts and, after consent, command publishers.
 
@@ -67,6 +93,7 @@ class RosRuntime:
         self.next_control = 0
         self.last_robot_record = 0
         self.received_robot_messages = 0
+        self.ignored_gripper_messages = 0
         self.origin = None
         self.clock_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
 
@@ -174,6 +201,13 @@ class RosRuntime:
                         return
                     self.last_robot_record = self.now_ns()
                 payload, nonfinite = json_message(self.convert(message))
+                if source == "gripper_state":
+                    payload = select_gripper_joint(
+                        payload, self.deployment["record"]["gripper_joint"]
+                    )
+                    if payload is None:
+                        self.ignored_gripper_messages += 1
+                        return
                 self._record(
                     source,
                     topic,
@@ -281,6 +315,8 @@ class RosRuntime:
 
     def enable_publishers(self) -> None:
         """Create publishers only after the caller's exact interactive consent."""
+        if self.deployment.get("read_only"):
+            raise Blocked("Read-only preflight cannot create command publishers")
         arm = self.nodes[0]
         self.arm_pub = arm.create_publisher(self.twist_type, ARM_TOPIC, 1)
         if self.arm_pub.topic_name != ARM_TOPIC:

@@ -1,6 +1,6 @@
 # FR3 Mapping 标定操作流程
 
-按本流程逐项预览和执行有界标定，再依据 [17 项验证清单](pi05_physical_mapping_qualification.zh.md)评审证据。此接口仅完成离线验证，物理检查仍全部待完成。Scaling 1.0 能否解决弱运动问题，仍需物理实验证明。[English](pi05_calibration_operator.md)
+按本流程逐项预览和执行有界标定，再依据 [17 项验证清单](pi05_physical_mapping_qualification.zh.md)评审证据。运动执行完成了离线验证，只读技术 preflight 也已在实际 NUC 上检查；物理 mapping 检查仍全部待完成。Scaling 1.0 能否解决弱运动问题，仍需物理实验证明。[English](pi05_calibration_operator.md)
 
 ## 准备安装证据
 
@@ -36,12 +36,26 @@ sha256sum /tmp/fr3_calibration/copied_controller.so /tmp/fr3_calibration/config_
 在之后的操作员会话中，打开新的工作站 shell，source Jazzy 及匹配的 message definitions，包括 `franka_msgs` 和 `controller_manager_msgs`。通过正常的拥有者接口停止竞争 publisher。以下 preflight 只订阅 telemetry，并调用只读 controller-list service，**不创建命令 publisher**：
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-export ROS_DOMAIN_ID=70 ROS_LOCALHOST_ONLY=0
-PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
+source toolkits/realworld_check/fr3_calibration_env.sh /tmp/fr3_calibration/jazzy_msgs/install
+/usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
   --case linear_x_positive \
   --deployment /tmp/fr3_calibration/deployment.json --preflight
 ```
+
+该 helper source Jazzy 和已验证的 message overlay，保留两者的 Python 路径，加入仓库路径，并在不初始化 ROS 的情况下检查 native type support。使用 `/usr/bin/python3`（Python 3.12）并保留该环境，不能用 `PYTHONPATH=.` 覆盖 ROS 路径。`/tmp/fr3_calibration/jazzy_msgs` 是仅包含接口的本地 workspace，包含与 NUC 匹配的 `franka_msgs` 和 `controller_manager_msgs`；自定义接口从 Humble 已安装包复制，并为 Jazzy 本地编译。Jazzy 原生 `ControllerState` 多出字段，因此 controller service 包也须匹配。Overlay 不改变系统 ROS 安装或 NUC。
+
+在新的 shell 中用现有源码及 manifest 证据重建，避免下载不同版本：
+
+```bash
+source /opt/ros/jazzy/setup.bash
+(
+  cd /tmp/fr3_calibration/jazzy_msgs
+  /usr/bin/colcon build --base-paths src --packages-select franka_msgs controller_manager_msgs \
+    --executor sequential --cmake-args -DBUILD_TESTING=OFF -DPython3_EXECUTABLE=/usr/bin/python3
+)
+```
+
+`--preflight` 检查 artifact 哈希、已配置的 base/EE 变换和实时 telemetry，允许运动准备字段保持未填写，输出待完成项及 `motion_authorized=false`，并禁止创建命令 publisher。执行路径仍须加载完整 deployment、核查批准与已标定 TCP，并获得逐 case 确认。技术 preflight 通过后不要补造批准。
 
 两个命令 topic 都须恰好有一个类型正确的 subscriber，且无竞争 writer；pose、joint、完整 robot state 和夹爪位置必须新鲜。Joint-impedance controller 须处于 active 状态并 claim 七个 effort interface，robot mode/current errors 须允许标定，还须收到两条新鲜诊断报告。`FR3_DIAG_V1` 必须包含已有 joint-error/PD/总力矩 peak 字段。缺少消息定义、诊断或 telemetry 时停止；工具不会安装、激活或修改任何组件来补齐它们。命令 topic 的 recorder 会增加 subscriber，导致严格图检查失败，应使用发送端事件和控制器诊断采集证据。
 
@@ -50,7 +64,7 @@ PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibratio
 先完成 +X，并评审实测响应，再考虑其他方向。下方是未来的操作员命令，**本次准备未执行**：
 
 ```bash
-PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
+/usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibration \
   --case linear_x_positive \
   --deployment /tmp/fr3_calibration/deployment.json \
   --output /tmp/fr3_calibration/x_positive_01 --execute
@@ -77,7 +91,7 @@ PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibratio
 
 ## 检查与评审真实测量
 
-每次运行创建 `session.json`、`events.jsonl`、`telemetry.jsonl`、`summary.json`、安装输入副本和带哈希的 `manifest.json`。采集内容包括控制器 `/rosout` 诊断、pose、实测/期望 joint、完整 robot state、只读 controller 状态及 domain 71 夹爪 state/status。完整 robot-state 证据最多按 100 Hz 采样并保留接收计数，不等于完整 1 kHz 记录。Host monotonic receipt 用于对齐本地流，ROS header 时钟另行保存。
+每次运行创建 `session.json`、`events.jsonl`、`telemetry.jsonl`、`summary.json`、安装输入副本和带哈希的 `manifest.json`。混合 `/joint_states` 消息在更新接收时间前按配置中的物理 joint 名称筛选，normalized surrogate 不会覆盖实测样本或刷新其 watchdog。采集内容包括控制器 `/rosout` 诊断、pose、实测/期望 joint、完整 robot state、只读 controller 状态及 domain 71 夹爪 state/status。完整 robot-state 证据最多按 100 Hz 采样并保留接收计数，不等于完整 1 kHz 记录。Host monotonic receipt 用于对齐本地流，ROS header 时钟另行保存。
 
 ```bash
 .venv/bin/python -m toolkits.realworld_check.fr3_mapping_evidence verify-session \
@@ -122,3 +136,5 @@ PYTHONPATH=. /usr/bin/python3 -m toolkits.realworld_check.fr3_mapping_calibratio
 在独立 CPU pytest 进程中运行 `test_fr3_mapping_calibration.py` 和 `test_fr3_mapping_evidence.py`，以及原有 request-adapter、executor、outcomes、deployment-audit 和 X-pulse 测试。新测试通过 fake hardware 边界运行实际状态机和 ROS 发布方法。合成 review fixture 只存在于 pytest 临时目录，不会成为物理记录。此分支省略了上游 CI workflow，提交上游前须恢复 path-filter coverage。AI assistant 准备并测试了该接口；本次没有操作控制器、执行物理运动、新推理、修改 gain/limit/weight 或编辑 SpaceMouse。
 
 本次离线运行共 **9 个组件文件、379 项测试通过**，另以 Python 3.12 的实际 Jazzy message class 完成两项 fake-hardware case。EN/ZH build、本地链接与命令一致性、Ruff lint/format 及空白检查均通过。全局 docs 检查保留未修改页面中的 24 项 symbol 发现和 61 条 RST warning（零 error）。源码哈希及限制见[离线证据记录](pi05_calibration_offline_evidence.json)。
+
+[Preflight 修复证据](pi05_calibration_preflight_evidence.json)记录了接口兼容性和实际只读验证结果，不代表物理 mapping 或运动批准。
