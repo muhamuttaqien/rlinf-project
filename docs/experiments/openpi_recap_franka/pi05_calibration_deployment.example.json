@@ -1,0 +1,29 @@
+{
+  "schema": "fr3_mapping_calibration_deployment_v1",
+  "operator": null,
+  "base_frame": null,
+  "pose_frame": null,
+  "tool_frame": null,
+  "diagnostic_logger": null,
+  "gripper_joint": null,
+  "gripper_bridge_node": null,
+  "gripper_status_topic": null,
+  "live_installation_matched": false,
+  "frames_calibrated": false,
+  "hardware_stop_checked": false,
+  "workspace_clear": false,
+  "historical_errors_reviewed": false,
+  "translation_limit_m": null,
+  "rotation_limit_rad": null,
+  "base_to_pose": null,
+  "ee_to_flange": null,
+  "ee_to_tcp": null,
+  "controller_binary": {
+    "path": "copied_controller.so",
+    "sha256": null
+  },
+  "controller_config": {
+    "path": "config_manifest.json",
+    "sha256": null
+  }
+}

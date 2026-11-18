@@ -1,0 +1,148 @@
+{
+  "schema": "fr3_pi05_mapping_verification_v1",
+  "status": "pending_physical_qualification_do_not_execute",
+  "mapping_mode": "identity_verified",
+  "arm_axes": [
+    "linear_x",
+    "linear_y",
+    "linear_z",
+    "angular_x",
+    "angular_y",
+    "angular_z"
+  ],
+  "policy_period_ns": 100000000,
+  "publish_period_ns": 10000000,
+  "operator": null,
+  "verified_at_utc": null,
+  "base_frame": null,
+  "tool_frame": null,
+  "controller_binary_sha256": null,
+  "controller_config_sha256": null,
+  "physical_execution_approved": false,
+  "supporting_evidence_inventory": {
+    "path": "pi05_mapping_qualification_evidence.json",
+    "sha256": "46854b30ac4565225bfc9bdf3d4241631850451821127641c2082c04c1461f72",
+    "bytes": 12403
+  },
+  "checks": {
+    "linear_x_positive": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Reported receipt/IK/reference advances; tiny/cross-axis final deltas; synchronized raw trace and resolved direction absent."
+    },
+    "linear_x_negative": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "linear_y_positive": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "linear_y_negative": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "linear_z_positive": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "linear_z_negative": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "angular_x_positive": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "angular_x_negative": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "angular_y_positive": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "angular_y_negative": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "angular_z_positive": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "angular_z_negative": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software signed-axis test only; no resolved physical signed response."
+    },
+    "controller_acceptance": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Counters support part of the path; synchronized hardware effort/joint/status and measured response remain unverified."
+    },
+    "tool_frame_alignment": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Source flange chain and zero mounting known; actual base/EE/Robotiq peg TCP transform not physically qualified."
+    },
+    "timing_10hz_100hz": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "CPU timing and legacy publication trace exist; live 1.0 receipt/hold/neutral timing unqualified."
+    },
+    "neutral_stop": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Software stop tests and source hold semantics exist; physical residual response and hardware stop approval absent."
+    },
+    "gripper_open_close": {
+      "passed": false,
+      "status": "pending",
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "reason": "Binary convention and filter verified offline; both physical accepted goals, travel and stop behavior not qualified."
+    }
+  }
+}
