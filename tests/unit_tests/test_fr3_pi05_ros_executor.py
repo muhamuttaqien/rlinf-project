@@ -120,6 +120,8 @@ def ros_runtime(monkeypatch, capsys):
         failure = None
         stall_at = None
         pending = []
+        begin_kwargs = {}
+        values = [[0.4, 0, 0, 0, 0, 0, 0]] * 10
         publications = []
 
         def __init__(self):
@@ -132,7 +134,7 @@ def ros_runtime(monkeypatch, capsys):
         def chunk(self):
             self.send(
                 "chunk",
-                values=[[0.4, 0, 0, 0, 0, 0, 0]] * 10,
+                values=self.values,
                 observation_ns=self.ns,
                 issued_ns=self.ns,
             )
@@ -189,11 +191,23 @@ def ros_runtime(monkeypatch, capsys):
             return SimpleNamespace(publish=publish)
 
         def get_publishers_info_by_topic(self, topic):
+            if (
+                self.failure == "gripper_exclusive"
+                and self.ns >= self.failure_at
+                and topic == executor.GRIPPER_TOPIC
+            ):
+                return [SimpleNamespace(node_name="other_gripper")]
             if self.failure == "exclusive" and self.ns >= self.failure_at:
                 return [SimpleNamespace(node_name="spacemouse")]
             return [SimpleNamespace(node_name=executor.NAME)] if self.writes else []
 
         def get_subscriptions_info_by_topic(self, topic):
+            if (
+                self.failure == "gripper_subscriber"
+                and self.ns >= self.failure_at
+                and topic == executor.GRIPPER_TOPIC
+            ):
+                return []
             if self.failure == "subscriber" and self.ns >= self.failure_at:
                 return []
             return [object()]
@@ -222,6 +236,8 @@ def ros_runtime(monkeypatch, capsys):
         monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.setenv("ROS_DOMAIN_ID", "70")
     monkeypatch.delenv("FR3_PI05_MAPPING_MODE", raising=False)
+    monkeypatch.delenv("FR3_PI05_MAPPING_VERIFICATION", raising=False)
+    monkeypatch.delenv("FR3_PI05_MAPPING_VERIFICATION_SHA256", raising=False)
     monkeypatch.setattr(sys, "stdin", runtime.stdin)
     monkeypatch.setattr(
         executor,
@@ -232,7 +248,7 @@ def ros_runtime(monkeypatch, capsys):
     )
     # Discovery consumes 13 spins; input arrives only after ready.
     runtime.pending = [
-        (2_030_000_000, lambda: runtime.send("begin_episode")),
+        (2_030_000_000, lambda: runtime.send("begin_episode", **runtime.begin_kwargs)),
         (2_032_000_000, runtime.chunk),
         (4_000_000_000, lambda: runtime.send("quit")),
     ]
@@ -243,13 +259,30 @@ def ros_runtime(monkeypatch, capsys):
         os.close(runtime.write_fd)
 
 
-def test_real_loop_refreshes_100hz_and_neutralizes_chunk_boundary(ros_runtime):
+@pytest.fixture(params=["legacy_limited", "identity_verified"])
+def mapped_ros_runtime(request, ros_runtime, monkeypatch, fr3_mapping_verification):
+    from toolkits.realworld_check.fr3_pi05_request_adapter import (
+        load_mapping_verification,
+    )
+
     runtime, executor = ros_runtime
+    monkeypatch.setenv("FR3_PI05_MAPPING_MODE", request.param)
+    if request.param == "identity_verified":
+        path, _ = fr3_mapping_verification
+        digest = load_mapping_verification(path)["record_sha256"]
+        monkeypatch.setenv("FR3_PI05_MAPPING_VERIFICATION", str(path))
+        monkeypatch.setenv("FR3_PI05_MAPPING_VERIFICATION_SHA256", digest)
+        runtime.begin_kwargs = {"mapping_verification_sha256": digest}
+    return runtime, executor, 1.0 if request.param == "identity_verified" else 0.15
+
+
+def test_real_loop_refreshes_100hz_and_neutralizes_chunk_boundary(mapped_ros_runtime):
+    runtime, executor, gain = mapped_ros_runtime
     assert executor.main() == 0
     events = runtime.events()
     actions = [e for e in events if e["event"] == "action"]
     assert [e["command_index"] for e in actions] == list(range(10))
-    assert all(e["sent_arm_6d"][0] == pytest.approx(0.06) for e in actions)
+    assert all(e["sent_arm_6d"][0] == pytest.approx(0.4 * gain) for e in actions)
     assert [e["gripper_event"] for e in actions[:3]] == ["hold", "hold", "close"]
     arm = [
         (t, v) for t, topic, v in runtime.publications if topic == executor.ARM_TOPIC
@@ -268,6 +301,8 @@ def test_real_loop_refreshes_100hz_and_neutralizes_chunk_boundary(ros_runtime):
         "pose",
         "exclusive",
         "subscriber",
+        "gripper_exclusive",
+        "gripper_subscriber",
         "publish",
         "stall",
         "construction",
@@ -277,15 +312,23 @@ def test_real_loop_refreshes_100hz_and_neutralizes_chunk_boundary(ros_runtime):
         "eof",
     ],
 )
-def test_real_loop_never_resumes_motion_after_stop_or_fault(ros_runtime, failure):
+def test_real_loop_never_resumes_motion_after_stop_or_fault(
+    mapped_ros_runtime, failure
+):
     import os
 
-    runtime, executor = ros_runtime
+    runtime, executor, _ = mapped_ros_runtime
     at = 2_400_000_000
     if failure == "pose":
         runtime.stale_at = at
         cutoff = at + 250_000_000
-    elif failure in ("exclusive", "subscriber", "publish"):
+    elif failure in (
+        "exclusive",
+        "subscriber",
+        "gripper_exclusive",
+        "gripper_subscriber",
+        "publish",
+    ):
         runtime.failure, runtime.failure_at = failure, at
         cutoff = at
     elif failure == "stall":
@@ -393,8 +436,10 @@ for line in sys.stdin:
             os.close(write_fd)
 
 
-def test_real_loop_restarts_only_with_a_fresh_chunk_after_neutral_gap(ros_runtime):
-    runtime, executor = ros_runtime
+def test_real_loop_restarts_only_with_a_fresh_chunk_after_neutral_gap(
+    mapped_ros_runtime,
+):
+    runtime, executor, _ = mapped_ros_runtime
     runtime.pending = [(t, cb) for t, cb in runtime.pending if t < 4_000_000_000]
     runtime.pending.extend(
         [
@@ -415,8 +460,10 @@ def test_real_loop_restarts_only_with_a_fresh_chunk_after_neutral_gap(ros_runtim
 @pytest.mark.parametrize(
     "age_field,age_ns", [("observation_ns", 1_000_000_001), ("issued_ns", 300_000_001)]
 )
-def test_real_loop_stale_chunk_faults_before_motion(ros_runtime, age_field, age_ns):
-    runtime, executor = ros_runtime
+def test_real_loop_stale_chunk_faults_before_motion(
+    mapped_ros_runtime, age_field, age_ns
+):
+    runtime, executor, _ = mapped_ros_runtime
     runtime.pending = [(t, cb) for t, cb in runtime.pending if t != 2_032_000_000]
 
     def stale_chunk():
@@ -477,8 +524,8 @@ def test_oldest_sensor_receipt_is_not_refreshed_after_inference(oldest_age_ns):
         )
 
 
-def test_measured_travel_limit_still_faults_before_further_motion(ros_runtime):
-    runtime, executor = ros_runtime
+def test_measured_travel_limit_still_faults_before_further_motion(mapped_ros_runtime):
+    runtime, executor, _ = mapped_ros_runtime
     runtime.pending.append((2_400_000_000, lambda: setattr(runtime, "pose_x", 0.081)))
     assert executor.main() == 2
     assert any("8 cm" in event.get("reason", "") for event in runtime.events())
@@ -489,10 +536,333 @@ def test_measured_travel_limit_still_faults_before_further_motion(ros_runtime):
     )
 
 
-def test_episode_watchdog_still_ends_neutral_wait(ros_runtime):
-    runtime, executor = ros_runtime
+def test_episode_watchdog_still_ends_neutral_wait(mapped_ros_runtime):
+    runtime, executor, _ = mapped_ros_runtime
     runtime.pending = [(t, cb) for t, cb in runtime.pending if t < 4_000_000_000]
     runtime.pending.append((24_000_000_000, lambda: runtime.send("quit")))
     assert executor.main() == 2
     assert any("time limit" in event.get("reason", "") for event in runtime.events())
     assert runtime.ns < 23_000_000_000
+
+
+@pytest.mark.parametrize("axis", range(6))
+@pytest.mark.parametrize("direction", [-1.0, 1.0])
+def test_all_signed_axes_reach_twist_without_remapping(
+    mapped_ros_runtime, axis, direction
+):
+    runtime, executor, gain = mapped_ros_runtime
+    row = [0.0] * 6 + [1.0]
+    row[axis] = direction
+    runtime.values = [row[:] for _ in range(10)]
+    assert executor.main() == 0
+    actions = [e for e in runtime.events() if e["event"] == "action"]
+    assert len(actions) == 10
+    expected = tuple(value * gain for value in row[:6])
+    for event in actions:
+        assert event["requested_7d"] == row
+        assert tuple(event["sent_arm_6d"]) == expected
+    motion = [
+        v
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC and any(v)
+    ]
+    assert len(motion) == 100
+    assert all(values == expected for values in motion)
+    gripper = [
+        v for t, topic, v in runtime.publications if topic == executor.GRIPPER_TOPIC
+    ]
+    assert gripper == [1.0]
+
+
+def test_identity_environment_alone_cannot_create_publishers(ros_runtime, monkeypatch):
+    runtime, executor = ros_runtime
+    monkeypatch.setenv("FR3_PI05_MAPPING_MODE", "identity_verified")
+    with pytest.raises(ValueError, match="requires a physical"):
+        executor.main()
+    assert not runtime.writes
+    assert not runtime.publications
+
+
+@pytest.mark.parametrize("mapped_ros_runtime", ["identity_verified"], indirect=True)
+def test_identity_requires_per_episode_approval_digest(mapped_ros_runtime):
+    runtime, executor, gain = mapped_ros_runtime
+    assert gain == 1.0
+    runtime.begin_kwargs = {}
+    assert executor.main() == 2
+    assert all(
+        not any(v)
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC
+    )
+    assert any("explicit approval" in e.get("reason", "") for e in runtime.events())
+
+
+def test_identity_rejects_modified_record_before_ros_start(
+    ros_runtime, monkeypatch, fr3_mapping_verification
+):
+    runtime, executor = ros_runtime
+    path, _ = fr3_mapping_verification
+    monkeypatch.setenv("FR3_PI05_MAPPING_MODE", "identity_verified")
+    monkeypatch.setenv("FR3_PI05_MAPPING_VERIFICATION", str(path))
+    monkeypatch.setenv("FR3_PI05_MAPPING_VERIFICATION_SHA256", "0" * 64)
+    with pytest.raises(ValueError, match="changed"):
+        executor.main()
+    assert not runtime.writes
+
+
+def test_parent_identity_gate_fails_before_launch_without_consent(
+    fr3_mapping_verification,
+):
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import Executor
+
+    path, _ = fr3_mapping_verification
+    with pytest.raises(ValueError, match="explicit approval"):
+        Executor(
+            ros_python="/not/a/python",
+            mapping_mode="identity_verified",
+            mapping_verification=path,
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_row",
+    [
+        [1.00001, 0, 0, 0, 0, 0, 0],
+        [-1.00001, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 1.1],
+        [float("nan"), 0, 0, 0, 0, 0, 0],
+        [0, 0, float("inf"), 0, 0, 0, 0],
+        [0] * 6,
+    ],
+)
+def test_invalid_prediction_is_rejected_before_twist_publication(
+    mapped_ros_runtime, bad_row
+):
+    runtime, executor, _ = mapped_ros_runtime
+    runtime.values = [bad_row] * 10
+    assert executor.main() == 2
+    assert all(
+        not any(v)
+        for t, topic, v in runtime.publications
+        if topic == executor.ARM_TOPIC
+    )
+    assert not any(
+        topic == executor.GRIPPER_TOPIC for t, topic, v in runtime.publications
+    )
+    assert any(e["event"] == "fault" for e in runtime.events())
+
+
+def test_competing_startup_publisher_prevents_executor_ownership(mapped_ros_runtime):
+    runtime, executor, _ = mapped_ros_runtime
+    runtime.failure, runtime.failure_at = "exclusive", 0
+    assert executor.main() == 2
+    assert not runtime.writes
+    assert not runtime.publications
+
+
+def test_gripper_minimum_goal_interval_and_gap_neutral(mapped_ros_runtime):
+    runtime, executor, _ = mapped_ros_runtime
+    runtime.values = [[0.4, 0, 0, 0, 0, 0, 0 if i < 3 else 1] for i in range(10)]
+    runtime.pending = [(t, cb) for t, cb in runtime.pending if t < 4_000_000_000]
+
+    def second_chunk():
+        runtime.values = [[0.4, 0, 0, 0, 0, 0, 1] for _ in range(10)]
+        runtime.chunk()
+
+    runtime.pending.extend(
+        [(3_516_000_000, second_chunk), (4_700_000_000, lambda: runtime.send("quit"))]
+    )
+    assert executor.main() == 0
+    goals = [
+        (t, v)
+        for t, topic, v in runtime.publications
+        if topic == executor.GRIPPER_TOPIC
+    ]
+    assert [v for t, v in goals] == [0.0, 1.0]
+    assert goals[1][0] - goals[0][0] >= 800_000_000
+    assert all(not (3_032_000_000 <= t < 3_516_000_000) for t, v in goals)
+
+
+@pytest.fixture(params=["legacy_limited", "identity_verified"])
+def pipe_executor(request, tmp_path, monkeypatch, fr3_mapping_verification):
+    """Use a real subprocess pipe for the ROS process edge, without ROS."""
+    import sys
+
+    from toolkits.realworld_check import fr3_pi05_supervised_rollout as rollout
+    from toolkits.realworld_check.fr3_pi05_request_adapter import (
+        load_mapping_verification,
+    )
+
+    child = tmp_path / "pipe_executor.py"
+    child.write_text("""import json, sys, time
+print(json.dumps({"event": "ready"}), flush=True)
+for line in sys.stdin:
+    item = json.loads(line)
+    if item["op"] == "chunk":
+        print(json.dumps({"event": "accepted", "received_ns": time.monotonic_ns(),
+                          "values": item["values"]}), flush=True)
+        print(json.dumps({"event": "chunk_done"}), flush=True)
+    elif item["op"] == "end_episode":
+        print(json.dumps({"event": "episode_ended"}), flush=True)
+    elif item["op"] == "quit":
+        break
+""")
+    monkeypatch.setattr(rollout, "EXECUTOR", child)
+    kwargs = {}
+    if request.param == "identity_verified":
+        path, _ = fr3_mapping_verification
+        kwargs = {
+            "mapping_verification": path,
+            "approved_sha256": load_mapping_verification(path)["record_sha256"],
+        }
+    executor = rollout.Executor(
+        ros_python=sys.executable, mapping_mode=request.param, **kwargs
+    )
+    try:
+        executor.wait("ready")
+        yield executor
+    finally:
+        executor.close()
+
+
+def test_archival_overlaps_submitted_chunk_without_changing_observation(
+    pipe_executor, tmp_path, monkeypatch
+):
+    import numpy as np
+
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import (
+        submit_and_archive_chunk,
+    )
+
+    executor = pipe_executor
+    observation = {
+        "observation/image": np.full((4, 5, 3), 8, dtype=np.uint8),
+        "observation/wrist_image": np.full((6, 7, 3), 19, dtype=np.uint8),
+        "observation/state": np.arange(19, dtype=np.float32),
+    }
+    original = np.savez_compressed
+    accepted = []
+
+    def slow_archive(path, **arrays):
+        # A blocked filesystem must leave the independent command process free.
+        accepted.append(executor.wait("accepted"))
+        original(path, **arrays)
+
+    monkeypatch.setattr(np, "savez_compressed", slow_archive)
+    path = tmp_path / "observation.npz"
+    values = [[0.5, -0.1, 0.25, -0.2, 0.3, -0.4, 1.0] for _ in range(10)]
+    timing = submit_and_archive_chunk(
+        executor,
+        values,
+        observation_ns=time.monotonic_ns(),
+        observation_path=path,
+        observation=observation,
+    )
+    executor.wait("chunk_done")
+    assert accepted[0]["values"] == values
+    assert timing["issued_ns"] <= timing["submitted_ns"] <= timing["archive_done_ns"]
+    assert (
+        timing["issued_ns"] <= accepted[0]["received_ns"] <= timing["archive_done_ns"]
+    )
+    with np.load(path, allow_pickle=False) as saved:
+        for name, source in (
+            ("base_rgb", "observation/image"),
+            ("wrist_rgb", "observation/wrist_image"),
+            ("state19", "observation/state"),
+        ):
+            np.testing.assert_array_equal(saved[name], observation[source])
+
+
+def test_archive_failure_revokes_active_and_future_chunks(
+    pipe_executor, tmp_path, monkeypatch
+):
+    import numpy as np
+
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import (
+        RolloutStopped,
+        submit_and_archive_chunk,
+    )
+
+    executor = pipe_executor
+
+    def disk_full(*args, **kwargs):
+        executor.wait("accepted")
+        raise OSError("Simulated full filesystem")
+
+    monkeypatch.setattr(np, "savez_compressed", disk_full)
+    with pytest.raises(OSError, match="full filesystem"):
+        submit_and_archive_chunk(
+            executor,
+            [[0.0] * 7] * 10,
+            observation_ns=time.monotonic_ns(),
+            observation_path=tmp_path / "observation.npz",
+            observation={
+                "observation/image": None,
+                "observation/wrist_image": None,
+                "observation/state": None,
+            },
+        )
+    executor.wait("episode_ended")
+    assert executor.stop_reason == "observation_archive_fault"
+    with pytest.raises(RolloutStopped):
+        executor.send("chunk", values=[[0.0] * 7] * 10)
+
+
+def test_operator_stop_during_slow_archive_cannot_resume_chunks(
+    pipe_executor, tmp_path, monkeypatch
+):
+    import os
+
+    import numpy as np
+
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import (
+        RolloutStopped,
+        submit_and_archive_chunk,
+    )
+
+    executor = pipe_executor
+    read_fd, write_fd = os.pipe()
+    original = np.savez_compressed
+    with os.fdopen(read_fd) as operator_input:
+        executor.monitor_stop(time.monotonic() + 10, operator_input)
+
+        def slow_archive(path, **arrays):
+            executor.wait("accepted")
+            os.write(write_fd, b"\n")
+            assert executor.stopped.wait(2)
+            original(path, **arrays)
+
+        monkeypatch.setattr(np, "savez_compressed", slow_archive)
+        try:
+            submit_and_archive_chunk(
+                executor,
+                [[0.0] * 7] * 10,
+                observation_ns=time.monotonic_ns(),
+                observation_path=tmp_path / "observation.npz",
+                observation={
+                    "observation/image": np.zeros((2, 2, 3), np.uint8),
+                    "observation/wrist_image": np.zeros((2, 2, 3), np.uint8),
+                    "observation/state": np.zeros(19),
+                },
+            )
+            executor.wait("episode_ended")
+            assert executor.stop_reason == "operator_stop"
+            with pytest.raises(RolloutStopped):
+                executor.send("chunk", values=[[0.0] * 7] * 10)
+        finally:
+            os.close(write_fd)
+
+
+def test_rollout_identity_gate_runs_before_model_or_hardware_setup():
+    from types import SimpleNamespace
+
+    from toolkits.realworld_check.fr3_pi05_supervised_rollout import run
+
+    with pytest.raises(ValueError, match="requires a physical"):
+        run(SimpleNamespace(verified_request_mapping=True, mapping_verification=None))
+    with pytest.raises(ValueError, match="requires --verified"):
+        run(
+            SimpleNamespace(
+                verified_request_mapping=False, mapping_verification="unused.json"
+            )
+        )

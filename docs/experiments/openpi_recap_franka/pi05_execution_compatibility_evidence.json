@@ -1,0 +1,390 @@
+{
+  "schema": "fr3_pi05_execution_offline_comparison_v2",
+  "date": "2026-11-18",
+  "hardware_qualification_performed": false,
+  "physical_identity_execution_approved": false,
+  "archive_profile": {
+    "source": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/observation_000.npz",
+    "shapes": {
+      "base_rgb": [
+        480,
+        640,
+        3
+      ],
+      "wrist_rgb": [
+        480,
+        848,
+        3
+      ],
+      "state19": [
+        19
+      ]
+    },
+    "repetitions": 10,
+    "archive_ms": {
+      "median": 125.00060450000001,
+      "p95": 125.89974635,
+      "maximum": 126.417272
+    },
+    "writes": "temporary directory only",
+    "command_state_logging_ms": {
+      "median": 0.5363445,
+      "p95": 0.65243835,
+      "maximum": 0.682281
+    }
+  },
+  "deployment_audit": {
+    "mode": "offline_read_only",
+    "train_source_episodes": 80,
+    "validation_source_episodes": 20,
+    "train_only_norm_passed": true,
+    "normalization_sha256": "9bc91e36bd59e20e57f073a578a5c8e23977598a58f6ccd0f793c410522f9cba",
+    "source_episode_disjoint": true,
+    "decoded_action_7d_contract": [
+      "linear_x",
+      "linear_y",
+      "linear_z",
+      "angular_x",
+      "angular_y",
+      "angular_z",
+      "latched_gripper_open_request"
+    ],
+    "model_action_dimension": 32,
+    "robot_request_dimension": 7,
+    "raw_request_train_mean": [
+      -0.089217,
+      0.114919,
+      -0.037413,
+      0.034645,
+      0.012385,
+      -0.014699,
+      0.333415
+    ],
+    "raw_request_train_q01": [
+      -0.727746,
+      -0.534793,
+      -0.852111,
+      -0.268672,
+      -0.433509,
+      -0.498883,
+      0.0
+    ],
+    "raw_request_train_q99": [
+      0.457774,
+      0.833217,
+      0.895781,
+      0.452043,
+      0.611586,
+      0.517018,
+      1.0
+    ],
+    "inference_inverse": "OpenPI Unnormalize on train-only actions, then [:, :7]",
+    "existing_live_extra_arm_gain": 0.15,
+    "proposed_request_mapping_gain": 1.0,
+    "identity_mapping_implemented": true,
+    "identity_execution_gate": "hashed physical verification record and explicit per-run operator consent",
+    "trained_action_representation": "time-weighted average normalized SpaceMouse input",
+    "controller_consumes": "instantaneous normalized Twist request; NUC C++ mapping",
+    "controller_binary_version_verified": false,
+    "mounting_frame_and_axis_signs_verified": false,
+    "action_hold_time_and_latency_verified": false,
+    "gripper_bridge_goal_acceptance_verified": false,
+    "physical_identity_execution_approved": false,
+    "decision": "software_contract_inspected_physical_controller_verification_pending",
+    "existing_episode": {
+      "published_arm_requests": 110,
+      "max_absolute_arm_request": 0.11256,
+      "max_absolute_pi05_arm_prediction": 0.75043,
+      "max_tcp_displacement_mm": 13.263,
+      "final_tcp_displacement_mm": 13.242,
+      "tcp_path_length_mm": 16.395,
+      "tcp_axis_span_mm": [
+        0.649,
+        1.475,
+        13.187
+      ],
+      "logged_gripper_events": {
+        "open": 1,
+        "close": 0,
+        "hold": 109
+      },
+      "note": "ROS publish events are not proof that the controller accepted each request."
+    },
+    "recorded_request_comparison": {
+      "mode": "offline_recorded_request_comparison",
+      "demonstrations": 100,
+      "axis_order": [
+        "linear_x",
+        "linear_y",
+        "linear_z",
+        "angular_x",
+        "angular_y",
+        "angular_z"
+      ],
+      "raw_requests": 212623,
+      "raw_request_distribution": {
+        "minimum": [
+          -0.9285714285714286,
+          -0.8657142857142858,
+          -1.0,
+          -1.0,
+          -1.0,
+          -0.9885714285714285
+        ],
+        "maximum": [
+          0.96,
+          1.0,
+          1.0,
+          0.8828571428571429,
+          1.0,
+          1.0
+        ],
+        "mean_absolute": [
+          0.18991942143068288,
+          0.20973458724059588,
+          0.3022744616393389,
+          0.0834651539512263,
+          0.12266826394940779,
+          0.11505754316325272
+        ],
+        "p95_absolute": [
+          0.6057142857142858,
+          0.6628571428571428,
+          0.8142857142857143,
+          0.3314285714285714,
+          0.4857142857142857,
+          0.4257142857142857
+        ]
+      },
+      "raw_receipt_gaps": {
+        "count": 212523,
+        "median_ms": 9.999813,
+        "maximum_ms": 13.844603,
+        "above_250ms": 0
+      },
+      "raw_effective_hz": 99.99997554175911,
+      "raw_gripper_requests": {
+        "0.0": 100,
+        "1.0": 100
+      },
+      "policy_actions": 110,
+      "decoded_distribution": {
+        "minimum": [
+          -0.3013152144254588,
+          -0.7504325063111527,
+          -0.6234142175927495,
+          -0.30648364067778344,
+          -0.33222977344178556,
+          -0.35396733182590845
+        ],
+        "maximum": [
+          0.3588158187060182,
+          0.24654639239306342,
+          0.5901298393703646,
+          0.09704198839290629,
+          0.6298316393522456,
+          0.5477679268067328
+        ],
+        "mean_absolute": [
+          0.12958632187278704,
+          0.3595686388910788,
+          0.1850329113713448,
+          0.13252000392184576,
+          0.11902610250127198,
+          0.12178901858474082
+        ],
+        "p95_absolute": [
+          0.29265258084103446,
+          0.6922378602233467,
+          0.5803605919339435,
+          0.2593743238326956,
+          0.4362987688560474,
+          0.337947030820401
+        ]
+      },
+      "legacy_sent_distribution": {
+        "minimum": [
+          -0.04519728216381882,
+          -0.11256487594667289,
+          -0.09351213263891242,
+          -0.04597254610166752,
+          -0.049834466016267835,
+          -0.05309509977388627
+        ],
+        "maximum": [
+          0.05382237280590273,
+          0.03698195885895951,
+          0.08851947590555469,
+          0.014556298258935943,
+          0.09447474590283685,
+          0.08216518902100992
+        ],
+        "mean_absolute": [
+          0.01943794828091806,
+          0.05393529583366186,
+          0.02775493670570172,
+          0.019878000588276875,
+          0.017853915375190797,
+          0.018268352787711134
+        ],
+        "p95_absolute": [
+          0.04389788712615517,
+          0.10383567903350199,
+          0.08705408879009154,
+          0.03890614857490434,
+          0.06544481532840711,
+          0.050692054623060145
+        ]
+      },
+      "identity_sent_distribution": {
+        "minimum": [
+          -0.3013152144254588,
+          -0.7504325063111527,
+          -0.6234142175927495,
+          -0.30648364067778344,
+          -0.33222977344178556,
+          -0.35396733182590845
+        ],
+        "maximum": [
+          0.3588158187060182,
+          0.24654639239306342,
+          0.5901298393703646,
+          0.09704198839290629,
+          0.6298316393522456,
+          0.5477679268067328
+        ],
+        "mean_absolute": [
+          0.12958632187278704,
+          0.3595686388910788,
+          0.1850329113713448,
+          0.13252000392184576,
+          0.11902610250127198,
+          0.12178901858474082
+        ],
+        "p95_absolute": [
+          0.29265258084103446,
+          0.6922378602233467,
+          0.5803605919339435,
+          0.2593743238326956,
+          0.4362987688560474,
+          0.337947030820401
+        ]
+      },
+      "legacy_mapping_max_absolute_error": 0.0,
+      "identity_mapping_max_absolute_error": 0.0,
+      "policy_effective_hz": 7.473608807414145,
+      "policy_within_chunk_gaps": {
+        "count": 99,
+        "median_ms": 100.002374,
+        "maximum_ms": 101.03668,
+        "above_250ms": 0
+      },
+      "policy_between_chunk_gaps": {
+        "count": 10,
+        "median_ms": 470.0953595,
+        "maximum_ms": 484.156017,
+        "above_250ms": 10
+      },
+      "logged_gripper_events": {
+        "hold": 109,
+        "open": 1
+      },
+      "offline_debounced_gripper_events": {
+        "hold": 109,
+        "open": 1
+      },
+      "raw_corpus_sha256": "ba34ccbb23931414a850be1b27221b58d7e97cb06bad3c95fd76d05430ac3606",
+      "policy_log_sha256": "7236e41b1f6b76bae9663b9f98af89674c90f224d8a252a7ffe3b9def28d3147",
+      "physical_identity_execution_approved": false,
+      "remaining_mismatches": [
+        "10 Hz window averages cannot reconstruct 100 Hz operator variations",
+        "inference gaps intentionally publish neutral",
+        "gripper debounce delays latched goals",
+        "live binary/configuration, frames/TCP, acceptance and response require physical evidence"
+      ]
+    }
+  },
+  "software_changes": {
+    "identity_mode": "decoded_policy_action[:6], no gain/remap/clipping",
+    "default_mode": "legacy_limited",
+    "legacy_gain": 0.15,
+    "policy_period_ns": 100000000,
+    "publication_period_ns": 10000000,
+    "scheduler_gap_limit_ns": 50000000,
+    "archive_order": "submit validated chunk, archive observation while independent executor runs",
+    "approval_gate": "hashed physical verification evidence and explicit per-run operator consent"
+  },
+  "scope": "Recorded requests, CPU transforms/tests and fake ROS only; no inference or physical deployment",
+  "offline_regression_tests": {
+    "mode": "CPU offline, one pytest process per file",
+    "python": "3.11.15",
+    "components": [
+      {
+        "component": "fr3_pi05_ros_executor",
+        "passed": 104,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_pi05_request_adapter",
+        "passed": 42,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_pi05_deployment_audit",
+        "passed": 9,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_rollout_outcomes",
+        "passed": 8,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_command_request_alignment",
+        "passed": 5,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_supervised_arm_pulse",
+        "passed": 10,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_multimodal",
+        "passed": 10,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_peg_request_policy",
+        "passed": 2,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_request_norm_stats",
+        "passed": 3,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_request_lerobot_export",
+        "passed": 3,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_request_sft_offline_eval",
+        "passed": 3,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_request_live_shadow",
+        "passed": 4,
+        "exit_code": 0
+      },
+      {
+        "component": "fr3_request_chunk_eval",
+        "passed": 2,
+        "exit_code": 0
+      }
+    ],
+    "passed": 205
+  }
+}

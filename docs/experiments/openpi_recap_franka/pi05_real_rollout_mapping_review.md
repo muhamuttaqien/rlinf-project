@@ -42,9 +42,14 @@ gripper filtering. Two explicit mapping modes:
   normalized request axes unchanged. This is **not a safety certification**.
 
 `fr3_pi05_supervised_rollout.py`: default remains `legacy_limited`.
-The `--verified-request-mapping` option requests `identity_verified`,
-requires the distinct console text `RUN VERIFIED`, and logs the selected
-mode. **Do not select this mode until the checks below are independently
+The `--verified-request-mapping` option requests `identity_verified` and now
+requires `--mapping-verification <record.json>` with hashed physical evidence
+for all signed axes, frames/TCP, controller acceptance, timing, neutral/stop
+and gripper behavior. Per-run consent is `RUN VERIFIED <first 12 characters
+of record SHA-256>`. The parent and child verify the record digest, and the
+child checks the episode approval before accepting motion. A mode environment
+variable alone cannot enable full-strength execution. The selected mode and
+approved record path/digest are logged. **Do not select this mode until the checks below are independently
 verified and physically approved.** The existing episode time, displacement,
 fresh pose, exclusivity and human E-stop requirements still apply.
 

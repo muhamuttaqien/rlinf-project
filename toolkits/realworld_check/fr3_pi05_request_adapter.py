@@ -15,13 +15,102 @@ No ROS imports or motor access.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
+import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 ARM_AXES = (
-    "linear_x", "linear_y", "linear_z",
-    "angular_x", "angular_y", "angular_z",
+    "linear_x",
+    "linear_y",
+    "linear_z",
+    "angular_x",
+    "angular_y",
+    "angular_z",
 )
 GRIPPER_AXIS = "latched_gripper_open_request"
+MAPPING_CHECKS = tuple(
+    f"{axis}_{direction}" for axis in ARM_AXES for direction in ("positive", "negative")
+) + (
+    "controller_acceptance",
+    "tool_frame_alignment",
+    "timing_10hz_100hz",
+    "neutral_stop",
+    "gripper_open_close",
+)
+
+
+def load_mapping_verification(path: str | Path | None) -> dict:
+    """Validate an operator's physical qualification record and evidence hashes.
+
+    This checks the attestation's completeness and integrity, not the truth of
+    physical measurements or the identity of a currently running controller.
+    """
+    if not path:
+        raise ValueError(
+            "identity_verified requires a physical mapping verification record"
+        )
+    path = Path(path).resolve()
+    payload = path.read_bytes()
+    record = json.loads(payload)
+    expected = {
+        "schema": "fr3_pi05_mapping_verification_v1",
+        "mapping_mode": "identity_verified",
+        "arm_axes": list(ARM_AXES),
+        "policy_period_ns": 100_000_000,
+        "publish_period_ns": 10_000_000,
+    }
+    if not isinstance(record, dict) or any(
+        record.get(k) != v for k, v in expected.items()
+    ):
+        raise ValueError(
+            "Mapping verification must match the six-axis 10 Hz/100 Hz contract"
+        )
+    for field in ("operator", "base_frame", "tool_frame"):
+        if not isinstance(record.get(field), str) or not record[field].strip():
+            raise ValueError(f"Mapping verification requires {field}")
+    for field in ("controller_binary_sha256", "controller_config_sha256"):
+        if not isinstance(record.get(field), str) or not re.fullmatch(
+            r"[0-9a-f]{64}", record[field]
+        ):
+            raise ValueError(f"Mapping verification requires {field}")
+    try:
+        verified_at = datetime.fromisoformat(
+            record["verified_at_utc"].replace("Z", "+00:00")
+        )
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
+        raise ValueError("Mapping verification requires verified_at_utc") from exc
+    if verified_at.utcoffset() != timedelta(0) or verified_at > datetime.now(
+        timezone.utc
+    ):
+        raise ValueError("Mapping verification must have a past UTC verification time")
+    checks = record.get("checks")
+    if not isinstance(checks, dict):
+        raise ValueError("Mapping verification requires physical checks")
+    evidence_hashes = {}
+    for name in MAPPING_CHECKS:
+        check = checks.get(name)
+        if not isinstance(check, dict) or check.get("passed") is not True:
+            raise ValueError(f"Physical mapping check not passed: {name}")
+        evidence_path, digest = check.get("evidence_path"), check.get("evidence_sha256")
+        if not isinstance(evidence_path, str) or not evidence_path.strip():
+            raise ValueError(f"Physical mapping check requires evidence: {name}")
+        evidence = (path.parent / evidence_path).resolve()
+        if evidence not in evidence_hashes:
+            hasher = hashlib.sha256()
+            size = 0
+            with evidence.open("rb") as stream:
+                for block in iter(lambda: stream.read(1 << 20), b""):
+                    hasher.update(block)
+                    size += len(block)
+            if not size:
+                raise ValueError(f"Physical mapping evidence must be nonempty: {name}")
+            evidence_hashes[evidence] = hasher.hexdigest()
+        if digest != evidence_hashes[evidence]:
+            raise ValueError(f"Physical mapping evidence hash mismatch: {name}")
+    return {**record, "record_sha256": hashlib.sha256(payload).hexdigest()}
 
 
 def validate_action_chunk(chunk) -> list[list[float]]:
@@ -35,7 +124,9 @@ def validate_action_chunk(chunk) -> list[list[float]]:
         values = []
         for j, value in enumerate(row):
             if type(value) not in (float, int) or not math.isfinite(value):
-                raise ValueError(f"Action {i}, channel {j}: nonfinite/non-numeric request")
+                raise ValueError(
+                    f"Action {i}, channel {j}: nonfinite/non-numeric request"
+                )
             value = float(value)
             lo, hi = (-1.0, 1.0) if j < 6 else (-0.05, 1.05)
             if not lo <= value <= hi:
@@ -96,7 +187,10 @@ class GripperRequestFilter:
             self.count += 1
         if self.count < self.confirmations:
             return "hold"
-        if self.last_goal_at is not None and now - self.last_goal_at < self.min_goal_interval_s:
+        if (
+            self.last_goal_at is not None
+            and now - self.last_goal_at < self.min_goal_interval_s
+        ):
             return "hold"
         self.latched = candidate
         self.last_goal_at = now

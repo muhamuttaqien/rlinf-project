@@ -25,12 +25,14 @@ if __package__:
     from .fr3_pi05_request_adapter import (
         GripperRequestFilter,
         identity_arm_request,
+        load_mapping_verification,
         validate_action_chunk,
     )
 else:
     from fr3_pi05_request_adapter import (
         GripperRequestFilter,
         identity_arm_request,
+        load_mapping_verification,
         validate_action_chunk,
     )
 
@@ -114,6 +116,21 @@ class CommandSchedule:
 def main() -> int:
     if os.environ.get("ROS_DOMAIN_ID") != "70":
         raise RuntimeError("This executor requires the explicit FR3 domain 70")
+    mapping_mode = os.environ.get("FR3_PI05_MAPPING_MODE", "legacy_limited")
+    if mapping_mode not in ("identity_verified", "legacy_limited"):
+        raise ValueError("Unknown FR3 request mapping mode")
+    verification = None
+    if mapping_mode == "identity_verified":
+        verification = load_mapping_verification(
+            os.environ.get("FR3_PI05_MAPPING_VERIFICATION")
+        )
+        if (
+            os.environ.get("FR3_PI05_MAPPING_VERIFICATION_SHA256")
+            != verification["record_sha256"]
+        ):
+            raise ValueError(
+                "Mapping verification changed or parent approval digest missing"
+            )
     import rclpy
     from geometry_msgs.msg import PoseStamped, Twist
     from rclpy.node import Node
@@ -135,10 +152,6 @@ def main() -> int:
     arm_publications = 0
     last_publish_ns = None
     max_publish_gap_ns = 0
-    # Identity mapping must be explicitly enabled after physical interface review.
-    mapping_mode = os.environ.get("FR3_PI05_MAPPING_MODE", "legacy_limited")
-    if mapping_mode not in ("identity_verified", "legacy_limited"):
-        raise RuntimeError("Unknown FR3 request mapping mode")
     gain = 1.0 if mapping_mode == "identity_verified" else LEGACY_GAIN
     gripper_filter = GripperRequestFilter(confirmations=3, min_goal_interval_s=0.8)
 
@@ -245,6 +258,9 @@ def main() -> int:
             arm_gain=gain,
             policy_period_s=PERIOD_S,
             publish_period_ns=PUBLISH_PERIOD_NS,
+            mapping_verification_sha256=verification["record_sha256"]
+            if verification
+            else None,
         )
 
         input_buffer = b""
@@ -267,6 +283,14 @@ def main() -> int:
                 if op == "begin_episode":
                     if origin is not None:
                         raise RuntimeError("Episode already active")
+                    if (
+                        verification
+                        and item.get("mapping_verification_sha256")
+                        != verification["record_sha256"]
+                    ):
+                        raise RuntimeError(
+                            "Episode requires explicit approval of the verified mapping record"
+                        )
                     fresh_pose()
                     origin = tuple(pose)
                     started = time.monotonic()
@@ -326,7 +350,11 @@ def main() -> int:
                     index, values = sample
                     # Raw normalized SpaceMouse request axis order (not SI velocity).
                     arm = identity_arm_request(values)
-                    sent_arm = [x * gain for x in arm]
+                    sent_arm = (
+                        list(arm)
+                        if mapping_mode == "identity_verified"
+                        else [x * LEGACY_GAIN for x in arm]
+                    )
                     msg = Twist()
                     msg.linear.x, msg.linear.y, msg.linear.z = sent_arm[:3]
                     msg.angular.x, msg.angular.y, msg.angular.z = sent_arm[3:]

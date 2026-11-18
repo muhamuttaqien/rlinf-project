@@ -5,7 +5,7 @@
 > Repository: [muhamuttaqien/rlinf-project](https://github.com/muhamuttaqien/rlinf-project)  
 > Working branch: **branch-openpi-recap-franka**  
 > Primary current focus: **FR3 real-world π₀.₅ deployment and RECAP data collection**  
-> Status: **Controller startup dependency resolved; diagnostic controller is configured but INACTIVE; physical movement cause remains unresolved.**
+> Status: **Execution-pipeline completion verified offline; full-strength mapping remains physically gated. Current live controller state was not rechecked; six-axis/TCP and timing qualification remains pending.**
 >
 > This is a living summary, not proof of hardware readiness. **In a new ChatGPT/Codex conversation, explicitly ask the assistant to read this file from the branch and check the latest code, logs, and runtime state. ChatGPT does not automatically open a repository document in every conversation.** Update this file whenever a milestone or blocker changes.
 
@@ -22,7 +22,9 @@ Practical sequence:
 5. Use those outcomes for the offline RECAP pipeline: reward/critic/advantage-related evaluation and subsequent policy-improvement experiments, with appropriate baselines.
 6. Assess real-world task success, robustness and safety, not just offline prediction metrics.
 
-**Immediate objective as of 2026-11-18:** Diagnose why the FR3 barely responded to movement requests. First resolve **why the instrumented arm controller is inactive**; then obtain one approved, bounded physical test with diagnostic counters. **Do not retrain the policy or start RECAP fine-tuning while this hardware qualification remains blocked.**
+**Current objective as of 2026-11-18:** The execution software now preserves normalized request magnitude in the explicitly gated `identity_verified` mode, retains legacy 0.15 scaling, and publishes bounded 10 Hz policy samples at nominal 100 Hz. Observation archival overlaps execution; evidence, consent, timing, expiry, stop and fault paths are tested offline. The next stage is **one separately authorized, operator-supervised physical qualification** before the 20 usable RECAP outcomes. **No movement, activation, controller change or retraining was performed in this software pass.**
+
+Use [the updated bilingual execution report](docs/experiments/openpi_recap_franka/pi05_execution_pipeline_offline.md) and [aggregated offline evidence](docs/experiments/openpi_recap_franka/pi05_execution_compatibility_evidence.json) for the current software contract. The hardware snapshots below are historical; consult the detailed investigation for the later operator-reported X pulse (+0.383 mm X, -0.539 mm Z). Its cross-axis response and flange-to-peg TCP remain unresolved. The current running controller state cannot be inferred from these documents.
 
 A separate simulation track exists in the broader RLinf/RECAP work; it must not be confused with or used as evidence of successful physical FR3 execution. Confirm simulation milestones from their own current logs before making claims.
 
@@ -127,7 +129,7 @@ The controller computes targets using the URDF flange chain **base → fr3_link8
 - **docs/experiments/openpi_recap_franka/fr3_controller_investigation.md** — **authoritative detailed technical investigation and rollback**, including source-verified controller semantics and test evidence.
 - **docs/experiments/openpi_recap_franka/fr3_startup_fix/controller_motion_tests.patch** — test-only C++ regression cases (apply only to an appropriate isolated copy; original inspected isolated test source already included it).
 
-The policy executor defaults to **legacy_limited** with **ARM_GAIN=0.15**, reducing an example predicted request 0.03 to 0.0045 (nominal target offset 0.0315 mm). This explains additional attenuation in earlier policy rollouts, but **does not explain the direct pulse**, which bypasses that multiplier. **identity_verified** (gain 1.0) is gated behind explicit post-qualification physical mapping approval. Do **not** enable it merely because offline axis names match; 10 Hz inference/playback versus ~100 Hz teleoperation and physical frame/timing still need validation.
+The policy executor defaults to **legacy_limited** with **LEGACY_GAIN=0.15**, reducing an example predicted request 0.03 to 0.0045 (nominal target offset 0.0315 mm). This explains additional attenuation in earlier policy rollouts, but **does not explain the direct pulse**, which bypasses that multiplier. **identity_verified** (unchanged original request magnitude) now requires `--verified-request-mapping`, a `--mapping-verification` JSON record with hashed evidence for all 12 signed axes plus acceptance/frame/timing/stop/gripper checks, and per-run `RUN VERIFIED <record SHA-256 prefix>` consent. Both parent and executor independently validate the record; the executor also binds the episode start to its digest. Do **not** enable it merely because offline axis names match; 10 Hz inference/playback versus ~100 Hz teleoperation and physical frame/timing still need validation.
 
 The rollout runner contains safety checks and an operator-reviewed outcome workflow; ROS message publication alone is not proof of controller acceptance or task completion. Never count aborted/invalid attempts as success or failure toward the target 20.
 
@@ -145,7 +147,8 @@ The rollout runner contains safety checks and an operator-reviewed outcome workf
 | Controller diagnostic source instrumentation | **Compiled successfully in isolation** | FR3_DIAG_V1 counters added without changing motion equations |
 | Pinocchio controller-startup dependency | **Resolved in tested environment** | Pinocchio 4.1.0 files exist under /opt/openrobots/lib; original failure due to loader path missing |
 | NUC hardware/diagnostic library symbol loading | **Passed without hardware initialization** | Corrected LD_LIBRARY_PATH, no required library unresolved |
-| Python regression tests | **27 passed** | Codex investigation, prior to latest physical launch |
+| Python regression tests, earlier controller investigation | **27 passed** | Prior to the recorded physical launch |
+| Complete execution-pipeline offline regression | **205 passed across 13 files** | Both request modes, evidence/consent gate, 100 Hz refresh/10 Hz samples, archival overlap, stop/fault/limits, label/transform/normalization contracts; CPU only |
 | C++ controller tests | **8 passed** | Isolated NUC build, localhost domain 213; two added small-request tests |
 | Physical diagnostic counters during X pulse | **NOT obtained** | Need active diagnostic controller and operator-approved supervised test |
 | 20 real π₀.₅ outcomes | **Pending** | Cannot collect until physical controller qualification |
@@ -177,7 +180,7 @@ Physical weakness remains **unexplained**. Instrumented evidence must distinguis
 
 Competing neutral publishers, command gaps, IK failure at the real pose, limited joint tracking, hardware state or fault conditions remain **hypotheses**, not established diagnoses. The log warnings **sequence size exceeds remaining buffer** also remain unexplained; record exact source/timing rather than assuming they cause small motion.
 
-## 5. **Latest live state — 2026-11-18**
+## 5. **Historical live state — 2026-11-18 startup snapshot**
 
 **This section overrides the older report's statement that no physical startup had occurred.** A later operator-performed launch was attempted after the runtime path fix.
 
@@ -208,9 +211,11 @@ A grep of **~/fr3_diag_launch.log** for joint controller activation/errors showe
 
 **Critical interpretation:** The current blocker is **inactive arm controller after the latest launch**. This accounts for missing live diagnostic lines in this session. It does **not** retrospectively explain the earlier weak physical pulses, which occurred in different controller sessions.
 
-## 6. Next steps — resume here, one issue at a time
+## 6. Next steps — physical qualification remains separate
 
-### **NEXT ACTION: read-only inspection of the actual launch file**
+Review the complete offline pipeline and evidence report, then obtain explicit operator authorization for one physical qualification session. First verify current hardware/controller state, the exact running binary/configuration, signed-axis response, calibrated TCP, controller acceptance, 10 Hz action/100 Hz refresh timing, neutral/stop behavior and gripper acceptance. The identity gate requires genuine physical evidence; offline replay does not supply it. Keep legacy gain until the separate mapping gate is satisfied. Review qualification results before starting the planned 20 usable rollouts. Do not infer current activation state or authorize motion from the startup snapshot below.
+
+### Historical startup checklist: read-only launch inspection
 
 On the NUC, in the shell where the diagnostic overlay is sourced:
 
@@ -253,14 +258,14 @@ The detailed report **docs/experiments/openpi_recap_franka/fr3_controller_invest
 
 Suggested first message:
 
-> **Read "ChatGPT - RECAP Implementation.md" at the root of the GitHub repository muhamuttaqien/rlinf-project on branch branch-openpi-recap-franka. Then read docs/experiments/openpi_recap_franka/fr3_controller_investigation.md. Use them as project context, verify the latest repository revision and the most recent NUC logs I provide, and resume from "Next steps" in the root handoff file. Our immediate blocker is that joint_impedance_ik_controller is inactive after startup; do not skip to physical pulses or model retraining. Please keep your replies concise and prioritize one actionable step at a time.**
+> **Read "ChatGPT - RECAP Implementation.md" at the root of the GitHub repository muhamuttaqien/rlinf-project on branch branch-openpi-recap-franka. Then read docs/experiments/openpi_recap_franka/fr3_controller_investigation.md. Use them as project context, verify the latest repository revision and the most recent NUC logs I provide, and resume from "Next steps" in the root handoff file. Read the updated pi05_execution_pipeline_offline.md and its evidence JSON before further work. The complete software pipeline is tested offline; full-strength physical mapping and live timing remain unqualified. Do not repeat the old investigation, infer current activation state, execute movement, or retrain the model without a separately authorized next stage. Please keep your replies concise and prioritize one actionable step at a time.**
 
 When continuing:
 
 - Distinguish **confirmed physical observations** from **offline/source-only results** and hypotheses.
 - Use the most recent live robot/controller outputs to update status; a Markdown record can become stale.
 - Do not ask again for established environment facts unless a change or conflict is observed.
-- Be focused: first make the controller's activation state understandable, then collect an actual instrumented motion trace, then proceed to π₀.₅/RECAP. Avoid repeated testing and unnecessary infrastructure.
+- Preserve the completed execution scheduler and gates. The next stage is a separately authorized physical qualification; historical activation checks are context, not a request to restart the investigation or activate hardware.
 - When a new durable fact is established, update **this file** and commit/push that change.
 
 ---

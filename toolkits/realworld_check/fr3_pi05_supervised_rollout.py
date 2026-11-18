@@ -35,6 +35,7 @@ import numpy as np
 
 from toolkits.realworld_check.fr3_live_qualification import read_camera_pair
 from toolkits.realworld_check.fr3_multimodal import assemble_fr3_multimodal
+from toolkits.realworld_check.fr3_pi05_request_adapter import load_mapping_verification
 from toolkits.realworld_check.fr3_request_live_shadow import (
     make_live_input,
     prepare_checkpoint,
@@ -72,7 +73,29 @@ def oldest_observation_ns(multimodal: dict) -> int:
 class Executor:
     """Read executor stdout independently so ROS keeps spinning during inference."""
 
-    def __init__(self, *, ros_python: str, mapping_mode: str = "legacy_limited"):
+    def __init__(
+        self,
+        *,
+        ros_python: str,
+        mapping_mode: str = "legacy_limited",
+        mapping_verification: Path | None = None,
+        approved_sha256: str | None = None,
+    ):
+        self.mapping_verification = None
+        if mapping_mode == "identity_verified":
+            self.mapping_verification = load_mapping_verification(mapping_verification)
+            if approved_sha256 != self.mapping_verification["record_sha256"]:
+                raise ValueError(
+                    "Full-strength execution requires explicit approval of this mapping record"
+                )
+        elif (
+            mapping_mode != "legacy_limited"
+            or mapping_verification is not None
+            or approved_sha256 is not None
+        ):
+            raise ValueError(
+                "Expected legacy_limited without approval or explicitly approved identity_verified"
+            )
         self.q = queue.Queue()
         self.write_lock = threading.Lock()
         self.stop_lock = threading.Lock()
@@ -82,6 +105,10 @@ class Executor:
         env = {
             **os.environ,
             "FR3_PI05_MAPPING_MODE": mapping_mode,
+            "FR3_PI05_MAPPING_VERIFICATION": str(mapping_verification.resolve())
+            if mapping_verification
+            else "",
+            "FR3_PI05_MAPPING_VERIFICATION_SHA256": approved_sha256 or "",
             "ROS_DOMAIN_ID": "70",
             "ROS_AUTOMATIC_DISCOVERY_RANGE": "SUBNET",
             "RMW_IMPLEMENTATION": "rmw_fastrtps_cpp",
@@ -224,7 +251,48 @@ class Executor:
             self.proc.stderr.close()
 
 
+def submit_and_archive_chunk(
+    executor: Executor,
+    values: list[list[float]],
+    *,
+    observation_ns: int,
+    observation_path: Path,
+    observation: dict,
+) -> dict:
+    """Submit fresh actions, then archive their observation during execution.
+
+    An archive failure revokes the active chunk immediately. The caller must
+    still wait for chunk completion and retain executor events on every exit.
+    """
+    issued_ns = time.monotonic_ns()
+    executor.send(
+        "chunk", values=values, observation_ns=observation_ns, issued_ns=issued_ns
+    )
+    submitted_ns = time.monotonic_ns()
+    try:
+        np.savez_compressed(
+            observation_path,
+            base_rgb=observation["observation/image"],
+            wrist_rgb=observation["observation/wrist_image"],
+            state19=observation["observation/state"],
+        )
+    except BaseException:
+        executor.request_stop("observation_archive_fault")
+        raise
+    return {
+        "issued_ns": issued_ns,
+        "submitted_ns": submitted_ns,
+        "archive_done_ns": time.monotonic_ns(),
+    }
+
+
 def run(args):
+    mode = "identity_verified" if args.verified_request_mapping else "legacy_limited"
+    verification = None
+    if mode == "identity_verified":
+        verification = load_mapping_verification(args.mapping_verification)
+    elif args.mapping_verification is not None:
+        raise ValueError("--mapping-verification requires --verified-request-mapping")
     import torch
     from openpi import transforms
 
@@ -323,11 +391,21 @@ def run(args):
         for camera in cameras.values():
             camera.connect()
             stack.callback(camera.disconnect)
-        approval = "RUN VERIFIED" if args.verified_request_mapping else "RUN"
-        mode = (
-            "identity_verified" if args.verified_request_mapping else "legacy_limited"
+        approval = (
+            f"RUN VERIFIED {verification['record_sha256'][:12]}"
+            if verification
+            else "RUN"
         )
         print(f"Controller request mapping: {mode}", flush=True)
+        if verification:
+            print(
+                "Operator must match the running controller/configuration and tool frames to "
+                f"the physical verification record {verification['record_sha256']}: "
+                f"binary={verification['controller_binary_sha256']}, "
+                f"config={verification['controller_config_sha256']}, "
+                f"frames={verification['base_frame']} -> {verification['tool_frame']}",
+                flush=True,
+            )
         if (
             input(f"Type {approval} for ONE supervised physical episode: ").strip()
             != approval
@@ -336,7 +414,12 @@ def run(args):
             return
         # The ROS executor's live watchdog must not run while the operator
         # is deciding whether to start. Launch it only after confirmation.
-        executor = Executor(ros_python=args.ros_python, mapping_mode=mode)
+        executor = Executor(
+            ros_python=args.ros_python,
+            mapping_mode=mode,
+            mapping_verification=args.mapping_verification,
+            approved_sha256=verification["record_sha256"] if verification else None,
+        )
 
         def close_executor_and_save_events():
             try:
@@ -351,7 +434,12 @@ def run(args):
         stack.callback(close_executor_and_save_events)
         episode_dir.mkdir(parents=True, exist_ok=True)
         executor.wait("ready", timeout=13)
-        executor.send("begin_episode")
+        executor.send(
+            "begin_episode",
+            mapping_verification_sha256=verification["record_sha256"]
+            if verification
+            else None,
+        )
         executor.wait("episode_started")
         print(
             "Rollout active: press ENTER to cancel commands, including during inference.",
@@ -365,6 +453,7 @@ def run(args):
         with (
             (episode_dir / "policy_command_log.jsonl").open("x") as commands,
             (episode_dir / "measured_state_log.jsonl").open("x") as states,
+            (episode_dir / "pipeline_timing.jsonl").open("x") as timings,
         ):
             chunk_i = 0
             while time.monotonic() < episode_deadline:
@@ -374,6 +463,7 @@ def run(args):
                 if any(e.get("event") in ("fault", "exited") for e in executor.events):
                     raise RuntimeError("ROS executor fault")
                 t0 = time.monotonic()
+                acquisition_started_ns = time.monotonic_ns()
                 frames = read_camera_pair(cameras, max_age_s=0.5, max_skew_s=0.1)
                 multimodal = assemble_fr3_multimodal(
                     readers["arm"].snapshot(0.5),
@@ -383,6 +473,7 @@ def run(args):
                 )
                 observation_ns = oldest_observation_ns(multimodal)
                 raw = make_live_input(multimodal, prompt=args.prompt)
+                observation_ready_ns = time.monotonic_ns()
                 batch = {
                     "observation/image": raw["observation/image"][None],
                     "observation/wrist_image": raw["observation/wrist_image"][None],
@@ -402,6 +493,7 @@ def run(args):
                             {"actions": generated.detach().cpu().float().numpy()[0]}
                         )["actions"]
                     )[:, :7]
+                inference_done_ns = time.monotonic_ns()
                 if executor.stopped.is_set():
                     stop_reason = executor.stop_reason
                     break
@@ -439,22 +531,17 @@ def run(args):
                     print("Rejected invalid policy action: " + str(exc), flush=True)
                     break
                 file = f"observation_{chunk_i:03d}.npz"
-                np.savez_compressed(
-                    episode_dir / file,
-                    base_rgb=raw["observation/image"],
-                    wrist_rgb=raw["observation/wrist_image"],
-                    state19=raw["observation/state"],
-                )
                 # No model request is published until the Jazzy executor
                 # independently validates the latest observation and graph.
-                issued_ns = time.monotonic_ns()
                 before = len(executor.events)
+                timing = {}
                 try:
-                    executor.send(
-                        "chunk",
-                        values=actions.tolist(),
+                    timing = submit_and_archive_chunk(
+                        executor,
+                        actions.tolist(),
                         observation_ns=observation_ns,
-                        issued_ns=issued_ns,
+                        observation_path=episode_dir / file,
+                        observation=raw,
                     )
                     executor.wait("chunk_done", timeout=4)
                 except RolloutStopped:
@@ -462,6 +549,22 @@ def run(args):
                     episode_end = executor.wait("episode_ended")
                 new_events = executor.events[before:]
                 action_events = [e for e in new_events if e.get("event") == "action"]
+                timings.write(
+                    json.dumps(
+                        {
+                            "chunk": chunk_i,
+                            "observation_ns": observation_ns,
+                            "acquisition_started_ns": acquisition_started_ns,
+                            "observation_ready_ns": observation_ready_ns,
+                            "inference_done_ns": inference_done_ns,
+                            **timing,
+                            "wait_returned_ns": time.monotonic_ns(),
+                        },
+                        allow_nan=False,
+                    )
+                    + "\n"
+                )
+                timings.flush()
                 for e in action_events:
                     commands.write(json.dumps(e, allow_nan=False) + "\n")
                     states.write(
@@ -524,6 +627,13 @@ def run(args):
             "arm_publications": episode_end["arm_publications"],
             "max_publish_gap_ns": episode_end["max_publish_gap_ns"],
             "executor_event_log": "executor_events.jsonl",
+            "pipeline_timing_log": "pipeline_timing.jsonl",
+            "mapping_verification_sha256": verification["record_sha256"]
+            if verification
+            else None,
+            "mapping_verification_record": str(args.mapping_verification.resolve())
+            if verification
+            else None,
             "stop_reason": stop_reason,
             "control_mode": "supervised_closed_loop_pi05",
             "request_mapping_mode": mode,
@@ -563,7 +673,12 @@ def main():
     p.add_argument(
         "--verified-request-mapping",
         action="store_true",
-        help="Use identity arm request mapping only after separate physical controller/frames/timing verification",
+        help="Request identity mapping with a physical verification record and per-run operator consent",
+    )
+    p.add_argument(
+        "--mapping-verification",
+        type=Path,
+        help="Operator-reviewed physical mapping JSON and hashed evidence; required for identity mapping",
     )
     a = p.parse_args()
     run(a)
