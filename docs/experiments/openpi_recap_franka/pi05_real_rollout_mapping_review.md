@@ -22,6 +22,12 @@
 
 ## Implemented code
 
+The executor now refreshes bounded 10 Hz policy samples at a 100 Hz transport
+rate and refreshes neutral while inference is pending. Scaling remains unchanged.
+See the [offline execution report](pi05_execution_pipeline_offline.md)
+([中文](pi05_execution_pipeline_offline.zh.md)) for timing evidence, freshness
+contracts, stop handling and the next operator approval gate.
+
 `fr3_pi05_request_adapter.py`: offline-testable 7D request validation,
 identity arm mapping (same six axis order, no arbitrary gain), and a
 three-consecutive-step gripper request filter with 0.8 s minimum interval
