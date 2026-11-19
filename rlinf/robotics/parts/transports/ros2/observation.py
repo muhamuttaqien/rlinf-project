@@ -147,17 +147,30 @@ class ROS2ObservationTransport:
 
     def snapshot(self) -> dict[str, Any]:
         """Request the latest samples; close the session on any IPC failure."""
+        return self._request("snapshot")
+
+    def inspect_status(self, budget: float = 2.0) -> dict[str, Any]:
+        """Collect fixed read-only graph/status queries while subscriptions spin.
+
+        Budget is a shared ROS discovery/response window, not a latency bound.
+        The IPC timeout must exceed it by at least 0.5 seconds.
+        """
+        if not math.isfinite(budget) or not 0 < budget <= min(5.0, self.timeout - 0.5):
+            raise ValueError("Expected diagnostic budget in (0, min(5, timeout-0.5)]")
+        return self._request("inspect_status", budget=budget)
+
+    def _request(self, operation: str, **settings: Any) -> dict[str, Any]:
         with self._lock:
             try:
                 if not self.is_alive or self._channel is None:
                     raise ConnectionError("Expected a running ROS observation worker")
-                send_packet(self._channel, {"op": "snapshot"})
+                send_packet(self._channel, {"op": operation, **settings})
                 result = receive_packet(self._channel)
                 if (
                     result.get("op"),
                     result.get("domain_id"),
                     result.get("profile"),
-                ) != ("snapshot", self.domain_id, self.profile):
+                ) != (operation, self.domain_id, self.profile):
                     raise ConnectionError(
                         f"Expected domain-specific snapshot; got {result}"
                     )

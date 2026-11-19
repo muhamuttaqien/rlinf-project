@@ -140,6 +140,12 @@ class ROS2ObservationPart(RobotPart):
         """Read through the native per-owner snapshot contract."""
         return self.read_state()
 
+    def inspect_status(self, budget: float = 2.0) -> dict[str, Any]:
+        """Query fixed passive diagnostics through the owned observation worker."""
+        if not self.is_connected:
+            raise ConnectionError("Expected a connected observation part")
+        return self._transport.inspect_status(budget)
+
     def wait_for_observation(self, timeout: float = 5.0) -> Observation:
         """Wait for a complete selected observation or raise with diagnostics."""
         if not math.isfinite(timeout) or timeout < 0:

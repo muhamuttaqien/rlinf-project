@@ -21,6 +21,8 @@ import socket
 import time
 from typing import Any
 
+from passive import collect_status
+
 # Executed by path so importing this module never imports RLinf or its dependencies.
 from protocol import PROFILES, decode_message, receive_packet, send_packet
 
@@ -125,6 +127,20 @@ def serve(channel: socket.socket, profile: str, domain_id: int) -> None:
                 if request.get("op") == "shutdown":
                     send_packet(channel, {"op": "stopped"})
                     break
+                if request.get("op") == "inspect_status":
+                    result = collect_status(
+                        node, executor, profile, request.get("budget")
+                    )
+                    send_packet(
+                        channel,
+                        {
+                            "op": "inspect_status",
+                            "domain_id": domain_id,
+                            "profile": profile,
+                            "evidence": result,
+                        },
+                    )
+                    continue
                 if request.get("op") != "snapshot":
                     raise ValueError("Expected snapshot or shutdown IPC request")
                 send_packet(

@@ -7478,3 +7478,323 @@ def test_offline_action_worker_rechecks_admission_age_at_submission(offline_part
         ]
         == 0
     )
+
+
+@pytest.fixture
+def passive_readiness_report(ros2_runtime):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    return run_preflight(duration=0.05, budget=0.05, **ros2_runtime)
+
+
+def test_ros2_readiness_passive_categories_never_authorize(passive_readiness_report):
+    report = passive_readiness_report
+    assert report["schema"] == "fr3_passive_readiness_v1"
+    assert report["qualification_gate"] == "NO_GO"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+    for name, category in report["categories"].items():
+        assert category["state"] == (
+            "NOT_QUALIFIED" if name == "physical_safety_qualification" else "PASS"
+        ), category
+    assert report["errors"] == {}
+    assert report["monotonic_clock_domain"] == "preflight_host"
+    assert set(report["configuration_subset_sha256"]) == {"fr3", "robotiq"}
+    assert all(len(x) == 64 for x in report["configuration_subset_sha256"].values())
+    for profile in ("fr3", "robotiq"):
+        assert report["diagnostics"][profile]["ipc_round_trip_s"] > 0
+        assert report["diagnostics"][profile]["evidence"]["health"]["sample"]
+        assert report["observations"][profile]["ros2"]["complete"]
+    assert report["timing"]["fr3"]["pose"]["frame_id"] == "base"
+    assert report["timing"]["fr3"]["joints"]["frame_id"] == "base_link"
+
+
+@pytest.mark.parametrize(
+    "mode,category,state",
+    [
+        ("claim_conflict", "controller_status_visibility", "FAIL"),
+        ("duplicate_manager", "controller_status_visibility", "FAIL"),
+        ("config_drift", "interface_identity_consistency", "FAIL"),
+        ("service_timeout", "controller_status_visibility", "UNKNOWN"),
+        ("missing_health_type", "gripper_status_visibility", "UNKNOWN"),
+        ("unknown_fault", "gripper_status_visibility", "UNKNOWN"),
+        ("fault", "gripper_status_visibility", "FAIL"),
+        ("ownership_conflict", "ownership_evidence_availability", "FAIL"),
+        ("missing", "observation_readiness", "FAIL"),
+        ("malformed", "observation_readiness", "FAIL"),
+        ("wrong_type", "interface_identity_consistency", "FAIL"),
+    ],
+)
+def test_ros2_readiness_external_failures(
+    ros2_runtime, monkeypatch, mode, category, state
+):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    report = run_preflight(duration=0.05, budget=0.05, **ros2_runtime)
+    assert report["categories"][category]["state"] == state, report["categories"][
+        category
+    ]
+    assert report["qualification_gate"] == "NO_GO"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "domain",
+        "profile",
+        "stale",
+        "future",
+        "header",
+        "missing_service",
+        "bad_evidence",
+        "extra_server",
+        "bad_server",
+        "missing_health",
+        "stale_health",
+        "wrong_qos",
+    ],
+)
+def test_ros2_readiness_conflicting_evidence(passive_readiness_report, change):
+    import copy
+
+    from rlinf.robotics.parts.ros2_readiness import assess_readiness
+
+    observations = copy.deepcopy(passive_readiness_report["observations"])
+    diagnostics = copy.deepcopy(passive_readiness_report["diagnostics"])
+    evidence = diagnostics["fr3"]["evidence"]
+    stream = observations["fr3"]["ros2"]["streams"]["joints"]
+    category, expected = "interface_identity_consistency", "FAIL"
+    now = passive_readiness_report["assessment_monotonic_ns"]
+    if change == "domain":
+        observations["fr3"]["ros2"]["domain_id"] = 71
+    elif change == "profile":
+        diagnostics["fr3"]["profile"] = "robotiq"
+    elif change in ("stale", "future"):
+        stream["sample"]["received_monotonic_ns"] = now + (
+            10**9 if change == "future" else -(10**9)
+        )
+        category = "observation_readiness"
+    elif change == "header":
+        stream["sample"]["header"]["nanosec"] = -1
+        category = "timing_evidence_availability"
+    elif change == "missing_service":
+        evidence["services"].pop("/controller_manager/list_hardware_interfaces")
+        category, expected = "controller_status_visibility", "UNKNOWN"
+    elif change == "bad_evidence":
+        evidence["services"]["/controller_manager/list_controllers"] = [None]
+        category = "controller_status_visibility"
+    elif change in ("extra_server", "bad_server"):
+        servers = diagnostics["robotiq"]["evidence"]["action_servers"]
+        if change == "extra_server":
+            servers.append(copy.deepcopy(servers[0]))
+        else:
+            servers[0]["types"] = ["unknown/action/GripperCommand"]
+    elif change == "missing_health":
+        diagnostics["robotiq"]["evidence"]["health"]["sample"] = None
+        category, expected = "gripper_status_visibility", "UNKNOWN"
+    elif change == "stale_health":
+        diagnostics["robotiq"]["evidence"]["health"]["sample"][
+            "received_monotonic_ns"
+        ] = now - 10**9
+        category = "gripper_status_visibility"
+    elif change == "wrong_qos":
+        evidence["topics"]["/franka/joint_states"]["publishers"][0]["reliability"] = (
+            "UNKNOWN"
+        )
+        category, expected = "observation_readiness", "UNKNOWN"
+    report = assess_readiness(observations, diagnostics, now_ns=now)
+    assert report["categories"][category]["state"] == expected
+    assert report["qualification_gate"] == "NO_GO"
+
+
+def test_ros2_readiness_observation_worker_still_receives(ros2_runtime):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    part = FR3ROS2Observation(**ros2_runtime)
+    part.connect()
+    process = part._transport._process
+    try:
+        before = part.wait_for_observation()["ros2"]["streams"]["joints"]["sequence"]
+        evidence = part.inspect_status(0.05)["evidence"]
+        after = part.get_observation()["ros2"]["streams"]["joints"]["sequence"]
+        assert after > before
+        assert not evidence["errors"]
+        assert part.is_connected
+        with pytest.raises(ValueError, match="budget"):
+            part.inspect_status(1.0)
+        assert part.get_observation()["ros2"]["complete"]
+        part.reset()
+        assert part.get_observation()["ros2"]["complete"]
+    finally:
+        part.disconnect()
+        part.disconnect()
+    assert process.poll() == 0
+    with pytest.raises(ConnectionError, match="connected"):
+        part.inspect_status(0.05)
+
+
+def test_ros2_readiness_worker_death_and_reconnect(ros2_runtime):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    part = FR3ROS2Observation(**ros2_runtime)
+    part.connect()
+    part._transport._process.kill()
+    part._transport._process.wait()
+    with pytest.raises(ConnectionError):
+        part.inspect_status(0.05)
+    part.disconnect()
+    part.connect()
+    try:
+        assert part.wait_for_observation()["ros2"]["complete"]
+        assert part.inspect_status(0.05)["domain_id"] == 70
+    finally:
+        part.disconnect()
+
+
+def test_ros2_readiness_missing_runtime():
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    report = run_preflight(duration=0.01, budget=0.01, ros_python="/missing/ros/python")
+    assert set(report["errors"]) == {"fr3", "robotiq"}
+    assert report["categories"]["observation_readiness"]["state"] == "FAIL"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"duration": float("nan")},
+        {"duration": 31},
+        {"budget": 6},
+        {"budget": 0},
+        {"timeout": 1},
+        {"max_age": -1},
+    ],
+)
+def test_ros2_readiness_invalid_budget(settings):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    with pytest.raises(ValueError, match="Expected"):
+        run_preflight(**settings)
+
+
+def test_ros2_readiness_cli_json(ros2_runtime, tmp_path):
+    import json
+
+    target = tmp_path / "readiness.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_ROOT / "toolkits/realworld_check/fr3_readiness_preflight.py"),
+            "--duration",
+            "0.05",
+            "--budget",
+            "0.05",
+            "--timeout",
+            "1",
+            "--ros-python",
+            ros2_runtime["ros_python"],
+            "--ros-setup",
+            ros2_runtime["ros_setup"],
+            "--output",
+            str(target),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(target.read_text())
+    assert report["qualification_gate"] == "NO_GO"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+def test_ros2_readiness_no_control_capability():
+    import ast
+
+    paths = [
+        "rlinf/robotics/parts/ros2_readiness.py",
+        "rlinf/robotics/parts/transports/ros2/passive.py",
+        "rlinf/robotics/parts/transports/ros2/worker.py",
+        "toolkits/realworld_check/fr3_readiness_preflight.py",
+    ]
+    forbidden = {
+        "create_publisher",
+        "publish",
+        "ActionClient",
+        "send_goal_async",
+        "cancel_goal_async",
+        "set_parameters",
+        "switch_controller",
+        "recover",
+        "activate",
+    }
+    for path in paths:
+        tree = ast.parse((_ROOT / path).read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                name = (
+                    node.func.attr
+                    if isinstance(node.func, ast.Attribute)
+                    else node.func.id
+                    if isinstance(node.func, ast.Name)
+                    else ""
+                )
+                assert name not in forbidden, (path, name)
+    # Only state subscriptions and the fake's six whitelisted read-only services
+    # can succeed in the process-edge readiness tests above.
+
+
+@pytest.mark.parametrize("mode", ["diagnostic_crash", "diagnostic_hang"])
+def test_ros2_readiness_diagnostic_ipc_failure(ros2_runtime, monkeypatch, mode):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    report = run_preflight(duration=0.02, budget=0.05, **ros2_runtime)
+    assert set(report["errors"]) == {"fr3", "robotiq"}
+    assert report["categories"]["observation_readiness"]["state"] == "FAIL"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+def test_ros2_readiness_partial_discovery_is_unknown(passive_readiness_report):
+    from rlinf.robotics.parts.ros2_readiness import assess_readiness
+
+    diagnostics = passive_readiness_report["diagnostics"]
+    endpoint = diagnostics["fr3"]["evidence"]["topics"][
+        "/franka_controller/target_cartesian_velocity_percent"
+    ]
+    endpoint["subscriptions"][0]["node"] = "_NODE_NAME_UNKNOWN_"
+    diagnostics["robotiq"]["evidence"]["action_servers"] = []
+    diagnostics["robotiq"]["evidence"]["action_clients"] = []
+    report = assess_readiness(
+        passive_readiness_report["observations"],
+        diagnostics,
+        now_ns=passive_readiness_report["assessment_monotonic_ns"],
+    )
+    assert report["categories"]["interface_identity_consistency"]["state"] == "UNKNOWN"
+    assert report["categories"]["ownership_evidence_availability"]["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("value", [[float("nan")] * 7, [0] * 6, [True] * 7])
+def test_ros2_readiness_malformed_decoded_values(passive_readiness_report, value):
+    from rlinf.robotics.parts.ros2_readiness import assess_readiness
+
+    observations = passive_readiness_report["observations"]
+    observations["fr3"]["ros2"]["streams"]["joints"]["sample"]["data"]["position"] = (
+        value
+    )
+    report = assess_readiness(observations, passive_readiness_report["diagnostics"])
+    assert report["categories"]["observation_readiness"]["state"] == "FAIL"
+
+
+def test_ros2_readiness_bounded_graph_overflow(ros2_runtime, monkeypatch):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", "graph_overflow")
+    report = run_preflight(duration=0.05, budget=0.05, **ros2_runtime)
+    for diagnostic in report["diagnostics"].values():
+        assert "at most 128" in diagnostic["evidence"]["errors"]["collection"]
+    assert report["categories"]["ownership_evidence_availability"]["state"] == "UNKNOWN"
+    assert report["categories"]["interface_identity_consistency"]["state"] == "UNKNOWN"
+    assert report["qualification_gate"] == "NO_GO"
