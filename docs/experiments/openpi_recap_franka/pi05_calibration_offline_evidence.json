@@ -1,0 +1,108 @@
+{
+  "schema": "fr3_mapping_calibration_offline_verification_v1",
+  "verified_at_utc": "2026-11-18T22:49:26.372839+00:00",
+  "base_commit": "25a5314e38b64d63e363c8790b9edb3932bb92b9",
+  "hardware": "workstation CPU; fake ROS/hardware endpoints; real terminal/pipe and filesystem edges",
+  "tests": [
+    {
+      "component": "calibration_tests",
+      "passed": 77,
+      "log_sha256": "9572ab41b698de9542534a6635928740e22c4f58220fd0746bddcaf8e147e48b"
+    },
+    {
+      "component": "evidence_tests",
+      "passed": 27,
+      "log_sha256": "e7135b00b8d6afdb112b74d76f9c526803c436ba499343d70fe9d9c24f39a06a"
+    },
+    {
+      "component": "fr3_pi05_request_adapter",
+      "passed": 95,
+      "log_sha256": "922f9ea5612fefb8e0d81341ad0a3336f5b2e0d1338129a2fc20283ba59a81ff"
+    },
+    {
+      "component": "fr3_pi05_ros_executor",
+      "passed": 136,
+      "log_sha256": "15666ba26a6e1142bd59b5cdefe8f991fb03da92cd12d9b07085fd7ea97e0af8"
+    },
+    {
+      "component": "fr3_pi05_deployment_audit",
+      "passed": 9,
+      "log_sha256": "30556026d27b000ed6efbd0329a3a9e7f457f755eab6a9cdab60e2d24f946b45"
+    },
+    {
+      "component": "fr3_rollout_outcomes",
+      "passed": 19,
+      "log_sha256": "8ccb85da084f6833b9d8fbd2e26801e35bf9fbc10ddb903c7718f48573c4715f"
+    },
+    {
+      "component": "fr3_supervised_arm_pulse",
+      "passed": 10,
+      "log_sha256": "dde5ca5e03076869eb85860c74461d875787d1b9172057e3c87774f26d19cb70"
+    },
+    {
+      "component": "fr3_command_request_alignment",
+      "passed": 5,
+      "log_sha256": "bf42eab5c329618040e4e91138e5472a65f7e82b294ebb58abf6fd7563a32210"
+    },
+    {
+      "component": "fr3_rollout_motion_diagnostic",
+      "passed": 1,
+      "log_sha256": "4a376882c186397a27148538c25500b295e42c0c312bd02c1eba7505ab9c8430"
+    }
+  ],
+  "total_passed": 379,
+  "jazzy_message_smoke": {
+    "python": "system Python 3.12.3 / actual ROS Jazzy Twist and Float32 classes",
+    "module_path": "/opt/ros/jazzy/lib/python3.12/site-packages",
+    "rclpy_init_called": false,
+    "physical_robot_commands": 0,
+    "results": [
+      {
+        "case": "angular_z_negative",
+        "status": "completed",
+        "backend": "fake"
+      },
+      {
+        "case": "gripper_close",
+        "status": "completed",
+        "backend": "fake"
+      }
+    ]
+  },
+  "docs": {
+    "en_reported_warnings": 0,
+    "zh_reported_warnings": 0,
+    "default_autodoc_import_filtering": true,
+    "markdown_outside_sphinx_trees": true,
+    "existing_symbol_findings": 24,
+    "existing_rst_warnings": 61,
+    "rst_errors": 0,
+    "local_links_checked": true,
+    "bilingual_commands_identical": true
+  },
+  "ruff_lint_format_passed": true,
+  "real_robot_commands_sent": 0,
+  "controller_operations_performed": 0,
+  "new_model_inference": false,
+  "genuine_physical_approvals_created": 0,
+  "physical_checks_passed": 0,
+  "physical_checks_required": 17,
+  "pending_record_sha256": "7c8f92b52493e5ae00e986eb41e1b48b2df475e021e508b7b07dd41440e07068",
+  "source_hashes": {
+    "tests/robot_mocks/mapping_calibration.py": "f27bfb9a305b743c95ec35267687e804cdf44fee788930480fc9b98740529ed1",
+    "tests/unit_tests/test_fr3_mapping_calibration.py": "7bb614af710cac035bb36a4f73904b212a8d9632866f5b8e157ec9307e95e7c1",
+    "tests/unit_tests/test_fr3_mapping_evidence.py": "5a048dda0e3d6ce0e98c77f1c3e2891e837709bcb348b0ae1c9064b4407ac028",
+    "toolkits/realworld_check/fr3_mapping_calibration.py": "5f9231c8b5393c0abf10d341e8026429789dec438641554198f4122a1bae1297",
+    "toolkits/realworld_check/fr3_mapping_calibration_ros.py": "594610c4311bc514c3b8cf51931404902959d1dd8a1514af823d7bd2b92360c2",
+    "toolkits/realworld_check/fr3_mapping_evidence.py": "7ad668817cdee25a84c71a4dc807e868ef9c38abda4bb2ba9ef79a2d6b4d980e"
+  },
+  "limitations": [
+    "Physical robot and live DDS discovery were not exercised.",
+    "Running controller/configuration identity and actual TCP calibration require local operator matching.",
+    "FR3_DIAG_V1 aggregates do not establish per-command receipt timing or hardware acceptance.",
+    "Synthetic positive review fixtures are confined to pytest temporary directories and are not physical evidence.",
+    "The branch has no upstream CI workflow; restore coverage before upstream submission."
+  ],
+  "prepared_with_ai_assistant": true,
+  "pre_commit_passed": true
+}

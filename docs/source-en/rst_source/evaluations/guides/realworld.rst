@@ -351,6 +351,28 @@ Set ``rollout.model.model_path`` to the staged checkpoint directory and
 For the full collection, SFT, checkpoint staging, and pedal-control workflow,
 see :doc:`../../examples/embodied/dual_franka`.
 
+Native FR3 Request Policy Evaluation
+------------------------------------
+
+Use ``FR3RequestEnv-v1`` for the 19D, two-camera OpenPI request-SFT checkpoint on an FR3 whose NUC ROS 2 controller is already active. The native environment attaches through ``FrankaRobot`` and a ROS 2 request arm; reset reads the current state. Run one supervised three-second episode with ``evaluations/realworld/realworld_fr3_pi05_request_eval.yaml``. This deployment-specific config pins the existing 3,000-step checkpoint, request normalization statistics, camera serials, and physical GPU 1.
+
+Activate the ML environment, keep the matching Jazzy message overlay available, and follow the operator procedure in ``docs/experiments/openpi_recap_franka/pi05_native_evaluation.md``. On the configured workstation, launch:
+
+.. code-block:: bash
+
+   source .venv/bin/activate
+   LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.590.48.01:/usr/lib/x86_64-linux-gnu/libcuda.so.590.48.01 \
+   RAY_ADDRESS=local \
+   bash evaluations/run_eval.sh realworld realworld_fr3_pi05_request_eval
+
+This selects process-local NVIDIA libraries, initializes isolated native evaluation workers, and asks for ``RUN FR3 3S`` before enabling requests. Each arm sample keeps its trained normalized Twist order and signs at scaling 1.0. Samples run at 10 Hz within each horizon and refresh at 100 Hz; inference gaps become neutral. A separate ROS process enforces the three-second wall-clock deadline and fresh-state/ownership checks. Use Ctrl-C or the printed session's ``STOP`` file to request neutral, and keep an operator at the physical emergency stop. Neutral holds the existing NUC joint reference.
+
+Before the operator prompt, the rollout worker performs two discarded predictions with synthetic inputs and restores its random-generator state. Reset then acquires the rollout observation after confirmation. The one-second observation-to-chunk freshness check remains active. Use ``env_timing.jsonl`` and ``policy_timing.jsonl`` in the printed session directory to separate acquisition, transport, inference, and action-admission latency.
+
+Inspect the normal evaluation logs and the session's ``ros_evidence.jsonl`` to compare policy requests, transmitted Twist values, controller diagnostics, and measured pose. The measured pose convention matches training; physical tool-tip calibration and peg-insertion success are separate observations. Use a new explicit operator confirmation for each run.
+
+For offline preparation of the existing 100 FR3 peg-insertion demonstrations, use ``toolkits/realworld_check/fr3_frequency_dataset.py`` and the audit report ``docs/experiments/openpi_recap_franka/fr3_frequency_phase1.md``. The separate 10 Hz dataset preserves episode identities, averages held normalized requests over exact 100 ms intervals, and uses training-only statistics. Review ``examples/sft/config/realworld_sft_openpi_fr3_peg_request_10hz_phase1.yaml`` as a proposed SFT configuration; dataset preparation does not launch training or evaluation.
+
 Viewing Results
 ---------------
 

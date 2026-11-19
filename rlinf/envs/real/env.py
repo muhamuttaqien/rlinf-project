@@ -119,8 +119,11 @@ class RealWorldEnv(gym.Env):
         """Run node-level setup before creating real-world environments.
 
         The setup is serialized because ROS permits only one core per node.
-        Existing ROS core processes are stopped before environments start.
+        Existing ROS core processes are stopped before environments start,
+        unless RLINF_ROS_SETUP=preserve attaches to an externally owned runtime.
         """
+        if os.environ.get("RLINF_ROS_SETUP") == "preserve":
+            return
         # Serialize setup across environment processes on the same node.
         node_lock_file = "/tmp/.realworld.lock"
         # Fall back to the user directory if the temporary path is unavailable.
@@ -134,6 +137,10 @@ class RealWorldEnv(gym.Env):
                 if proc.name() in ros_proc_names:
                     proc.kill()
                     time.sleep(0.5)
+
+    def close(self) -> None:
+        """Close the vector environment and its owned robot connections."""
+        self.env.close()
 
     def _init_env(self) -> None:
         env_fns = [

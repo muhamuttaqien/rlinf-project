@@ -2,11 +2,11 @@
 #   bash examples/offline_rl/advantage_labeling/recap/process/run_compute_returns.sh recap_compute_returns
 
 data:
-  data_root: null
+  data_root: ${oc.env:RLINF_DATA_ROOT,/data1/Muttaqien}/datasets
   train_data_paths:
-    - dataset_path: /path/to/sft_dataset
+    - dataset_path: recap_sft
       type: sft
-    - dataset_path: /path/to/rollout_dataset
+    - dataset_path: recap_rollout
       type: rollout
 
   dataset_type: "sft"

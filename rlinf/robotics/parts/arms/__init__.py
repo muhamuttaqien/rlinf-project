@@ -36,6 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
         DOSW1EndEffector,
         DOSW1RobotState,
     )
+    from .fr3_ros2 import FR3ROS2RequestArm
     from .franka import FrankaRobotState
     from .franka_ros import FrankaROSArm
     from .franky import FrankyArm
@@ -66,6 +67,7 @@ _MODULE_BY_NAME: dict[str, str] = {
     "DOSW1EndEffector": ".dosw1",
     "DOSW1Connection": ".dosw1",
     "FrankaROSArm": ".franka_ros",
+    "FR3ROS2RequestArm": ".fr3_ros2",
     "FrankaRobotState": ".franka",
     "FrankyArm": ".franky",
     "GimArm": ".gim_arm",
@@ -87,6 +89,7 @@ __all__ = [
     "DOSW1Connection",
     "DOSW1EndEffector",
     "DOSW1RobotState",
+    "FR3ROS2RequestArm",
     "FrankaROSArm",
     "FrankaRobotState",
     "FrankyArm",

@@ -1,0 +1,13 @@
+{
+  "schema": "fr3_mapping_operator_review_v1",
+  "operator": null,
+  "reviewed_at_utc": null,
+  "check": null,
+  "verdict": "inconclusive",
+  "session_manifest_sha256": null,
+  "scope_sha256": null,
+  "measurements": {},
+  "criteria": {},
+  "notes": null,
+  "attachments": []
+}

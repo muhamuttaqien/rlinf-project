@@ -1,0 +1,111 @@
+{
+  "schema": "rlinf_native_fr3_request_evaluation_offline_v1",
+  "checkpoint_reload": {
+    "checkpoint": "/data1/Muttaqien/logs/20261111-04:55:26-realworld_sft_openpi_fr3_peg_request_full3000_wandb/fr3_peg_pi05_request_offline_full3000_wandb/checkpoints/global_step_3000/actor/model_state_dict/full_weights.pt",
+    "strict_reload": "<All keys matched successfully>",
+    "model_class": "Pi0Eval",
+    "action_shape": [
+      1,
+      10,
+      7
+    ],
+    "inference_latencies": [
+      0.6223074430599809,
+      0.20544934400822967
+    ],
+    "recording": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_000.npz",
+    "physical_commands": 0
+  },
+  "native_worker_initialization": {
+    "checkpoint": "existing global_step_3000",
+    "hardware": "fake ROS 2 and RealSense SDKs",
+    "gpu_placement": 1,
+    "operator_response": "NO",
+    "consent_granted": false,
+    "command_events": 0,
+    "stop_file_present": true,
+    "source_session": "/tmp/rlinf-fr3-native-0y89_wzb"
+  },
+  "read_only_ros_check": {
+    "healthy": true,
+    "command_publishers_created": false,
+    "physical_commands": 0,
+    "observation": {
+      "state": [
+        0.5500511527061462,
+        -0.02021322213113308,
+        0.5867689251899719,
+        0.9255032745753702,
+        0.3776225545272746,
+        0.021168723197012785,
+        -0.019919159390234448,
+        -0.011063813231885433,
+        0.03865153715014458,
+        -0.049465619027614594,
+        -1.3537485599517822,
+        0.05685999244451523,
+        1.413537621498108,
+        -0.040371716022491455,
+        -0.6440263390541077,
+        0.3141651749610901,
+        -1.2104600667953491,
+        0.7859140969162995,
+        0.16949477622081557
+      ],
+      "received": 779133.058728001,
+      "source_stamps": {
+        "pose": [
+          1795049324,
+          811863324
+        ],
+        "joints": [
+          1795049324,
+          811863324
+        ],
+        "wrench": [
+          1795049324,
+          811863324
+        ],
+        "robot": [
+          1795049324,
+          811863324
+        ],
+        "gripper": [
+          1795049324,
+          818126700
+        ]
+      },
+      "stopped": null
+    }
+  },
+  "regressions": {
+    "test_robotics.py": {
+      "passed": 294,
+      "deselected_placement": 8
+    },
+    "test_real_env.py": {
+      "passed": 216,
+      "deselected_placement": 18,
+      "numba_cache": "/tmp/fr3_native_numba_cache"
+    },
+    "test_fr3_native_eval.py": {
+      "passed": 23
+    },
+    "test_fr3_peg_request_policy.py": {
+      "passed": 2
+    },
+    "test_fr3_request_norm_stats.py": {
+      "passed": 3
+    }
+  },
+  "physical_rollout_executed": false,
+  "physical_gain_1_movement_result": null,
+  "operator_approval_for_physical_execution": false,
+  "documentation": {
+    "source_en_warnings": 0,
+    "source_zh_warnings": 0,
+    "inline_markup": "passed",
+    "doc_symbols": "passed; two verified existing generated/config names allowed"
+  },
+  "pre_commit": "passed on all 22 scoped files"
+}

@@ -1987,6 +1987,33 @@ def test_disconnecting_a_spacemouse_stops_its_thread_and_closes_the_handle():
         assert handle.closed
 
 
+def test_spacemouse_path_selection_preserves_six_axes_and_buttons():
+    from robot_mocks import mocked_sdks
+
+    from rlinf.robotics.parts.teleop import SpaceMouse
+
+    with mocked_sdks() as made:
+        sdk = made["pyspacemouse"]
+        sdk.twist = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
+        sdk.buttons = (1, 0)
+        mouse = SpaceMouse(device_path="/dev/mock-spacemouse")
+        mouse.connect()
+        try:
+            deadline = time.monotonic() + 1
+            while time.monotonic() < deadline:
+                reading = mouse.get_observation()
+                if reading["buttons"][0]:
+                    break
+                time.sleep(0.001)
+            assert sdk.opened_paths == ["/dev/mock-spacemouse"]
+            np.testing.assert_allclose(
+                reading["twist"], [-0.2, 0.1, 0.3, -0.4, -0.5, -0.6]
+            )
+            np.testing.assert_array_equal(reading["buttons"], [True, False])
+        finally:
+            mouse.disconnect()
+
+
 def test_disconnecting_a_gello_stops_its_thread_and_releases_the_port():
     """The same leak on the leader arm, which holds a serial port open."""
     from robot_mocks import mocked_sdks
@@ -4796,6 +4823,26 @@ def test_camera_can_reuse_recent_observations_without_waiting(enable_depth):
                     np.testing.assert_array_equal(observation["depth"], first["depth"])
             observation["frame"][:] = 99
             assert np.any(camera.get_frame(timeout=0, max_age=0.5) != 99)
+        finally:
+            camera.disconnect()
+
+
+def test_camera_frame_with_timestamp_reports_host_receipt():
+    from robot_mocks import mocked_sdks
+
+    from rlinf.robotics.parts.cameras import Camera, CameraInfo
+
+    with mocked_sdks():
+        camera = Camera.of(CameraInfo(name="base", serial_number="MOCK0001"))
+        before = time.monotonic()
+        camera.connect()
+        try:
+            captured_at, frame = camera.get_frame_with_timestamp()
+            assert before <= captured_at <= time.monotonic()
+            assert frame.shape[-1] == 3
+            assert frame.dtype == np.uint8
+            cached_at, _ = camera.get_frame_with_timestamp(timeout=0, max_age=0.5)
+            assert captured_at <= cached_at <= time.monotonic()
         finally:
             camera.disconnect()
 

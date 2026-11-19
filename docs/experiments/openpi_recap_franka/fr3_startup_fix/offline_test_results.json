@@ -1,0 +1,226 @@
+{
+  "hardware": "NUC CPU only; injected robot/model doubles and in-memory interfaces",
+  "ros_domain_id": 213,
+  "ros_localhost_only": 1,
+  "physical_launches": 0,
+  "results": {
+    "hardware_io_final": {
+      "tests": "16",
+      "failures": "0",
+      "errors": "0",
+      "time": "1.748",
+      "cases": [
+        {
+          "name": "givenThatTheRobotInterfacesSet_whenReadCalled_returnOk",
+          "passed": true
+        },
+        {
+          "name": "whenWriteCalledWithInifiteCommand_expectError",
+          "passed": true
+        },
+        {
+          "name": "when_on_activate_called_expect_success",
+          "passed": true
+        },
+        {
+          "name": "readControlExceptionIsLatchedAndPreventsFurtherIO",
+          "passed": true
+        },
+        {
+          "name": "activationFailsWhenInitialReadFails",
+          "passed": true
+        },
+        {
+          "name": "controlStartFailureIsReportedWithoutRetryOrRecovery",
+          "passed": true
+        },
+        {
+          "name": "writeNetworkExceptionIsLatched",
+          "passed": true
+        },
+        {
+          "name": "whenWriteCalled_expectOk/0",
+          "passed": true
+        },
+        {
+          "name": "whenWriteCalled_expectOk/1",
+          "passed": true
+        },
+        {
+          "name": "whenWriteCalled_expectOk/2",
+          "passed": true
+        },
+        {
+          "name": "given_start_effort_interface_prepared_when_perform_command_mode_switch_called_expect_ok/0",
+          "passed": true
+        },
+        {
+          "name": "given_start_effort_interface_prepared_when_perform_command_mode_switch_called_expect_ok/1",
+          "passed": true
+        },
+        {
+          "name": "given_start_effort_interface_prepared_when_perform_command_mode_switch_called_expect_ok/2",
+          "passed": true
+        },
+        {
+          "name": "given_that_effort_control_started_perform_command_mode_switch_stop_expect_ok/0",
+          "passed": true
+        },
+        {
+          "name": "given_that_effort_control_started_perform_command_mode_switch_stop_expect_ok/1",
+          "passed": true
+        },
+        {
+          "name": "given_that_effort_control_started_perform_command_mode_switch_stop_expect_ok/2",
+          "passed": true
+        }
+      ],
+      "command": [
+        "/tmp/fr3_startup_offline/hardware/build/franka_hardware/test/franka_hardware_test",
+        "--gtest_filter=FrankaHardwareInterfaceTest.readControlExceptionIsLatchedAndPreventsFurtherIO:FrankaHardwareInterfaceTest.activationFailsWhenInitialReadFails:FrankaHardwareInterfaceTest.controlStartFailureIsReportedWithoutRetryOrRecovery:FrankaHardwareInterfaceTest.writeNetworkExceptionIsLatched:*whenReadCalled*:*whenWriteCalled*:*when_on_activate_called*:*given_start_effort_interface_prepared*:*given_that_effort_control_started*",
+        "--gtest_output=xml:/tmp/fr3_startup_offline/hardware_io_final.xml"
+      ]
+    },
+    "robot_sessions_final": {
+      "tests": "19",
+      "failures": "0",
+      "errors": "0",
+      "time": "0",
+      "cases": [
+        {
+          "name": "whenInitializeTorqueInterfaceCalled_thenStartTorqueControlCalled",
+          "passed": true
+        },
+        {
+          "name": "whenInitializeJointVelocityInterfaceCalled_thenStartJointVelocityControl",
+          "passed": true
+        },
+        {
+          "name": "whenInitializeJointtPositionInterfaceCalled_thenStartJointPositionControl",
+          "passed": true
+        },
+        {
+          "name": "whenInitializeCartesianVelocityInterfaceCalled_thenStartCartesianVelocityControl",
+          "passed": true
+        },
+        {
+          "name": "whenInitializeCartesianPoseInterfaceCalled_thenStartCartesianPoseControl",
+          "passed": true
+        },
+        {
+          "name": "givenCartesianVelocityControlIsStarted_whenReadOnceIsCalled_expectCorrectRobotState",
+          "passed": true
+        },
+        {
+          "name": "givenCartesianPoseControlIsStarted_whenReadOnceIsCalled_expectCorrectRobotState",
+          "passed": true
+        },
+        {
+          "name": "givenJointControlIsNotStarted_whenReadOnceIsCalled_expectCorrectRobotState",
+          "passed": true
+        },
+        {
+          "name": "givenCartesianVelocityControlIsStarted_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled",
+          "passed": true
+        },
+        {
+          "name": "givenCartesianPoseControlIsStart_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled",
+          "passed": true
+        },
+        {
+          "name": "givenJointPositionControlIsControlIsStarted_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled",
+          "passed": true
+        },
+        {
+          "name": "givenJointVelocityControlIsStarted_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled",
+          "passed": true
+        },
+        {
+          "name": "givenEffortControlIsStarted_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled",
+          "passed": true
+        },
+        {
+          "name": "givenControlIsNotStarted_whenWriteOnceIsCalled_expectRuntimeExceptionToBeThrown",
+          "passed": true
+        },
+        {
+          "name": "TorqueStartPropagatesControlExceptionWithoutRetry",
+          "passed": true
+        },
+        {
+          "name": "JointVelocityStartPropagatesControlExceptionWithoutRetry",
+          "passed": true
+        },
+        {
+          "name": "JointPositionStartPropagatesControlExceptionWithoutRetry",
+          "passed": true
+        },
+        {
+          "name": "CartesianVelocityStartPropagatesControlExceptionWithoutRetry",
+          "passed": true
+        },
+        {
+          "name": "CartesianPoseStartPropagatesControlExceptionWithoutRetry",
+          "passed": true
+        }
+      ],
+      "command": [
+        "/tmp/fr3_startup_offline/hardware/build/franka_hardware/test/franka_hardware_robot_test",
+        "--gtest_output=xml:/tmp/fr3_startup_offline/robot_sessions_final.xml"
+      ]
+    },
+    "controller_fake_interfaces_final": {
+      "tests": "6",
+      "failures": "0",
+      "errors": "0",
+      "time": "0.717",
+      "cases": [
+        {
+          "name": "measuredInitializationAndNamedInterfaceMapping",
+          "passed": true
+        },
+        {
+          "name": "missingJointStatePreventsActivation",
+          "passed": true
+        },
+        {
+          "name": "nonFiniteMeasuredStatePreventsActivation",
+          "passed": true
+        },
+        {
+          "name": "freshIKTargetIsBoundedAndExpiredIntentHoldsReference",
+          "passed": true
+        },
+        {
+          "name": "invalidInputDoesNotProduceNonFiniteCommands",
+          "passed": true
+        },
+        {
+          "name": "preActivationInputIsIgnored",
+          "passed": true
+        }
+      ],
+      "command": [
+        "/tmp/fr3_startup_offline/controller/build/franka_arm_controllers/joint_impedance_ik_controller_test",
+        "--gtest_output=xml:/tmp/fr3_startup_offline/controller_fake_interfaces_final.xml"
+      ],
+      "library_search_prefix": [
+        "/tmp/fr3_startup_offline/controller/build/franka_arm_controllers",
+        "/tmp/fr3_startup_offline/hardware/build/franka_hardware",
+        "/opt/openrobots/lib"
+      ]
+    },
+    "baseline_position_test": {
+      "tests": "1",
+      "failures": "1",
+      "errors": "0",
+      "time": "0",
+      "cases": [
+        {
+          "name": "givenJointPositionControlIsControlIsStarted_whenWriteOnceIsCalled_expectActiveControlWriteOnceCalled",
+          "passed": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,308 @@
+{
+  "schema": "fr3_pi05_mapping_qualification_evidence_v1",
+  "reviewed_at_utc": "2026-11-18T14:52:24.699228+00:00",
+  "repository": "muhamuttaqien/rlinf-project",
+  "branch": "branch-openpi-recap-franka",
+  "head": "f4a1f2959067e52c8c287191f8394cab57fe6033",
+  "worktree": "pre-existing uncommitted changes; file hashes identify reviewed bytes",
+  "physical_execution_performed": false,
+  "new_model_inference": false,
+  "physical_checks_passed": 0,
+  "physical_checks_required": 17,
+  "controller_live_identity_verified": false,
+  "archived_production_install": {
+    "files_checked": 34,
+    "hashes_match": true,
+    "binary_sha256": "3b16083954f38d020ffa4f8b465056e3bc5a8933f9af9109bfb6c2582e7752b4",
+    "deployment_status": "staged and unused at preparation; current live identity unknown"
+  },
+  "episode8_archived_hashes_rechecked": {
+    "files": 8,
+    "all_match": true
+  },
+  "working_spacemouse_source_hash_rechecked": "2ed3e166966b31778264889301ef8e6dccba4c51a0ffed0ac0524fe46a801c87",
+  "source_and_saved_evidence": [
+    {
+      "path": "pi05_real_rollout_mapping_review.md",
+      "sha256": "da20d54e7cb048facca0e187c7e8ca11a06cd51b08ace2bacf02d3446950f46e",
+      "bytes": 7711
+    },
+    {
+      "path": "fr3_controller_investigation.md",
+      "sha256": "27dc9e2bb56e3cd46bbdc7e2ade0404294f691c6383d79616efdafe980fde05d",
+      "bytes": 28507
+    },
+    {
+      "path": "pi05_execution_compatibility_evidence.json",
+      "sha256": "c380410c850ce7440835041a2169155063fdc6da6663a055f8b9bd4fe027baa6",
+      "bytes": 10736
+    },
+    {
+      "path": "pi05_gripper_validation_evidence.json",
+      "sha256": "c6a909c38c2e08851f6de670a7ffcc1fcf25e3de2aa2d646fbbf0a25672d4c49",
+      "bytes": 49585
+    },
+    {
+      "path": "pi05_episode8_shutdown_evidence.json",
+      "sha256": "ab74816cb5b88b21f44728b7aab5a38eb89d37e1a7cce004990b60ace4258caa",
+      "bytes": 4098
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/readiness_report.txt",
+      "sha256": "dfc8da8a12f2d2bbfd01e153533135737b1fc5b56f036249bc62da2b8dcae739",
+      "bytes": 7194
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/deployment_and_rollback.txt",
+      "sha256": "920a60fdb4a7acab2504c3b43d974d5ed29d65ce3081a96b28fdec8b04044c87",
+      "bytes": 12005
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/evidence/production_install_manifest.json",
+      "sha256": "7199a9e2d63afcab59ae5fbfedf17ee49f8b8149dbad87d8c9ce26d1376835fb",
+      "bytes": 4508
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/evidence/rollback_manifest.json",
+      "sha256": "ef90a0fbd4c207f1e4801c10635d041e9ca84caa39c7a7515966c336650e5bb6",
+      "bytes": 6100
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/evidence/src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp",
+      "sha256": "09ae6d6c7b5b0593a994f2d03dabe154281d5c3409846aa4fde6c42de4e278d4",
+      "bytes": 18944
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/evidence/src/franka_arm_controllers/config/controllers.yaml",
+      "sha256": "a3b17fbe987bbb59ff0bd761c186ee0c02d4c4425df336b24f0bdd66b713ea0e",
+      "bytes": 2164
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/evidence/src/franka_arm_controllers/config/aist_fr3_config.yaml",
+      "sha256": "89f53c9d4c42e84b836e92c5f1b68044b791334836d092dc47de64589bf17421",
+      "bytes": 383
+    },
+    {
+      "path": "../../../outputs/fr3_step3_prepare_20261118/evidence/rollback_snapshot/live_params/4177791/controllers.yaml",
+      "sha256": "a3b17fbe987bbb59ff0bd761c186ee0c02d4c4425df336b24f0bdd66b713ea0e",
+      "bytes": 2164
+    },
+    {
+      "path": "../../../toolkits/realworld_check/fr3_pi05_request_adapter.py",
+      "sha256": "6a4ce48e8e456cc3912214fbf408d6ca220b0785ce10d636121480f93790ce44",
+      "bytes": 8396
+    },
+    {
+      "path": "../../../toolkits/realworld_check/fr3_pi05_ros_executor.py",
+      "sha256": "854ce31c6e42a669f0df4293605a9ad0e52c0a538bbb369c127f21c37f86c11d",
+      "bytes": 16329
+    },
+    {
+      "path": "../../../toolkits/realworld_check/fr3_pi05_supervised_rollout.py",
+      "sha256": "1155d83bfa0d5b7abdd848dc61f46ea381423f5fa188dbf88378e26f2a73ba62",
+      "bytes": 32529
+    },
+    {
+      "path": "../../../toolkits/realworld_check/fr3_pi05_deployment_audit.py",
+      "sha256": "478e44c188c7512399e71b53d803df3cd8f7c67960a6b438a634c7feaa899775",
+      "bytes": 12100
+    },
+    {
+      "path": "../../../toolkits/realworld_check/fr3_supervised_arm_pulse.py",
+      "sha256": "68baf1a149fc927faa0ca16ef5b10262bf275abc15f2e99b34eb537c4620eb3a",
+      "bytes": 11218
+    },
+    {
+      "path": "../../../../franka_spacemouse_ws/src/franka_spacemouse/src/spacemouse_publisher/spacemouse_publisher/pyspacemouse_publisher.py",
+      "sha256": "2ed3e166966b31778264889301ef8e6dccba4c51a0ffed0ac0524fe46a801c87",
+      "bytes": 3288
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/executor_events.jsonl",
+      "sha256": "c1649cd3bc53d5422f434d49ff91f4d70a6ae532bbe1313d844f015bae35b7dc",
+      "bytes": 18956
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/measured_state_log.jsonl",
+      "sha256": "acf5d00213d75b2850664fadff999cb2591f58a6a3715f1d72d2d7c4921ff1ff",
+      "bytes": 17362
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_000.npz",
+      "sha256": "73e392f90f864d6ae25a049951b583bfae3a259e8c3b2c59e9003275ac8ac4eb",
+      "bytes": 945750
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_001.npz",
+      "sha256": "8719783e7a5d867d931588f45a36a974aa8185da1fd8c34a1b9b606b91359120",
+      "bytes": 909744
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_002.npz",
+      "sha256": "b4b5f5c4ecfa361a324206039b6ba438677b70e77fab52b70fdb53447ff70b87",
+      "bytes": 905443
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_003.npz",
+      "sha256": "f4a4d59c57b4af8e0f9189f3b737cec296f9728b28535eecba137d7235f2223e",
+      "bytes": 936458
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/pipeline_timing.jsonl",
+      "sha256": "06b41a6513d470017889bb8c134f5a01e5b09d5452a323b5fa40116ef5d9926f",
+      "bytes": 918
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/policy_command_log.jsonl",
+      "sha256": "c0eb493d5f3cfefc5a993344785ae699e19866fd1848c394a748f13b517de4b7",
+      "bytes": 20363
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/measured_state_log.jsonl",
+      "sha256": "3b11d0a2cf7d16a0f591ebd795a142b3b1592d85e3560614c4548c794fd2dd5a",
+      "bytes": 46134
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_03/policy_command_log.jsonl",
+      "sha256": "56555041e1d0ec73ac5c36232a86bab5f2ebc4eaeef8e90a46dfb94743eda476",
+      "bytes": 41154
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/outcome.json",
+      "sha256": "352b371c0ee68b0c27a8933efc3c538180149389286b281f70741df4fc6257bc",
+      "bytes": 674
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/measured_state_log.jsonl",
+      "sha256": "dc4b48eeb330617ca76cf66eb518b4084378b6ec4cab5e265e1f62146de86573",
+      "bytes": 62750
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_06/policy_command_log.jsonl",
+      "sha256": "7236e41b1f6b76bae9663b9f98af89674c90f224d8a252a7ffe3b9def28d3147",
+      "bytes": 56520
+    },
+    {
+      "path": "../../../../../../../../../data1/Muttaqien/fr3_peg_request_norm_v1/norm_stats.json",
+      "sha256": "9bc91e36bd59e20e57f073a578a5c8e23977598a58f6ccd0f793c410522f9cba",
+      "bytes": 5150
+    }
+  ],
+  "offline_tests": {
+    "hardware": "workstation CPU; fake ROS endpoints and subprocess pipes",
+    "python": "3.11.15",
+    "total_passed": 269,
+    "components": {
+      "fr3_pi05_request_adapter": {
+        "passed": 95,
+        "log": {
+          "path": "../../../outputs/fr3_mapping_qualification_20261118/fr3_pi05_request_adapter.log",
+          "sha256": "9c5514a0174ef9bfbbd108044cf4500fa74d7d119bff523121f8cf156a2f09a7",
+          "bytes": 588
+        }
+      },
+      "fr3_pi05_ros_executor": {
+        "passed": 136,
+        "log": {
+          "path": "../../../outputs/fr3_mapping_qualification_20261118/fr3_pi05_ros_executor.log",
+          "sha256": "0a56431a69d0fa9efefa44f47a3db526889938fd34274c5ff5222323b437415c",
+          "bytes": 589
+        }
+      },
+      "fr3_pi05_deployment_audit": {
+        "passed": 9,
+        "log": {
+          "path": "../../../outputs/fr3_mapping_qualification_20261118/fr3_pi05_deployment_audit.log",
+          "sha256": "721d9695719310b42c9625ffc6c1474a29fff3242d4a4c34f840f628d16f7486",
+          "bytes": 427
+        }
+      },
+      "fr3_rollout_outcomes": {
+        "passed": 19,
+        "log": {
+          "path": "../../../outputs/fr3_mapping_qualification_20261118/fr3_rollout_outcomes.log",
+          "sha256": "4435518e759fb8f00ea2904b542c7868a13a3456e24eae93b8587679822baa04",
+          "bytes": 428
+        }
+      },
+      "fr3_supervised_arm_pulse": {
+        "passed": 10,
+        "log": {
+          "path": "../../../outputs/fr3_mapping_qualification_20261118/fr3_supervised_arm_pulse.log",
+          "sha256": "21642e76408603dd0901a42bec88d385287135c903e08683e4441f1d69ca7549",
+          "bytes": 428
+        }
+      }
+    }
+  },
+  "read_only_deployment_audit": {
+    "path": "../../../outputs/fr3_mapping_qualification_20261118/deployment_audit.json",
+    "sha256": "8a85a9cecd061f67f842d57c2a0182afe60bf6a10e114d01573a706efd3e3639",
+    "bytes": 7211
+  },
+  "episode3_logged_motion": {
+    "published_arm_requests": 80,
+    "max_absolute_arm_request": 0.12281,
+    "max_absolute_pi05_arm_prediction": 0.81876,
+    "max_tcp_displacement_mm": 5.479,
+    "final_tcp_displacement_mm": 3.894,
+    "tcp_path_length_mm": 10.931,
+    "tcp_axis_span_mm": [
+      0.541,
+      0.919,
+      5.436
+    ],
+    "logged_gripper_events": {
+      "open": 4,
+      "close": 4,
+      "hold": 72
+    },
+    "note": "ROS publish events are not proof that the controller accepted each request."
+  },
+  "episode6_logged_motion": {
+    "published_arm_requests": 110,
+    "max_absolute_arm_request": 0.11256,
+    "max_absolute_pi05_arm_prediction": 0.75043,
+    "max_tcp_displacement_mm": 13.263,
+    "final_tcp_displacement_mm": 13.242,
+    "tcp_path_length_mm": 16.395,
+    "tcp_axis_span_mm": [
+      0.649,
+      1.475,
+      13.187
+    ],
+    "logged_gripper_events": {
+      "open": 1,
+      "close": 0,
+      "hold": 109
+    },
+    "note": "ROS publish events are not proof that the controller accepted each request."
+  },
+  "checkpoint": {
+    "path": "/data1/Muttaqien/logs/20261111-04:55:26-realworld_sft_openpi_fr3_peg_request_full3000_wandb/fr3_peg_pi05_request_offline_full3000_wandb/checkpoints/global_step_3000/actor/model_state_dict/full_weights.pt",
+    "bytes": 6946527306,
+    "exists": true,
+    "hash_recomputed": false,
+    "loaded": false,
+    "source": "episode_06/outcome.json"
+  },
+  "progress_read_only": {
+    "real_rollouts": 0,
+    "recorded_attempts": 6,
+    "incomplete_attempts": 2,
+    "target": 20,
+    "successes": 0,
+    "failures": 0,
+    "aborted": 6,
+    "next_episode": 9,
+    "outcomes_complete": false,
+    "recap_dataset_ready": false
+  },
+  "limits": [
+    "Reported physical X pulse has no synchronized raw trace in this packet.",
+    "Binary/config hashes are archived artifacts, not current live deployment attestation.",
+    "No operator name, approval time, calibrated tool frame or physical pass has been inferred.",
+    "Additional signed axes and exact 10Hz/100Hz calibration need a reviewed calibration interface; existing utility is X-only at 20Hz.",
+    "Record loader checks integrity/completeness, not physical truth or live installation."
+  ]
+}

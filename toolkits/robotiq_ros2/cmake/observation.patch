@@ -1,0 +1,108 @@
+--- a/include/robotiq/types.h
++++ b/include/robotiq/types.h
+@@ -51 +51 @@
+-  ACTIVATION_COMPLETE,
++  ACTIVATION_COMPLETE = 3,
+@@ -94 +94,4 @@
+-  DetailedStatus status;             /** Detailed status returned by the gripper*/
++  bool valid{false};
++  uint8_t raw_current{0};
++  uint8_t raw_fault{0};
++  DetailedStatus status{};             /** Detailed status returned by the gripper*/
+--- a/include/robotiq/robotiq_gripper_interface.h
++++ b/include/robotiq/robotiq_gripper_interface.h
+@@ -73 +73 @@
+-               double scale_beta = DEFAULT_SCALE_BETA);
++               double scale_beta = DEFAULT_SCALE_BETA, bool exclusive = false);
+@@ -127,0 +128,3 @@
++  // One bounded go-to request: validate FC16 acknowledgment, never wait for motion.
++  bool request_position(double position, uint8_t speed, uint8_t force);
++
+@@ -140 +143,3 @@
+-  bool set_raw_gripper_position(uint8_t position, bool blocking);
++  bool set_raw_gripper_position(uint8_t position, bool blocking,
++                               uint8_t speed = 255, uint8_t force = 255,
++                               bool wait_for_motion = true);
+--- a/src/robotiq_gripper_interface.cc
++++ b/src/robotiq_gripper_interface.cc
+@@ -18,0 +19,3 @@
++#include <cmath>
++#include <sys/ioctl.h>
++#include <stdexcept>
+@@ -38,2 +41 @@
+-// and a postfix to set max current and velocity.  The word is ended with a CRC check on
+-// the unique message.
++// followed by position, speed and force bytes, then the existing CRC check.
+@@ -41 +42,0 @@
+-static std::string PRESET_POSITION_POSTFIX = "FFFF";
+@@ -48,0 +50 @@
++  bool exclusive{false};
+@@ -64 +66,4 @@
+-    m_impl->m_serial.close();
++    if (m_impl->exclusive) ::ioctl(m_impl->m_serial.native_handle(), TIOCNXCL);
++    system::error_code ignored;
++    m_impl->m_serial.close(ignored);
++    m_impl->is_connected = false;
+@@ -71 +76 @@
+-                                      double scale_beta) {
++                                      double scale_beta, bool exclusive) {
+@@ -76 +81,4 @@
+-    m_impl->m_serial.close();
++    if (m_impl->exclusive) ::ioctl(m_impl->m_serial.native_handle(), TIOCNXCL);
++    system::error_code ignored;
++    m_impl->m_serial.close(ignored);
++    m_impl->is_connected = false;
+@@ -86,0 +95,6 @@
++  m_impl->exclusive = exclusive;
++  if (exclusive && ::ioctl(m_impl->m_serial.native_handle(), TIOCEXCL) != 0) {
++    system::error_code ignored;
++    m_impl->m_serial.close(ignored);
++    throw std::runtime_error("Cannot obtain exclusive serial access");
++  }
+@@ -180 +194 @@
+-  if (r.size() != 22) {
++  if (r.size() != 22 || r.substr(0, 6) != "090306") {
+@@ -193,0 +208 @@
++  feedback.raw_fault = static_cast<uint8_t>(byte2);
+@@ -245,0 +261 @@
++  feedback.raw_current = static_cast<uint8_t>(cur_fbk);
+@@ -246,0 +263 @@
++  feedback.valid = true;
+@@ -257 +274,9 @@
+-bool RobotiqGripperInterface::set_raw_gripper_position(uint8_t position, bool blocking) {
++bool RobotiqGripperInterface::request_position(double position, uint8_t speed, uint8_t force) {
++  if (!std::isfinite(position) || position < 0.0 || position > 1.0)
++    throw std::invalid_argument("Expected normalized closure in [0, 1]");
++  return set_raw_gripper_position(static_cast<uint8_t>(position * 255.0), true, speed, force, false);
++}
++
++bool RobotiqGripperInterface::set_raw_gripper_position(uint8_t position, bool blocking,
++                                                     uint8_t speed, uint8_t force,
++                                                     bool wait_for_motion) {
+@@ -266 +291 @@
+-      PRESET_POSITION_PREFIX + uint8_to_hex(position) + PRESET_POSITION_POSTFIX;
++      PRESET_POSITION_PREFIX + uint8_to_hex(position) + uint8_to_hex(speed) + uint8_to_hex(force);
+@@ -275,4 +300,6 @@
+-    bool done = false;
+-    while (not done) {
+-      GripperFeedback y = get_feedback();
+-      done = y.status.gobj == ObjectStatus::IN_MOTION ? false : true;
++    if (wait_for_motion) {
++      bool done = false;
++      while (not done) {
++        GripperFeedback y = get_feedback();
++        done = y.status.gobj == ObjectStatus::IN_MOTION ? false : true;
++      }
+--- a/src/helpers.cc
++++ b/src/helpers.cc
+@@ -15,0 +16 @@
++#include <chrono>
+@@ -94 +95,2 @@
+-  TimeoutReader reader(serial, timeout_ms);
++  const auto deadline = std::chrono::steady_clock::now() +
++      std::chrono::milliseconds(timeout_ms);
+@@ -98,0 +101,4 @@
++    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
++        deadline - std::chrono::steady_clock::now()).count();
++    if (remaining <= 0) break;
++    TimeoutReader reader(serial, static_cast<std::size_t>(remaining));

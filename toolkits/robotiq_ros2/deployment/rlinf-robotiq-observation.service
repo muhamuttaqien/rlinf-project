@@ -1,0 +1,52 @@
+[Unit]
+Description=RLinf Robotiq observation qualification (serial disabled)
+After=network.target
+ConditionFileIsExecutable=/opt/rlinf/robotiq-observation/m2a-20261027/lib/rlinf_robotiq_observation/robotiq_observation
+
+[Service]
+Type=simple
+User=rlinf-robotiq
+Group=rlinf-robotiq
+WorkingDirectory=/opt/rlinf/robotiq-observation/m2a-20261027
+ExecStartPre=/opt/rlinf/robotiq-observation/m2a-20261027/lib/rlinf_robotiq_observation/port-claim-check
+ExecStart=/opt/rlinf/robotiq-observation/m2a-20261027/lib/rlinf_robotiq_observation/robotiq_observation --ros-args --params-file /etc/rlinf/robotiq-observation/observation-disabled.yaml -p enabled:=false
+Restart=no
+RuntimeMaxSec=30s
+KillSignal=SIGINT
+TimeoutStopSec=5s
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+NoNewPrivileges=yes
+PrivateUsers=no
+PrivateTmp=no
+PrivateDevices=no
+ProtectProc=default
+ProcSubset=all
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+ReadOnlyPaths=/proc
+ReadWritePaths=/tmp /dev/shm
+SystemCallFilter=~ptrace process_vm_readv process_vm_writev kcmp
+SystemCallErrorNumber=EPERM
+DevicePolicy=strict
+DeviceAllow=/dev/null rw
+DeviceAllow=/dev/zero rw
+DeviceAllow=/dev/random r
+DeviceAllow=/dev/urandom r
+LogsDirectory=rlinf-robotiq-observation
+LogsDirectoryMode=0750
+Environment=PATH=/usr/bin:/bin
+Environment=LD_LIBRARY_PATH=/opt/ros/humble/lib
+Environment=AMENT_PREFIX_PATH=/opt/ros/humble
+Environment=ROS_DISTRO=humble
+Environment=ROS_DOMAIN_ID=70
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+Environment=ROS_LOG_DIR=/var/log/rlinf-robotiq-observation
+UnsetEnvironment=LD_PRELOAD LD_AUDIT LD_DEBUG LD_PROFILE PYTHONPATH FASTRTPS_DEFAULT_PROFILES_FILE FASTDDS_DEFAULT_PROFILES_FILE

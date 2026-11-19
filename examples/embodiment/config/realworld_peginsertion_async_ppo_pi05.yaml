@@ -32,7 +32,7 @@ cluster:
 runner:
   task_type: embodied
   logger:
-    log_path: "../results"
+    log_path: "${oc.env:RLINF_DATA_ROOT,/data1/Muttaqien}/training_runs/fr3_peg_insertion"
     project_name: rlinf
     experiment_name: "async_ppo_openpi"
     logger_backends: ["tensorboard"] # wandb, swanlab

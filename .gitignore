@@ -4,6 +4,7 @@ __pycache__
 *.idx
 *.npy
 *.txt
+!toolkits/robotiq_ros2/CMakeLists.txt
 !requirements/**
 !docs/*
 *.DS_Store
@@ -37,6 +38,7 @@ data/
 demos/
 logs/
 outputs/
+checkpoints
 checkpoints/
 wandb/
 models/

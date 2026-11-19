@@ -1,0 +1,16 @@
+# Normalized closure/speed/force register fractions; no metric calibration.
+string<=64 owner
+string<=32 authorization_id
+uint64 sequence
+# UNIX time, not simulation time. No future stamps; validity at most 500 ms.
+builtin_interfaces/Time issued_at
+uint32 valid_for_ms
+float64 position
+float64 speed
+float64 force
+---
+# Acceptance means queued, not device acknowledgment or motion/grasp success.
+bool accepted
+uint64 sequence
+string stage
+string reason

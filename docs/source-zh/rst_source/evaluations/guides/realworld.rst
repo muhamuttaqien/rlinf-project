@@ -349,6 +349,28 @@ Dual Franka SFT 部署复用统一评测启动器，并通过配置回退使用
 
 完整采集、SFT、checkpoint 同步与脚踏按键流程见 :doc:`../../examples/embodied/dual_franka`。
 
+FR3 Request Policy 原生评测
+----------------------------
+
+对于使用 19D 状态和双相机输入训练的 FR3 OpenPI request-SFT checkpoint，使用 ``FR3RequestEnv-v1`` 接入 NUC 上已运行的 ROS 2 controller。原生环境通过 ``FrankaRobot`` 和 ROS 2 request arm 连接现有接口，reset 只读取当前状态。配置 ``evaluations/realworld/realworld_fr3_pi05_request_eval.yaml`` 固定现有 3,000-step checkpoint、request 归一化统计、相机序列号和物理 GPU 1，执行一次由操作员监督的三秒 episode。
+
+激活 ML 环境并保留兼容的 Jazzy 消息 overlay，按 ``docs/experiments/openpi_recap_franka/pi05_native_evaluation.md`` 中的操作员流程执行。在已配置的工作站上运行：
+
+.. code-block:: bash
+
+   source .venv/bin/activate
+   LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.590.48.01:/usr/lib/x86_64-linux-gnu/libcuda.so.590.48.01 \
+   RAY_ADDRESS=local \
+   bash evaluations/run_eval.sh realworld realworld_fr3_pi05_request_eval
+
+该命令为当前进程选择匹配的 NVIDIA 库，初始化独立的原生评测 worker，并要求输入 ``RUN FR3 3S`` 后才允许发送 request。每个 arm sample 保持训练时的归一化 Twist 轴顺序和正负号，scaling 为 1.0。每个 horizon 内以 10 Hz 执行 sample，以 100 Hz 刷新 command；推理间隔转为 neutral。独立 ROS 进程执行三秒墙钟期限、状态新鲜度和控制权检查。按 Ctrl-C 或创建打印出的 session 目录中的 ``STOP`` 文件可请求 neutral，同时应始终安排操作员守在物理急停旁。neutral 保持现有 NUC 的 joint reference。
+
+在显示操作员确认提示前，rollout worker 使用合成输入完成两次预热推理，丢弃输出并恢复随机数生成器状态。操作员确认后，reset 再采集用于 rollout 的 observation；observation 到 action chunk 的一秒新鲜度检查保持生效。可通过打印出的 session 目录中的 ``env_timing.jsonl`` 和 ``policy_timing.jsonl``，区分采集、传输、推理和动作准入各阶段的延迟。
+
+结合常规评测日志和 session 中的 ``ros_evidence.jsonl``，比较 policy request、发送的 Twist、controller diagnostic 和测得的 pose。pose 约定与训练保持一致；物理工具尖端标定和插入任务是否成功需要单独观察。每次运行都需要新的操作员明确确认。
+
+准备现有 100 条 FR3 peg-insertion 演示的离线数据时，使用 ``toolkits/realworld_check/fr3_frequency_dataset.py``，并参阅审计报告 ``docs/experiments/openpi_recap_franka/fr3_frequency_phase1.zh.md``。独立的 10 Hz 数据集保留 episode 身份，在精确 100 ms 区间内对 held normalized request 求均值，并仅使用 training split 计算统计量。``examples/sft/config/realworld_sft_openpi_fr3_peg_request_10hz_phase1.yaml`` 是待审查的 SFT 配置；数据准备不会启动训练或评估。
+
 查看结果
 --------
 

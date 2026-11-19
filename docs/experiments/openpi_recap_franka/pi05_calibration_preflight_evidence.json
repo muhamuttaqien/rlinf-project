@@ -1,0 +1,161 @@
+{
+  "schema": "fr3_calibration_preflight_verification_v1",
+  "verified_at_utc": "2026-11-18T23:55:22.469262+00:00",
+  "interface_packages": {
+    "source_workspace": "/tmp/fr3_calibration/jazzy_msgs",
+    "setup_overlay": "/tmp/fr3_calibration/jazzy_msgs/install",
+    "definition_counts": {
+      "franka_msgs": 16,
+      "controller_manager_msgs": 34
+    },
+    "definition_hashes": {
+      "franka_msgs": {
+        "msg/CollisionIndicators.msg": "39654ff147120c2f3e5a4cdaf6a43a7af6e1b3ff889aff9e5bac83b920a95c78",
+        "msg/Elbow.msg": "3bdb18227176ab8f368f00b47ee06aa843bd2df4cd60e40034bf6b69d42f496e",
+        "msg/Errors.msg": "bf9d2b5e09680daaa5b46d5ba9051a9201ae5c892ab8609893364ddf424c01ae",
+        "msg/FrankaRobotState.msg": "200358c9bc26b1753643fa7ce51ab27498872969e2053317d41dbe43356afc66",
+        "msg/GraspEpsilon.msg": "e6c8564c1603c990487a3c3c7f123e459cd4ec7619c98c148675601d55a0ba3b",
+        "srv/SetCartesianStiffness.srv": "0857969a07f8a7ee4efd27a869c9dda31be017f8dac26e8d336a4bb8116ae0df",
+        "srv/SetForceTorqueCollisionBehavior.srv": "ed4057e185473c468834658e92c0d4851b760ed203949c34ea59bea0d2d435b1",
+        "srv/SetFullCollisionBehavior.srv": "e50a6a720844b538483bf8fe9e1c9aef505576d6d16712f7b7f22c735ec26c3e",
+        "srv/SetJointStiffness.srv": "b99b186a76a4f17857f419c9b69f45a9043144e9f8c491bbd38aa5468dd5f82c",
+        "srv/SetLoad.srv": "bddfba6e7ecadf5a7b4208408a2c835d59a87e02a4188517db5d177a9c1b5982",
+        "srv/SetStiffnessFrame.srv": "021b10a15a69b744a37ff20861d6953926342ef71e616ad015248bf70f0bbdf3",
+        "srv/SetTCPFrame.srv": "98bb922a8b71ff502dce86109c5935446512520f8ac9b5f86802f45412088ab2",
+        "action/ErrorRecovery.action": "d487269d2de0655a9ed127c83b0d1006d724e600385b32f4f4b39893c1e0164b",
+        "action/Grasp.action": "e129fa8bfc57b36851e4f3466af34d9a5a23935a9566c24bd981818047fdb6d8",
+        "action/Homing.action": "34409ed1a35ba24f95bd4ca67e99c4ef7efcf76bbf5f2844fc75360fd794e99b",
+        "action/Move.action": "349bd984b63d6510e61492b8b3352070ff4b9ef6d1825f8ae86ad5bc9462b25b"
+      },
+      "controller_manager_msgs": {
+        "msg/ChainConnection.msg": "ee9cd725bd7097201cf816ed17fa309d669dc5e7c24af49825d9ea6a60f9ed35",
+        "msg/ControllerState.msg": "e0a807fe121e301ec3d6d808d9be5871b0d39a8c7d4f76e152a6b312c981d8ff",
+        "msg/HardwareComponentState.msg": "f808cad7ca2cd223603b4d10d07bcc92a7946d817f5acecea546b00793a51149",
+        "msg/HardwareInterface.msg": "748fcc9ff9699b3919910a532cd61f0b5cfadc50791152c0f42c3c67481eb0c3",
+        "srv/ConfigureController.srv": "dbc32beb9aeb4874d9c44f9ed4618e8215ffbe0c0823b5f7cbab5abb838141ad",
+        "srv/ConfigureController_Request.msg": "b95f4c2db081a8fb61d78c18befe5cf1a77652eb85fbc336b0975f493b545fae",
+        "srv/ConfigureController_Response.msg": "f21988e0389553fa40bdd06c48a6e3a078472e84cf2f38bc9c2e59804ac3eb55",
+        "srv/ListControllerTypes.srv": "740fda46f9caad6f244894c88fec7cb2ca3b09656d75f79e0a1846f02586e4f3",
+        "srv/ListControllerTypes_Request.msg": "dd722cfa90c60f88bf111e02bc5a14ff58dd02627251164c83fa4383566237c6",
+        "srv/ListControllerTypes_Response.msg": "786587360cce2c58afaf677ad6f45cd5bc13b716ad1adc4b346b0fa340df961f",
+        "srv/ListControllers.srv": "8b339f434865b444ab47408bd459b35f15b914bccfe275b5ec8ac677bb1b4004",
+        "srv/ListControllers_Request.msg": "a9bb207b323866e23afc2b531743abf925ee351c9ea17e2ba728983051b14147",
+        "srv/ListControllers_Response.msg": "f8e72e52ae686adb734eeca694a7fb93ff942af2af9e3e62151b8f6ddbbd3562",
+        "srv/ListHardwareComponents.srv": "5aa0ce21fe0b6979d2893cfc1f068be221f7942192d202ba7f5d7815142edf16",
+        "srv/ListHardwareComponents_Request.msg": "bc9728b7c5282a786543bdea8a1233e123b23fd6045e3016a9cfbbc20f5c0921",
+        "srv/ListHardwareComponents_Response.msg": "bc3745ed5c1e1bb3bbcca84ac21eb67643b8a7666d9afd0c0c47aa22c86bc125",
+        "srv/ListHardwareInterfaces.srv": "27efd7894ead44c8fa07c2cc8959ee98aca1d90f06c2021a193c3f79f8e65cee",
+        "srv/ListHardwareInterfaces_Request.msg": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "srv/ListHardwareInterfaces_Response.msg": "28ce4528fd0cc8c563725b94b0610ce053e76eb84accbcac0b01c043cd2e7b22",
+        "srv/LoadController.srv": "0c14254b06f65a5f5f4f5ca4aa83448346cbcd16e2f499f6360e763b5ec17fa2",
+        "srv/LoadController_Request.msg": "13818818bbad3f3881bda9cc1415111f7d95e712dc851d82a4768adfee55fe60",
+        "srv/LoadController_Response.msg": "f21988e0389553fa40bdd06c48a6e3a078472e84cf2f38bc9c2e59804ac3eb55",
+        "srv/ReloadControllerLibraries.srv": "57ad10306d9c0d1d3a36a293c05eb75c748b855af6e21842b47841fdff73f90d",
+        "srv/ReloadControllerLibraries_Request.msg": "46ef30d5fabf421edb0e49c8d3ec1bf0e3f8ee6683f19c06c516082d31f42407",
+        "srv/ReloadControllerLibraries_Response.msg": "f21988e0389553fa40bdd06c48a6e3a078472e84cf2f38bc9c2e59804ac3eb55",
+        "srv/SetHardwareComponentState.srv": "fb9325ac971b6fb513cff83e570a824226ec4e989b000097f822e62d209253ee",
+        "srv/SetHardwareComponentState_Request.msg": "52e2f34b73f72489db14bbbeb5922b9436812700eba9f57b959a0129dec745ce",
+        "srv/SetHardwareComponentState_Response.msg": "ba2aa2dfe1e2799b9cce8e3c73089f313486bea58a3fe675fba827860b5cf65c",
+        "srv/SwitchController.srv": "dd3819aa0df0c1401f95062d60aafed1a062a622c4a1454d4d45c3d8d37e076d",
+        "srv/SwitchController_Request.msg": "b40bf9f65f0fd3b420a7319591b4d97a851ddbbe7f6cf2771dbb98afb3b07d08",
+        "srv/SwitchController_Response.msg": "f21988e0389553fa40bdd06c48a6e3a078472e84cf2f38bc9c2e59804ac3eb55",
+        "srv/UnloadController.srv": "c90eba615116f62ff3a8a3c82a20f12075045e432a9e7522233ab7d1a25a6e07",
+        "srv/UnloadController_Request.msg": "d95b40cc63fb03173755465fcaf5691834787dcf58e72c852733f0358ba50769",
+        "srv/UnloadController_Response.msg": "f21988e0389553fa40bdd06c48a6e3a078472e84cf2f38bc9c2e59804ac3eb55"
+      }
+    },
+    "controller_state_layout": "NUC Humble schema lacks Jazzy is_async/update_rate/exported_state_interfaces; both interface packages are locally rebuilt for Jazzy.",
+    "compatibility_verified": "Exact custom definition bytes, Jazzy native type support/serialization and live Humble-to-Jazzy state/controller-service preflight."
+  },
+  "read_only_live_preflight": {
+    "status": "read_only_preflight",
+    "robot_commands_sent": 0,
+    "motion_authorized": false,
+    "motion_preparation_pending": [
+      "operator",
+      "tool_frame",
+      "ee_to_tcp",
+      "translation_limit_m",
+      "rotation_limit_rad",
+      "live_installation_matched",
+      "frames_calibrated",
+      "hardware_stop_checked",
+      "workspace_clear",
+      "historical_errors_reviewed"
+    ]
+  },
+  "preflight_exit_code": 0,
+  "tests": [
+    {
+      "component": "fr3_mapping_calibration",
+      "passed": 83,
+      "log_sha256": "f6e1aab062bf6696226f11eff076484b94e406057da513546989454908bd0099"
+    },
+    {
+      "component": "fr3_mapping_evidence",
+      "passed": 27,
+      "log_sha256": "838d30cf9e75c1100d27bc6aa40d2ef13ef0f87e2a402a079c3cdd4787e38c0f"
+    },
+    {
+      "component": "fr3_pi05_request_adapter",
+      "passed": 95,
+      "log_sha256": "19135b3122b977209544bc17383e90b2995cee47587944ed8606f52075aa5d67"
+    },
+    {
+      "component": "fr3_pi05_ros_executor",
+      "passed": 136,
+      "log_sha256": "1c8622183fbfae6e6b2bb386a8c7c8aedd72286803d6796e31ae2ce986ce7cd0"
+    },
+    {
+      "component": "fr3_pi05_deployment_audit",
+      "passed": 9,
+      "log_sha256": "446b5d3556a2d68aee7cbeb517c369c59afb4876f774d6704c280bbf6a3dae01"
+    },
+    {
+      "component": "fr3_rollout_outcomes",
+      "passed": 19,
+      "log_sha256": "84fe555be3fa0c1bbdc7cab658f7686030788504dcb0af6572f823ef0bd1011b"
+    },
+    {
+      "component": "fr3_supervised_arm_pulse",
+      "passed": 10,
+      "log_sha256": "b14e73ea7ae3fc19180a2851ddf5c8c2a803f0e1b85b82830eedfdcd54aa5a7c"
+    }
+  ],
+  "total_passed": 379,
+  "physical_checks_passed": 0,
+  "controller_operations_performed": 0,
+  "physical_robot_commands_sent": 0,
+  "operator_approvals_created": 0,
+  "deployment_sha256": "c353e61c51d57617e18e8ccc5552acb61b2d06d396b3053b01bc826ae93fc634",
+  "preflight_stdout_sha256": "3989c6d4c27460d97d5f8b51276bea4ad871bed424086bceef0255c3ba661443",
+  "preflight_stderr_notes": "ROS_LOCALHOST_ONLY deprecation warnings; no deserialization errors in the successful run.",
+  "remaining_motion_requirements": [
+    "operator",
+    "tool_frame",
+    "ee_to_tcp",
+    "translation_limit_m",
+    "rotation_limit_rad",
+    "live_installation_matched",
+    "frames_calibrated",
+    "hardware_stop_checked",
+    "workspace_clear",
+    "historical_errors_reviewed"
+  ],
+  "pre_commit_passed": true,
+  "prepared_with_ai_assistant": true,
+  "docs_build": {
+    "en_reported_warnings": 0,
+    "zh_reported_warnings": 0,
+    "default_autodoc_import_filtering": true,
+    "existing_symbol_findings": 24,
+    "existing_rst_warnings": 61,
+    "rst_errors": 0
+  },
+  "source_hashes": {
+    "toolkits/realworld_check/fr3_calibration_env.sh": "805d25cfdbaa34b1aa88107eb080774db9e4f6a8ef7f8c8a3d3853e933f0de20",
+    "toolkits/realworld_check/fr3_mapping_calibration.py": "fb23a8016065d367991968b186e68741c2db99b7cbbad04208f1ac9f431a0120",
+    "toolkits/realworld_check/fr3_mapping_calibration_ros.py": "3bbb711be0705210365b4b7fdec6aef38b5bae843fe623d4b702c1f3064952d4",
+    "tests/unit_tests/test_fr3_mapping_calibration.py": "aa5bcd7e9c9c781a834e13c1b7f67814bce34e279afe41cba5407869a30e9e8f"
+  }
+}

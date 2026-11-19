@@ -1,0 +1,101 @@
+defaults:
+  - model/pi0_5@rollout.model
+  - _self_
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+cluster:
+  num_nodes: 1
+  component_placement:
+    rollout:
+      node_group: fr3_eval
+      placement: 1
+    env:
+      node_group: fr3_eval
+      placement: 1
+  node_groups:
+    - label: fr3_eval
+      node_ranks: 0
+      env_configs:
+        - node_ranks: 0
+          env_vars:
+            - RLINF_ROS_SETUP: preserve
+
+runner:
+  task_type: embodied_eval
+  fr3_request_duration_s: 3
+  only_eval: true
+  max_epochs: 1
+  max_steps: 1
+  val_check_interval: -1
+  ckpt_path: /data1/Muttaqien/logs/20261111-04:55:26-realworld_sft_openpi_fr3_peg_request_full3000_wandb/fr3_peg_pi05_request_offline_full3000_wandb/checkpoints/global_step_3000/actor/model_state_dict/full_weights.pt
+  logger:
+    log_path: ../results
+    project_name: rlinf
+    experiment_name: fr3-pi05-request-eval
+    logger_backends: [tensorboard]
+  rtc:
+    enabled: false
+
+env:
+  group_name: EnvGroup
+  eval:
+    env_type: real
+    total_num_envs: 1
+    auto_reset: false
+    ignore_terminations: false
+    rollout_epoch: 1
+    max_steps_per_rollout_epoch: 30
+    max_episode_steps: 30
+    reward_mode: raw
+    seed: 0
+    group_size: 1
+    use_fixed_reset_state_ids: false
+    teleop: none
+    main_image_key: base
+    init_params:
+      id: FR3RequestEnv-v1
+    video_cfg:
+      save_video: false
+    override_cfg:
+      manual_episode_control_only: true
+      ros_python: /usr/bin/python3
+      ros_setup: /opt/ros/jazzy/setup.bash
+      ros_overlay: /tmp/fr3_calibration/jazzy_msgs/install/local_setup.bash
+
+rollout:
+  group_name: RolloutGroup
+  generation_backend: huggingface
+  enable_offload: false
+  pipeline_stage_num: 1
+  collect_transitions: false
+  collect_prev_infos: false
+  collect_final_values: false
+  model:
+    model_path: /data1/Muttaqien/rlinf_data/checkpoints/torch/pi05_base_rlinf
+    num_action_chunks: 10
+    action_dim: 7
+    rewrite_chunk_gripper: false
+    add_value_head: false
+    openpi:
+      task: eval
+      config_name: pi05_fr3_peg_request_offline
+      action_horizon: 10
+      action_chunk: 10
+      model_action_dim: 32
+      discrete_state_input: false
+      torch_compile: false
+      rtc_enabled: false
+    openpi_data:
+      norm_stats_path: /data1/Muttaqien/fr3_peg_request_norm_v1/norm_stats.json
+
+reward:
+  use_reward_model: false
+critic:
+  use_critic_model: false

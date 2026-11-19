@@ -1,0 +1,174 @@
+# Copyright 2026 The RLinf Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Subscription-only ROS 2 state reader; stdout carries JSON records to RLinf."""
+
+import argparse
+import json
+import math
+import os
+import signal
+import sys
+import threading
+import time
+from collections.abc import Mapping
+from typing import Any
+
+
+GRIPPER_JOINT = "robotiq_85_left_knuckle_joint"
+
+
+def extract_gripper_joint_state(message: Mapping[str, Any]) -> dict | None:
+    """Preserve measured Robotiq joint angle, not unrelated NaN placeholders.
+
+    A ROS JointState may publish NaN for unknown velocity or effort. Those
+    optional fields are not gripper-position measurements. A missing target
+    joint is ignored; an invalid measured position always raises.
+    """
+    names = message.get("name", [])
+    if not isinstance(names, (list, tuple)) or GRIPPER_JOINT not in names:
+        return None
+    if names.count(GRIPPER_JOINT) != 1:
+        raise ValueError(f"Duplicate gripper joint: {GRIPPER_JOINT}")
+    index = names.index(GRIPPER_JOINT)
+    positions = message.get("position", [])
+    if not isinstance(positions, (list, tuple)) or len(positions) <= index:
+        raise ValueError("Missing Robotiq knuckle position")
+    try:
+        value = float(positions[index])
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ValueError("Robotiq knuckle position is not numeric") from exc
+    if not math.isfinite(value):
+        raise ValueError("Robotiq knuckle position is not finite")
+    return {
+        "header": message.get("header"),
+        "name": [GRIPPER_JOINT],
+        "position": [value],
+    }
+
+
+def main() -> None:
+    """Subscribe to existing standard state topics without starting hardware."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--joint-topic", required=True)
+    parser.add_argument("--pose-topic", required=True)
+    parser.add_argument("--wrench-topic", required=True)
+    parser.add_argument("--gripper-topic")
+    parser.add_argument("--twist-topic")
+    parser.add_argument("--gripper-request-topic")
+    args = parser.parse_args()
+    os.environ["RCUTILS_LOGGING_USE_STDOUT"] = "0"
+
+    import rclpy
+    from geometry_msgs.msg import PoseStamped, Twist, WrenchStamped
+    from rclpy.node import Node
+    from rclpy.qos import qos_profile_sensor_data
+    from rclpy.signals import SignalHandlerOptions
+    from rosidl_runtime_py.convert import message_to_ordereddict
+    from sensor_msgs.msg import JointState
+    from std_msgs.msg import Float32
+
+    def emit(record: dict) -> None:
+        sys.stdout.write(json.dumps(record, allow_nan=False) + "\n")
+        sys.stdout.flush()
+
+    stopped = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stopped.set())
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    node = Node(
+        "rlinf_franka_observation",
+        enable_rosout=False,
+        start_parameter_services=False,
+    )
+
+    reported_errors: set[str] = set()
+
+    def subscribe(name: str, topic: str, message_type: type) -> None:
+        def receive(message: object) -> None:
+            try:
+                payload = message_to_ordereddict(message)
+                if name == "gripper_state":
+                    payload = extract_gripper_joint_state(payload)
+                    if payload is None:
+                        return
+                emit(
+                    {
+                        "event": "state",
+                        "name": name,
+                        "topic": topic,
+                        "message_type": message_type.__module__.split(".")[0]
+                        + "/msg/"
+                        + message_type.__name__,
+                        "units": {
+                            "joint_state": {
+                                "position": "rad",
+                                "velocity": "rad/s",
+                                "effort": "N*m",
+                            },
+                            "tcp_pose": {
+                                "position": "m",
+                                "orientation": "quaternion_xyzw",
+                            },
+                            "external_wrench": {"force": "N", "torque": "N*m"},
+                            "gripper_state": {"position": "source_joint_definition"},
+                            "operator_twist": {
+                                "linear": "normalized_controller_input_not_m_per_s",
+                                "angular": "normalized_controller_input_not_rad_per_s",
+                            },
+                            "operator_gripper_request": {"data": "normalized_open_fraction"},
+                        }[name],
+                        "message": payload,
+                        "received_monotonic_ns": time.monotonic_ns(),
+                        "received_unix_ns": time.time_ns(),
+                    }
+                )
+            except (TypeError, ValueError) as error:
+                # One fatal diagnostic per source; avoid log floods at 500 Hz.
+                if name not in reported_errors:
+                    reported_errors.add(name)
+                    node.get_logger().error(f"Invalid {topic} state: {error}")
+                    emit({"event": "error", "error": f"Invalid state on {topic}: {error}"})
+
+        node.create_subscription(message_type, topic, receive, qos_profile_sensor_data)
+
+    try:
+        subscribe("joint_state", args.joint_topic, JointState)
+        subscribe("tcp_pose", args.pose_topic, PoseStamped)
+        subscribe("external_wrench", args.wrench_topic, WrenchStamped)
+        if args.gripper_topic:
+            subscribe("gripper_state", args.gripper_topic, JointState)
+        if args.twist_topic:
+            subscribe("operator_twist", args.twist_topic, Twist)
+        if args.gripper_request_topic:
+            subscribe("operator_gripper_request", args.gripper_request_topic, Float32)
+        emit(
+            {
+                "event": "ready",
+                "ros_distro": os.environ.get("ROS_DISTRO"),
+                "domain_id": os.environ.get("ROS_DOMAIN_ID"),
+                "rmw": rclpy.get_rmw_implementation_identifier(),
+            }
+        )
+        while rclpy.ok() and not stopped.is_set():
+            rclpy.spin_once(node, timeout_sec=0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,106 @@
+{
+  "files": [
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/executor_events.jsonl",
+      "sha256": "c1649cd3bc53d5422f434d49ff91f4d70a6ae532bbe1313d844f015bae35b7dc",
+      "bytes": 18956
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/measured_state_log.jsonl",
+      "sha256": "acf5d00213d75b2850664fadff999cb2591f58a6a3715f1d72d2d7c4921ff1ff",
+      "bytes": 17362
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_000.npz",
+      "sha256": "73e392f90f864d6ae25a049951b583bfae3a259e8c3b2c59e9003275ac8ac4eb",
+      "bytes": 945750
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_001.npz",
+      "sha256": "8719783e7a5d867d931588f45a36a974aa8185da1fd8c34a1b9b606b91359120",
+      "bytes": 909744
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_002.npz",
+      "sha256": "b4b5f5c4ecfa361a324206039b6ba438677b70e77fab52b70fdb53447ff70b87",
+      "bytes": 905443
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/observation_003.npz",
+      "sha256": "f4a4d59c57b4af8e0f9189f3b737cec296f9728b28535eecba137d7235f2223e",
+      "bytes": 936458
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/pipeline_timing.jsonl",
+      "sha256": "06b41a6513d470017889bb8c134f5a01e5b09d5452a323b5fa40116ef5d9926f",
+      "bytes": 918
+    },
+    {
+      "path": "/data1/Muttaqien/fr3_pi05_real_rollouts_20/episode_08/policy_command_log.jsonl",
+      "sha256": "c0eb493d5f3cfefc5a993344785ae699e19866fd1848c394a748f13b517de4b7",
+      "bytes": 20363
+    }
+  ],
+  "terminal_events": [
+    {
+      "event": "episode_ended",
+      "commands_sent": 36,
+      "arm_publications": 504,
+      "max_publish_gap_ns": 11805514
+    }
+  ],
+  "policy_log_rows": 30,
+  "executor_action_rows": 36,
+  "ready": {
+    "event": "ready",
+    "arm_topic": "/franka_controller/target_cartesian_velocity_percent",
+    "gripper_topic": "/gripper_client/target_gripper_width_percent",
+    "mapping_mode": "legacy_limited",
+    "arm_gain": 0.15,
+    "policy_period_s": 0.1,
+    "publish_period_ns": 10000000,
+    "mapping_verification_sha256": null
+  },
+  "outcome_file_present": false,
+  "max_residual_from_legacy_015": 0.0,
+  "baseline_reproduction": [
+    "RolloutStopped: time_limit",
+    "TimeoutError: Executor never returned episode_ended"
+  ],
+  "physical_execution_performed": false,
+  "spacemouse_publisher": {
+    "path": "/home/muttaqien/Desktop/AIST-Tokyo/gamma/franka_spacemouse_ws/src/franka_spacemouse/src/spacemouse_publisher/spacemouse_publisher/pyspacemouse_publisher.py",
+    "sha256": "2ed3e166966b31778264889301ef8e6dccba4c51a0ffed0ac0524fe46a801c87",
+    "timer_s": 0.01,
+    "topic": "/franka_controller/target_cartesian_velocity_percent",
+    "axis_mapping": "linear=(-y,x,z); angular=(-roll,-pitch,-yaw); optional operator-front sign flip applied before recording",
+    "request_gain": 1.0
+  },
+  "offline_tests": {
+    "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -m pytest -q tests/unit_tests/test_fr3_pi05_ros_executor.py tests/unit_tests/test_fr3_rollout_outcomes.py tests/unit_tests/test_fr3_pi05_request_adapter.py tests/unit_tests/test_fr3_pi05_deployment_audit.py",
+    "passed": 259,
+    "hardware": "CPU; fake ROS endpoints and real subprocess pipes; no model inference",
+    "all_twelve_signed_axes_at_gain_one": true,
+    "all_100_refreshes_match_current_sample_in_both_mapping_modes": true,
+    "ruff_lint_format_passed": true,
+    "git_diff_check_passed": true,
+    "docs_build_harness": {
+      "en_warnings": 0,
+      "zh_warnings": 0,
+      "default_autodoc_filtering": true
+    }
+  },
+  "episode8_files_unchanged": true,
+  "read_only_progress_after_verification": {
+    "real_rollouts": 0,
+    "recorded_attempts": 6,
+    "incomplete_attempts": 2,
+    "target": 20,
+    "successes": 0,
+    "failures": 0,
+    "aborted": 6,
+    "next_episode": 9,
+    "outcomes_complete": false,
+    "recap_dataset_ready": false
+  }
+}

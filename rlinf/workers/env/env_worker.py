@@ -325,6 +325,11 @@ class EnvWorker(Worker):
         override_cfg["reward_image_key"] = env_cfg.main_image_key
         setattr(env_cfg, "override_cfg", OmegaConf.create(override_cfg))
 
+    def close_eval_environments(self) -> None:
+        """Release evaluation environments and their owned hardware transports."""
+        for env in self.eval_env_list:
+            env.close()
+
     def _setup_env_and_wrappers(self, env_cls, env_cfg, num_envs_per_stage: int):
         env_list = []
 
@@ -1301,11 +1306,20 @@ class EnvWorker(Worker):
 
                     if "failure_missed_red_grasp" in env_info:
                         keys = (
-                            "success_once", "success_at_end", "episode_len", "return",
-                            "failure_missed_red_grasp", "failure_wrong_cube",
-                            "failure_red_dropped", "failure_failed_lift",
-                            "ever_wrong_grasp", "ever_red_grasp", "ever_red_lift", "ever_red_drop",
-                            "red_grasp_at_end", "red_lift_at_end",
+                            "success_once",
+                            "success_at_end",
+                            "episode_len",
+                            "return",
+                            "failure_missed_red_grasp",
+                            "failure_wrong_cube",
+                            "failure_red_dropped",
+                            "failure_failed_lift",
+                            "ever_wrong_grasp",
+                            "ever_red_grasp",
+                            "ever_red_lift",
+                            "ever_red_drop",
+                            "red_grasp_at_end",
+                            "red_lift_at_end",
                         )
                         count = len(env_info["failure_missed_red_grasp"])
                         for j in range(count):
@@ -1345,8 +1359,9 @@ class EnvWorker(Worker):
             self.finish_rollout(mode="eval")
         if failure_rows:
             import csv
-            from pathlib import Path
             import os
+            from pathlib import Path
+
             output = Path(self.cfg.runner.logger.log_path)
             output.mkdir(parents=True, exist_ok=True)
             csv_path = output / f"failure_episodes_worker_{os.getpid()}.csv"

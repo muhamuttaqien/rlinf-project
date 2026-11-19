@@ -1262,3 +1262,47 @@ def test_process_that_built_a_cluster_keeps_its_exit_code():
     )
 
     assert result.returncode == 3, result.stderr
+
+
+def test_failure_cleanup_uses_connected_ray_namespace(monkeypatch):
+    """A connected Ray client must not re-discover another local instance."""
+    killed = []
+    queried = []
+    monkeypatch.setenv("RAY_ADDRESS", "local")
+    monkeypatch.setattr(ray, "is_initialized", lambda: True)
+
+    def names(*, all_namespaces):
+        assert all_namespaces is True
+        return [
+            {"name": "owned", "namespace": Cluster.NAMESPACE},
+            {"name": "foreign", "namespace": "another_job"},
+            {"name": "already_gone", "namespace": Cluster.NAMESPACE},
+        ]
+
+    def get_actor(name, *, namespace):
+        queried.append((name, namespace))
+        if name == "already_gone":
+            raise ValueError("Actor has already exited")
+        return name
+
+    monkeypatch.setattr(ray.util, "list_named_actors", names)
+    monkeypatch.setattr(ray, "get_actor", get_actor)
+    monkeypatch.setattr(
+        ray, "kill", lambda handle, *, no_restart: killed.append((handle, no_restart))
+    )
+    Cluster._kill_namespace_actors()
+    assert killed == [("owned", True)]
+    assert queried == [
+        ("owned", Cluster.NAMESPACE),
+        ("already_gone", Cluster.NAMESPACE),
+    ]
+
+
+def test_failure_cleanup_does_not_initialize_ray(monkeypatch):
+    monkeypatch.setattr(ray, "is_initialized", lambda: False)
+
+    def unexpected_lookup(**kwargs):
+        pytest.fail("Disconnected cleanup must not auto-initialize or discover Ray")
+
+    monkeypatch.setattr(ray.util, "list_named_actors", unexpected_lookup)
+    Cluster._kill_namespace_actors()
