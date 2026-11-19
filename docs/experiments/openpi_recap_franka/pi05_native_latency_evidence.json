@@ -1,0 +1,98 @@
+{
+  "hardware": "fake ROS 2 SDK and fake RealSense SDK; physical ROS unavailable in the child interpreter",
+  "model": "existing global_step_3000 Pi0Eval checkpoint; GPU 1; native RLinf workers and runner",
+  "physical_commands": 0,
+  "cold_native_exit_code": 255,
+  "cold": [
+    {
+      "acquisition_s": 0.008198322029784322,
+      "source_age_at_acquisition_s": 0.014765230007469654,
+      "wrapping_and_outbound_transport_s": 0.28366174700204283,
+      "inference_and_output_copy_s": 0.6193004070082679,
+      "return_transport_and_admission_s": 0.2644429539795965,
+      "observation_age_at_admission_s": 1.1821338440058753
+    }
+  ],
+  "warmup_discarded": {
+    "event": "warmup_discarded",
+    "latencies_s": [
+      0.5955893220379949,
+      0.2161784489871934
+    ],
+    "monotonic": 786304.747855092
+  },
+  "warm_native_exit_code": 0,
+  "warm": [
+    {
+      "acquisition_s": 0.00857713003642857,
+      "source_age_at_acquisition_s": 0.027911933953873813,
+      "wrapping_and_outbound_transport_s": 0.25619717105291784,
+      "inference_and_output_copy_s": 0.22633188392501324,
+      "return_transport_and_admission_s": 0.23976837506052107,
+      "observation_age_at_admission_s": 0.7501725119072944
+    },
+    {
+      "acquisition_s": 0.007492939010262489,
+      "source_age_at_acquisition_s": 0.03860751597676426,
+      "wrapping_and_outbound_transport_s": 0.11677552398759872,
+      "inference_and_output_copy_s": 0.22594499099068344,
+      "return_transport_and_admission_s": 0.011510084033943713,
+      "observation_age_at_admission_s": 0.3928055460564792
+    },
+    {
+      "acquisition_s": 0.008500283933244646,
+      "source_age_at_acquisition_s": 0.022871171939186752,
+      "wrapping_and_outbound_transport_s": 0.11320352007169276,
+      "inference_and_output_copy_s": 0.22217250789981335,
+      "return_transport_and_admission_s": 0.011718194000422955,
+      "observation_age_at_admission_s": 0.36992385098710656
+    }
+  ],
+  "unchanged_request_scaling": 1.0,
+  "unchanged_freshness_limit_s": 1.0,
+  "fake_policy_samples": 25,
+  "fake_twist_refreshes": 319,
+  "last_fake_nonzero_relative_to_deadline_s": -0.005096154985949397,
+  "final_fake_twist": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "ray_failure_cleanup": "Cold native failure completed cleanup without rediscovering another Ray instance; warm native run exited normally.",
+  "operator_confirmation": "simulated for fake-only evaluation; no physical approval",
+  "cold_session": "/tmp/rlinf-fr3-native-87niycmj",
+  "warm_session": "/tmp/rlinf-fr3-native-sktqy9xe",
+  "first_warm_action": {
+    "receipt_to_issue_s": 0.7504789679078385,
+    "receipt_to_fake_ros_acceptance_s": 0.7515915959374979,
+    "receipt_to_first_fake_twist_s": 0.7566981109557673,
+    "physical_mechanical_latency_measured": false
+  },
+  "regressions": {
+    "test_fr3_native_eval.py": {
+      "passed": 35
+    },
+    "test_cluster_config.py -k failure_cleanup": {
+      "passed": 2,
+      "deselected": 59
+    },
+    "test_data.py -k rollout": {
+      "passed": 15,
+      "deselected": 106
+    },
+    "test_real_env.py -m not placement": {
+      "passed": 216,
+      "deselected_placement": 18
+    },
+    "pre_commit": "passed"
+  },
+  "documentation": {
+    "source_en_warnings": 0,
+    "source_zh_warnings": 0,
+    "inline_markup": "passed",
+    "referenced_symbols": "passed"
+  }
+}

@@ -15,6 +15,7 @@
 import json
 
 import hydra
+import ray
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
@@ -35,6 +36,9 @@ mp.set_start_method("spawn", force=True)
     config_name="libero_spatial_starvla_eval",
 )
 def main(cfg) -> None:
+    from evaluations.fr3_operator import prepare_fr3_session
+
+    session = prepare_fr3_session(cfg)
     cfg.runner.task_type = "embodied_eval"
     cfg = validate_cfg(cfg)
     print(json.dumps(OmegaConf.to_container(cfg, resolve=True), indent=2))
@@ -118,8 +122,17 @@ def main(cfg) -> None:
         env=env_group,
     )
 
-    runner.init_workers()
-    runner.run()
+    try:
+        runner.init_workers()
+        if session is not None:
+            rollout_group.warmup_fr3_eval().wait()
+            session.confirm()
+        runner.run()
+    finally:
+        if session is not None:
+            session.stop()
+            if ray.is_initialized():
+                env_group.close_eval_environments().wait()
 
 
 if __name__ == "__main__":

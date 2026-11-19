@@ -15,7 +15,9 @@
 import asyncio
 import copy
 import gc
+import json
 import time
+from pathlib import Path
 from typing import Any, Callable, Literal, Optional
 
 import numpy as np
@@ -205,6 +207,55 @@ class MultiStepRolloutWorker(Worker):
         self.setup_sample_params()
         if self.enable_offload:
             self.offload_model()
+
+    def warmup_fr3_eval(self) -> list[float]:
+        """Discard synthetic predictions before acquiring a supervised observation."""
+        if (
+            not self.only_eval
+            or OmegaConf.select(self.cfg, "env.eval.init_params.id")
+            != "FR3RequestEnv-v1"
+        ):
+            raise ValueError(
+                "FR3 warmup requires the native evaluation-only request task"
+            )
+        states = torch.zeros((1, 19), dtype=torch.float32)
+        states[:, 6] = 1
+        observation = {
+            "states": states,
+            "main_images": torch.zeros((1, 480, 640, 3), dtype=torch.uint8),
+            "extra_view_images": torch.zeros((1, 1, 480, 848, 3), dtype=torch.uint8),
+            "task_descriptions": [
+                self.cfg.env.eval.override_cfg.get(
+                    "task_description", "Insert the peg into the hole."
+                )
+            ],
+        }
+        latencies = []
+        with torch.random.fork_rng(
+            devices=[self.torch_platform.current_device()],
+            device_type=self.torch_device_type,
+        ):
+            for _ in range(2):
+                started = time.monotonic()
+                actions, _ = self.predict(observation, mode="eval")
+                actions.detach().cpu()
+                latencies.append(time.monotonic() - started)
+        self.log_info(
+            f"FR3 discarded synthetic warmup predictions: {latencies} seconds"
+        )
+        session = Path(self.cfg.env.eval.override_cfg.session_dir)
+        with (session / "policy_timing.jsonl").open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "event": "warmup_discarded",
+                        "latencies_s": latencies,
+                        "monotonic": time.monotonic(),
+                    }
+                )
+                + "\n"
+            )
+        return latencies
 
     def setup_sample_params(self):
         # sampling parameters for rollout
@@ -931,6 +982,12 @@ class MultiStepRolloutWorker(Worker):
 
     @Worker.timer("evaluate")
     async def evaluate(self, input_channel: Channel, output_channel: Channel):
+        fr3_session = (
+            OmegaConf.select(self.cfg, "env.eval.override_cfg.session_dir")
+            if OmegaConf.select(self.cfg, "env.eval.init_params.id")
+            == "FR3RequestEnv-v1"
+            else None
+        )
         if self.enable_offload:
             self.reload_model()
         if self.env_decoupled_mode:
@@ -972,6 +1029,7 @@ class MultiStepRolloutWorker(Worker):
             ):
                 for _ in range(self.n_eval_chunk_steps):
                     for stage_id in range(self.num_pipeline_stages):
+                        receive_started = time.monotonic()
                         env_output = await self.recv_from(
                             group_name=self.cfg.env.group_name,
                             channel=input_channel,
@@ -982,6 +1040,7 @@ class MultiStepRolloutWorker(Worker):
                             merge_fn=self._merge_obs_batches,
                             infer_batch_size_fn=self._infer_env_batch_size,
                         ).async_wait()
+                        prediction_started = time.monotonic()
                         actions, _ = self._predict_rollout_actions(
                             env_output["obs"],
                             mode="eval",
@@ -991,6 +1050,22 @@ class MultiStepRolloutWorker(Worker):
                         )
                         if isinstance(actions, torch.Tensor):
                             actions = actions.detach().cpu().contiguous()
+                        if fr3_session is not None:
+                            with (Path(fr3_session) / "policy_timing.jsonl").open(
+                                "a"
+                            ) as stream:
+                                stream.write(
+                                    json.dumps(
+                                        {
+                                            "event": "prediction_ready",
+                                            "receive_started": receive_started,
+                                            "prediction_started": prediction_started,
+                                            "monotonic": time.monotonic(),
+                                            "cpu_threads": torch.get_num_threads(),
+                                        }
+                                    )
+                                    + "\n"
+                                )
                         self.send_to(
                             group_name=self.cfg.env.group_name,
                             channel=output_channel,

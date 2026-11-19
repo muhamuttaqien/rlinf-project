@@ -1,6 +1,16 @@
 # OpenPI pi0.5 SFT + RECAP — Franka (pre-hardware handoff)
 
-**Status:** Pre-hardware preparation for the two-camera, EE-space teleoperation experiment; no demonstrations or rollout datasets exist yet. Not a tested robot deployment.
+**Current handoff, 2026-11-18:** The 100 physical demonstrations and 3,000-step
+π₀.₅ SFT are complete. The remaining blocker is inconsistent FR3 response to
+the direct 0.03 X request. The latest supervised pulse reached the controller,
+produced valid IK and advanced its joint reference, but finished with almost
+no reported TCP displacement. See the [current physical motion diagnosis](fr3_controller_investigation.md#2026-11-18-physical-pulse-update)
+for confirmed evidence, staged read-only torque/reference diagnostics and the
+single operator-supervised next step. Do not begin the 20 physical policy
+outcomes until the joint/torque response and request mapping are qualified.
+The milestone 0 notes below record the earlier planning state.
+
+**Milestone 0 status (historical):** Pre-hardware preparation for the two-camera, EE-space teleoperation experiment; no demonstrations or rollout datasets existed at that time. This was not a tested robot deployment.
 
 
 Storage: see [workstation storage policy](storage_policy.md) for `/data1/Muttaqien/` dataset, checkpoint, run and cache locations, and the separate NUC telemetry exception.

@@ -4,10 +4,10 @@
 # You may obtain a copy of the License at
 #     https://www.apache.org/licenses/LICENSE-2.0
 
-"""OFFLINE-ONLY PI0.5 transforms for normalized FR3 SpaceMouse REQUESTS.
+"""PI0.5 transforms for normalized FR3 SpaceMouse requests.
 
-NOT a trajectory-derived pose-delta policy. NOT controller-accepted actions.
-NO hardware controller adapter, ROS publisher, or deployment permission.
+The native FR3 request task consumes these outputs through the existing NUC
+controller. Observations retain the measured request-SFT state convention.
 """
 
 from __future__ import annotations
@@ -30,7 +30,9 @@ class Fr3PegRequestInputs(transforms.DataTransformFn):
 
     def __call__(self, data: dict) -> dict:
         if self.model_type != _model.ModelType.PI05 or self.action_dim != 32:
-            raise ValueError("FR3 command-request diagnostic requires PI0.5 action_dim=32")
+            raise ValueError(
+                "FR3 command-request diagnostic requires PI0.5 action_dim=32"
+            )
         base = _image_hwc(data["observation/image"], "base image")
         wrist = _image_hwc(data["observation/wrist_image"], "wrist image")
         state = np.asarray(data["observation/state"], dtype=np.float32)
@@ -40,16 +42,19 @@ class Fr3PegRequestInputs(transforms.DataTransformFn):
         result = {
             "state": transforms.pad_to_dim(state, self.action_dim),
             "image": dict(zip(names, (base, wrist, np.zeros_like(base)), strict=True)),
-            "image_mask": dict(zip(
-                names, (np.True_, np.True_, np.False_), strict=True
-            )),
+            "image_mask": dict(
+                zip(names, (np.True_, np.True_, np.False_), strict=True)
+            ),
         }
         if "actions" in data:
             actions = np.asarray(data["actions"], dtype=np.float32)
-            if (actions.ndim != 2 or actions.shape[-1] != 7
-                    or not np.isfinite(actions).all()
-                    or np.any(np.abs(actions[:, :6]) > 1.001)
-                    or np.any(~np.isin(actions[:, 6], [0.0, 1.0]))):
+            if (
+                actions.ndim != 2
+                or actions.shape[-1] != 7
+                or not np.isfinite(actions).all()
+                or np.any(np.abs(actions[:, :6]) > 1.001)
+                or np.any(~np.isin(actions[:, 6], [0.0, 1.0]))
+            ):
                 raise ValueError(
                     "Expected (horizon,7) bounded normalized SpaceMouse requests"
                 )

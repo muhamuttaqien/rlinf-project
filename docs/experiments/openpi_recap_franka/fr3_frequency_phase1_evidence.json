@@ -1,0 +1,489 @@
+{
+  "schema": "fr3_frequency_phase1_offline_evidence_v1",
+  "date": "2026-11-19",
+  "dataset_root": "/data1/Muttaqien/datasets/fr3_peg_request_10hz_phase1_v1",
+  "raw_root": "/data1/Muttaqien/fr3_peg_100",
+  "reference_splits": {
+    "train": "/data1/Muttaqien/fr3_peg_request_lerobot_train_v1",
+    "validation": "/data1/Muttaqien/fr3_peg_request_lerobot_validation_v1"
+  },
+  "reference_split_sha256": {
+    "train": "3fd792cc21a8971165015ab9bedf1022d2284533b05f9638f7dc19467e5e6ea6",
+    "validation": "1d95a65874ddfc5be43f944f3d8162d7de92e89de5a2b1b5dde8a967a928bfa9"
+  },
+  "target_hz": {
+    "raw_requests": 100,
+    "available_saved_state": 10,
+    "dataset": 10,
+    "policy_execution": 10,
+    "command_refresh": 100
+  },
+  "action_semantics": "six normalized held controller requests; not SI velocity, pose deltas, or executed motion",
+  "resampling": "causal completed saved tuples; 100 ms time-weighted held-request means; gripper latch at interval START",
+  "clock": "workstation monotonic receipt; camera exposure and controller acceptance timestamps unavailable",
+  "streams": {
+    "joint_state": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.097573342,
+        "p50": 0.100030117,
+        "p95": 0.10103703185,
+        "p99": 0.10125769169,
+        "max": 0.102280906
+      },
+      "episode_rate_hz": {
+        "min": 9.986907102126166,
+        "p50": 9.988069872773043,
+        "p95": 9.988902698949138,
+        "p99": 9.989049587374089,
+        "max": 9.989384680943934
+      },
+      "nonpositive_gaps": 0
+    },
+    "tcp_pose": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.097624753,
+        "p50": 0.1000230615,
+        "p95": 0.1010191782,
+        "p99": 0.10133072192999999,
+        "max": 0.102933725
+      },
+      "episode_rate_hz": {
+        "min": 9.987163433520008,
+        "p50": 9.988113918694562,
+        "p95": 9.988688496103386,
+        "p99": 9.98906531632676,
+        "max": 9.989266907776296
+      },
+      "nonpositive_gaps": 0
+    },
+    "external_wrench": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.096680509,
+        "p50": 0.1000345745,
+        "p95": 0.10102141855,
+        "p99": 0.10131042645,
+        "max": 0.103327353
+      },
+      "episode_rate_hz": {
+        "min": 9.9871880219914,
+        "p50": 9.988027060707845,
+        "p95": 9.988710913500427,
+        "p99": 9.989048155491835,
+        "max": 9.989055278582107
+      },
+      "nonpositive_gaps": 0
+    },
+    "gripper_state": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.097642776,
+        "p50": 0.1000079645,
+        "p95": 0.1019388508,
+        "p99": 0.10212560638,
+        "max": 0.103347516
+      },
+      "episode_rate_hz": {
+        "min": 9.986770914574167,
+        "p50": 9.98817018229231,
+        "p95": 9.988922409790273,
+        "p99": 9.989215653298437,
+        "max": 9.989336544788474
+      },
+      "nonpositive_gaps": 0
+    },
+    "base": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.06712659,
+        "p50": 0.10117972750000001,
+        "p95": 0.10147447285,
+        "p99": 0.10182671285,
+        "max": 0.104181191
+      },
+      "episode_rate_hz": {
+        "min": 9.974019027883973,
+        "p50": 9.989973420972834,
+        "p95": 9.996639787629848,
+        "p99": 9.999014194128591,
+        "max": 10.001137937532322
+      },
+      "nonpositive_gaps": 0
+    },
+    "wrist": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.067228157,
+        "p50": 0.101344827,
+        "p95": 0.10168085415,
+        "p99": 0.10203346133999999,
+        "max": 0.104165103
+      },
+      "episode_rate_hz": {
+        "min": 9.973481972968433,
+        "p50": 9.987452422337828,
+        "p95": 9.997410825527655,
+        "p99": 10.002490337399628,
+        "max": 10.002887753486945
+      },
+      "nonpositive_gaps": 0
+    },
+    "recorded": {
+      "samples": 21234,
+      "gap_s": {
+        "min": 0.092563723,
+        "p50": 0.1001263725,
+        "p95": 0.10257601795,
+        "p99": 0.10457136979,
+        "max": 0.107106894
+      },
+      "episode_rate_hz": {
+        "min": 9.985687301776448,
+        "p50": 9.987890587612362,
+        "p95": 9.990078620061123,
+        "p99": 9.990656455719769,
+        "max": 9.991699447056774
+      },
+      "nonpositive_gaps": 0
+    },
+    "operator_twist": {
+      "samples": 212623,
+      "gap_s": {
+        "min": 0.006346326,
+        "p50": 0.009999813,
+        "p95": 0.0107090476,
+        "p99": 0.011072004759999999,
+        "max": 0.013844603
+      },
+      "episode_rate_hz": {
+        "min": 99.99205360460496,
+        "p50": 100.00012631943403,
+        "p95": 100.00423696445186,
+        "p99": 100.00649304444231,
+        "max": 100.00856670360682
+      },
+      "nonpositive_gaps": 0
+    },
+    "operator_gripper_request": {
+      "samples": 200,
+      "gap_s": {
+        "min": 5.66025312,
+        "p50": 10.010140884,
+        "p95": 13.427880691649998,
+        "p99": 15.522883722780001,
+        "max": 15.749697156
+      },
+      "episode_rate_hz": {
+        "min": 0.06349328435302899,
+        "p50": 0.09990024655918206,
+        "p95": 0.13615839917889033,
+        "p99": 0.14544909152708646,
+        "max": 0.176670544373111
+      },
+      "nonpositive_gaps": 0
+    }
+  },
+  "synchronization": {
+    "tuple_skew_s": {
+      "min": 0.000633473,
+      "p50": 0.023780458,
+      "p95": 0.03324223365,
+      "p99": 0.03403718107,
+      "max": 0.034710843
+    },
+    "camera_receipt_skew_s": {
+      "min": 7.1861e-05,
+      "p50": 0.009386874,
+      "p95": 0.0260972482,
+      "p99": 0.03024721785999998,
+      "max": 0.033973369
+    },
+    "state_receipt_skew_s": {
+      "min": 0.000266595,
+      "p50": 0.000916603,
+      "p95": 0.0017738300499999997,
+      "p99": 0.002047988339999997,
+      "max": 0.003302566
+    },
+    "record_lag_s": {
+      "min": 0.007815412,
+      "p50": 0.010035497,
+      "p95": 0.012619117699999998,
+      "p99": 0.014497150409999994,
+      "max": 0.017241544
+    },
+    "old_state_after_label_start_s": {
+      "min": -0.000184511,
+      "p50": 0.010271075000000001,
+      "p95": 0.02663748785,
+      "p99": 0.030579992359999992,
+      "max": 0.033761892
+    },
+    "host_unix_minus_header_joint_state_s": {
+      "min": 0.000174581,
+      "p50": 0.0006702304999999999,
+      "p95": 0.0015790714999999987,
+      "p99": 0.004993499059999999,
+      "max": 0.005640937
+    },
+    "host_unix_minus_header_tcp_pose_s": {
+      "min": 0.000118572,
+      "p50": 0.00045983899999999997,
+      "p95": 0.0015858057999999966,
+      "p99": 0.004816589869999992,
+      "max": 0.005470018
+    },
+    "host_unix_minus_header_external_wrench_s": {
+      "min": 0.000252592,
+      "p50": 0.0008832725,
+      "p95": 0.00192718345,
+      "p99": 0.004927948269999998,
+      "max": 0.005573156
+    },
+    "host_unix_minus_header_gripper_state_s": {
+      "min": 8.3878e-05,
+      "p50": 0.0004394785,
+      "p95": 0.0008112177999999997,
+      "p99": 0.0010843068099999965,
+      "max": 0.002023644
+    }
+  },
+  "raw_tuples_state_after_old_camera_anchor": 21228,
+  "existing_labels": {
+    "frames": 15366,
+    "source_label_interval_s": {
+      "min": 0.067344223,
+      "p50": 0.10124527,
+      "p95": 0.1015823245,
+      "p99": 0.1017338351,
+      "max": 0.102902218
+    },
+    "exported_timestamp_gap_s": {
+      "min": 0.09999847412109375,
+      "p50": 0.09999996423721313,
+      "p95": 0.10000038146972656,
+      "p99": 0.10000038146972656,
+      "max": 0.10000038146972656
+    },
+    "max_episode_request_integral_change_from_retiming_s": 0.043371264552139924,
+    "task_prompt": "FR3 peg insertion"
+  },
+  "export_validation": {
+    "train": {
+      "episodes": 80,
+      "frames": 12240,
+      "all_rgb_pixels_equal": true,
+      "all_labels_equal": true,
+      "timestamps_hz": 10,
+      "episode_boundaries_valid": true
+    },
+    "validation": {
+      "episodes": 20,
+      "frames": 3065,
+      "all_rgb_pixels_equal": true,
+      "all_labels_equal": true,
+      "timestamps_hz": 10,
+      "episode_boundaries_valid": true
+    }
+  },
+  "episode_lengths_frames": [
+    124,
+    183
+  ],
+  "max_oldest_modality_age_s": 0.075606503,
+  "max_terminal_tail_trim_s": 0.091022109,
+  "gripper_events_preserved": 200,
+  "max_gripper_quantization_delay_s": 0.099194223,
+  "max_request_integral_error_float64": 1.021405182655144e-14,
+  "max_request_integral_error_float32": 3.9801304363429324e-08,
+  "max_retained_tcp_position_error_m": 0.0,
+  "original_metadata_unchanged": true,
+  "normalization_provenance": {
+    "schema": "fr3_frequency_consistent_request_v1",
+    "split": "train_only",
+    "training_samples": 12240,
+    "validation_samples_used": 0,
+    "training_episodes": [
+      "episode_0001",
+      "episode_0003",
+      "episode_0004",
+      "episode_0005",
+      "episode_0006",
+      "episode_0007",
+      "episode_0008",
+      "episode_0009",
+      "episode_0012",
+      "episode_0013",
+      "episode_0014",
+      "episode_0015",
+      "episode_0017",
+      "episode_0018",
+      "episode_0019",
+      "episode_0020",
+      "episode_0021",
+      "episode_0022",
+      "episode_0023",
+      "episode_0024",
+      "episode_0025",
+      "episode_0026",
+      "episode_0027",
+      "episode_0028",
+      "episode_0029",
+      "episode_0030",
+      "episode_0031",
+      "episode_0032",
+      "episode_0033",
+      "episode_0034",
+      "episode_0035",
+      "episode_0036",
+      "episode_0037",
+      "episode_0039",
+      "episode_0040",
+      "episode_0041",
+      "episode_0044",
+      "episode_0045",
+      "episode_0047",
+      "episode_0048",
+      "episode_0050",
+      "episode_0052",
+      "episode_0053",
+      "episode_0054",
+      "episode_0055",
+      "episode_0058",
+      "episode_0059",
+      "episode_0060",
+      "episode_0061",
+      "episode_0062",
+      "episode_0063",
+      "episode_0064",
+      "episode_0065",
+      "episode_0067",
+      "episode_0068",
+      "episode_0069",
+      "episode_0070",
+      "episode_0072",
+      "episode_0075",
+      "episode_0076",
+      "episode_0078",
+      "episode_0080",
+      "episode_0081",
+      "episode_0082",
+      "episode_0083",
+      "episode_0084",
+      "episode_0085",
+      "episode_0086",
+      "episode_0087",
+      "episode_0088",
+      "episode_0089",
+      "episode_0090",
+      "episode_0091",
+      "episode_0094",
+      "episode_0095",
+      "episode_0096",
+      "episode_0097",
+      "episode_0098",
+      "episode_0099",
+      "episode_0100"
+    ]
+  },
+  "official_loader_verification": {
+    "model_weights_loaded": false,
+    "training_started": false,
+    "robot_initialized": false,
+    "independent_train_stats_match": true,
+    "train": {
+      "valid_starts": 11520,
+      "total_frames": 12240,
+      "state_shape": [
+        1,
+        32
+      ],
+      "action_shape": [
+        1,
+        10,
+        32
+      ],
+      "base_image_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "wrist_image_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "prompt_from_task": true
+    },
+    "validation": {
+      "valid_starts": 2885,
+      "total_frames": 3065,
+      "state_shape": [
+        1,
+        32
+      ],
+      "action_shape": [
+        1,
+        10,
+        32
+      ],
+      "base_image_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "wrist_image_shape": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "prompt_from_task": true
+    },
+    "dataset_audit_sha256": "2992a09d018c76859ae3374eefd2f9107525f036138f8189a124125cc295c349",
+    "norm_stats_sha256": "e85f3c0d1911c5c61f9295944905eebe2eee6648bf6eb67dd0d3a8e9c946c1a9"
+  },
+  "code_sha256": {
+    "toolkits/realworld_check/fr3_frequency_dataset.py": "adf1c1148113a21a65282785412577a04741e82caa3cc51831075389585dc628",
+    "toolkits/realworld_check/fr3_command_request_alignment.py": "f62d902a00142f6eeb4c99d52ba85a9fa2f009fa9d15df6d19ee06bb94cb0b6e",
+    "toolkits/realworld_check/fr3_policy_contract.py": "49f1115b6db6a9f507ebc7a75f0f9134d6ffc4ed0f691b70db7ceb82de71ac74",
+    "toolkits/realworld_check/fr3_request_norm_stats.py": "c941136081fc53742ed7fc00961e32f24e5b242a1b5fda5dbecf4fb67fafdfc4",
+    "tests/unit_tests/test_fr3_frequency_dataset.py": "8afcc9626a605ec230d7907cbef517f9b74d1c151e2fe1da428b4457717fde2c",
+    "examples/sft/config/realworld_sft_openpi_fr3_peg_request_10hz_phase1.yaml": "14b6182813d1a5c041817af2df13db0a04a3edbf4ff0691be57d9055818113e0"
+  },
+  "versions": {
+    "numpy": "1.26.4",
+    "pyarrow": "18.1.0",
+    "lerobot": "0.3.3",
+    "datasets": "3.6.0",
+    "torch": "2.11.0+cu130",
+    "pytest": "9.1.1"
+  },
+  "unit_tests": {
+    "hardware": "CPU; synthetic raw files and actual LeRobot SDK",
+    "passed": 25,
+    "files": {
+      "tests/unit_tests/test_fr3_frequency_dataset.py": 12,
+      "tests/unit_tests/test_fr3_command_request_alignment.py": 5,
+      "tests/unit_tests/test_fr3_request_norm_stats.py": 3,
+      "tests/unit_tests/test_fr3_request_lerobot_export.py": 3,
+      "tests/unit_tests/test_fr3_peg_request_policy.py": 2
+    },
+    "warnings": "38 installed HuggingFace datasets NumPy scalar-conversion deprecations; 16 installed PyTorch JIT deprecations"
+  },
+  "documentation": {
+    "source_en_build_warnings": 0,
+    "source_zh_build_warnings": 0,
+    "scoped_inline_markup_check": "passed",
+    "scoped_doc_symbol_check": "passed",
+    "scoped_pre_commit": "passed"
+  },
+  "training_started": false,
+  "physical_execution_approved": false,
+  "complete": true
+}

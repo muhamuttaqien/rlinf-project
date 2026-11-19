@@ -1,0 +1,15 @@
+defaults:
+  - realworld_fr3_pi05_request_eval
+  - _self_
+
+hydra:
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+runner:
+  fr3_request_duration_s: 5
+
+env:
+  eval:
+    max_steps_per_rollout_epoch: 50
+    max_episode_steps: 50

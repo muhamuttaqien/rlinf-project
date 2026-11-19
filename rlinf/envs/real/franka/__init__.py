@@ -26,10 +26,12 @@ from .dual_base import DualFrankaEnv, DualFrankaEnvConfig
 from .dual_franka_joint import DualFrankaJointEnv, DualFrankaJointEnvConfig
 from .dual_franka_tcp import DualFrankaTCPEnv, DualFrankaTCPEnvConfig
 from .peg_insertion import PegInsertionEnv
+from .request import FR3RequestEnv
 
 #: Mapping from Gymnasium IDs to registered Franka environment classes.
 TASKS: dict[str, type] = {
     "FrankaEnv-v1": FrankaEnv,
+    "FR3RequestEnv-v1": FR3RequestEnv,
     "PegInsertionEnv-v1": PegInsertionEnv,
     "FrankaBinRelocationEnv-v1": FrankaBinRelocationEnv,
     "BottleEnv-v1": BottleEnv,
@@ -51,6 +53,7 @@ __all__ = [
     "DualFrankaTCPEnv",
     "DualFrankaTCPEnvConfig",
     "FrankaBinRelocationEnv",
+    "FR3RequestEnv",
     "FrankaEnv",
     "FrankaEnvConfig",
     "FrankaRobotState",

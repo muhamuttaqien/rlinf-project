@@ -28,6 +28,16 @@ def repack_env_obs(
     select_state: Callable,
 ) -> dict:
     """Map an env observation dict to ``observation/*`` keys for ``config_name``."""
+    if config_name == "pi05_fr3_peg_request_offline":
+        extra = env_obs["extra_view_images"]
+        if extra.shape[1] != 1:
+            raise ValueError("FR3 request policy requires exactly one wrist RGB view")
+        return {
+            "observation/image": env_obs["main_images"],
+            "observation/wrist_image": extra[:, 0],
+            "observation/state": select_state(env_obs["states"]),
+            "prompt": env_obs["task_descriptions"],
+        }
     if "calvin" in config_name:
         return calvin.repack_env_obs(env_obs, select_state=select_state)
     return default.repack_env_obs(env_obs, select_state=select_state)

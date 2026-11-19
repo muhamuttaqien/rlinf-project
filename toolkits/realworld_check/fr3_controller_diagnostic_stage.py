@@ -27,22 +27,24 @@ HEADER_REL = Path(
     "src/franka_arm_controllers/include/franka_arm_controllers/"
     "joint_impedance_ik_controller.hpp"
 )
-SOURCE_REL = Path(
-    "src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp"
-)
+SOURCE_REL = Path("src/franka_arm_controllers/src/joint_impedance_ik_controller.cpp")
 MARKER = "FR3_DIAG_V1"
 
 
 def replace_one(content: str, old: str, new: str, name: str) -> str:
     count = content.count(old)
     if count != 1:
-        raise ValueError(f"Unexpected controller revision at {name}: matched {count} anchors")
+        raise ValueError(
+            f"Unexpected controller revision at {name}: matched {count} anchors"
+        )
     return content.replace(old, new, 1)
 
 
 def instrument(header: str, source: str) -> tuple[str, str]:
     if MARKER in header or MARKER in source:
-        raise ValueError("Controller appears already instrumented: refusing duplicate patch")
+        raise ValueError(
+            "Controller appears already instrumented: refusing duplicate patch"
+        )
 
     header = replace_one(
         header,
@@ -60,8 +62,37 @@ def instrument(header: str, source: str) -> tuple[str, str]:
   std::atomic<uint64_t> diag_effort_write_ticks_{0};
   std::atomic<double> diag_last_input_x_{0.0};
   std::atomic<double> diag_last_ref_step_rad_{0.0};
+  std::atomic<double> diag_peak_joint_error_rad_{0.0};
+  std::atomic<double> diag_peak_pd_effort_nm_{0.0};
+  std::atomic<double> diag_peak_command_effort_nm_{0.0};
   rclcpp::TimerBase::SharedPtr diag_timer_;""",
         "diagnostic atomic members",
+    )
+
+    source = replace_one(
+        source,
+        """  if (!torque.allFinite())
+    return controller_interface::return_type::ERROR;
+  for (size_t i = 0; i < 7; ++i)
+    command_interfaces_[command_indices_[i]].set_value(torque[i]);""",
+        """  if (!torque.allFinite())
+    return controller_interface::return_type::ERROR;
+  // FR3_DIAG_V1: preserve peaks across a short pulse between one-second log lines.
+  const auto peak = [](std::atomic<double>& value, double observed) {
+    double old = value.load(std::memory_order_relaxed);
+    while (old < observed && !value.compare_exchange_weak(
+               old, observed, std::memory_order_relaxed)) {}
+  };
+  if (intent.moving && fresh(intent.received_ns) && target.valid &&
+      target.activation_ns == activation && fresh(target.state_ns) && fresh(target.command_ns)) {
+    peak(diag_peak_joint_error_rad_, (q_desired_ - q_).cwiseAbs().maxCoeff());
+    peak(diag_peak_pd_effort_nm_,
+         (torque - coriolis).cwiseAbs().maxCoeff());
+    peak(diag_peak_command_effort_nm_, torque.cwiseAbs().maxCoeff());
+  }
+  for (size_t i = 0; i < 7; ++i)
+    command_interfaces_[command_indices_[i]].set_value(torque[i]);""",
+        "RT effort and tracking peaks",
     )
 
     source = replace_one(
@@ -126,7 +157,8 @@ def instrument(header: str, source: str) -> tuple[str, str]:
         "FR3_DIAG_V1 rx=%llu moving_rx=%llu invalid_rx=%llu last_x=%.6f "
         "ik_attempt=%llu ik_valid=%llu ik_failed=%llu "
         "gate_ticks=%llu ref_advanced_ticks=%llu effort_write_ticks=%llu "
-        "last_reference_step_rad=%.9f",
+        "last_reference_step_rad=%.9f peak_joint_error_rad=%.9f "
+        "peak_pd_effort_nm=%.6f peak_command_effort_nm=%.6f",
         static_cast<unsigned long long>(diag_rx_.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(diag_moving_rx_.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(diag_invalid_rx_.load(std::memory_order_relaxed)),
@@ -137,7 +169,10 @@ def instrument(header: str, source: str) -> tuple[str, str]:
         static_cast<unsigned long long>(diag_gate_ticks_.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(diag_ref_advanced_ticks_.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(diag_effort_write_ticks_.load(std::memory_order_relaxed)),
-        diag_last_ref_step_rad_.load(std::memory_order_relaxed));
+        diag_last_ref_step_rad_.load(std::memory_order_relaxed),
+        diag_peak_joint_error_rad_.exchange(0.0, std::memory_order_relaxed),
+        diag_peak_pd_effort_nm_.exchange(0.0, std::memory_order_relaxed),
+        diag_peak_command_effort_nm_.exchange(0.0, std::memory_order_relaxed));
   });
   return CallbackReturn::SUCCESS;""",
         "non-RT reporting timer",
@@ -160,6 +195,9 @@ def instrument(header: str, source: str) -> tuple[str, str]:
   diag_effort_write_ticks_.store(0, std::memory_order_relaxed);
   diag_last_input_x_.store(0.0, std::memory_order_relaxed);
   diag_last_ref_step_rad_.store(0.0, std::memory_order_relaxed);
+  diag_peak_joint_error_rad_.store(0.0, std::memory_order_relaxed);
+  diag_peak_pd_effort_nm_.store(0.0, std::memory_order_relaxed);
+  diag_peak_command_effort_nm_.store(0.0, std::memory_order_relaxed);
   activation_ns_.store(monotonic_ns());
   active_.store(true);
   return CallbackReturn::SUCCESS;""",
@@ -277,12 +315,14 @@ def instrument(header: str, source: str) -> tuple[str, str]:
 
 
 def unified(name: Path, before: str, after: str) -> str:
-    return "".join(difflib.unified_diff(
-        before.splitlines(keepends=True),
-        after.splitlines(keepends=True),
-        fromfile="a/" + str(name),
-        tofile="b/" + str(name),
-    ))
+    return "".join(
+        difflib.unified_diff(
+            before.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile="a/" + str(name),
+            tofile="b/" + str(name),
+        )
+    )
 
 
 def stage(workspace: Path, output: Path) -> dict:
@@ -291,7 +331,9 @@ def stage(workspace: Path, output: Path) -> dict:
     if not root.is_dir():
         raise FileNotFoundError(f"Controller workspace not found: {root}")
     if dest.exists():
-        raise FileExistsError("Output already exists; refuse overwrite of staged evidence")
+        raise FileExistsError(
+            "Output already exists; refuse overwrite of staged evidence"
+        )
     hpath, cpath = root / HEADER_REL, root / SOURCE_REL
     hbefore = hpath.read_text(encoding="utf-8")
     cbefore = cpath.read_text(encoding="utf-8")

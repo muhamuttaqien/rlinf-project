@@ -1,12 +1,84 @@
 # FR3 Controller Investigation
 
-Use this report to reproduce the FR3 dependency failure and prepare a supervised
-command-to-motion test. The 2026-11-12 investigation uses the NUC's actual source,
+Use this report to locate the remaining gap between the joint reference and
+physical motion. The latest supervised X pulse reached the controller, produced
+valid IK and advanced its reference. The magnitude of the commanded torque and
+the robot's response to it have not yet been measured together.
+
+## 2026-11-18 physical pulse update
+
+The operator reported 11 publications of `[0.03,0,0,0,0,0]` over 0.5 s,
+10 moving requests received, 25 valid IK solutions and 25 joint-reference
+advances. The reported final TCP delta was `[+0.001,+0.001,-0.003]` mm;
+an earlier equivalent pulse gave `[+0.383,-0.002,-0.539]` mm. These final
+deltas alone do not describe peak travel, transient motion, or joint tracking.
+The complete counter deltas and synchronized joint/torque traces were not
+provided, so do not infer a hardware torque failure from the write count.
+
+**Confirmed from source and the reported counters:** the request reached the
+callback, IK returned valid joint targets, and `q_desired_` changed on at least
+25 RT cycles. The controller calculates
+`K * (q_desired_ - q) - D * dq_filtered + coriolis` and writes the seven
+finite results to its claimed effort interfaces on each successful update.
+The hardware effort branch calls `Robot::writeOnceJointEfforts`, which applies
+its existing torque-rate limit before `writeOnce`. The controller counter
+counts calls to `set_value()`, not hardware writes, accepted torque, or motion.
+
+**Remaining alternatives:** the 0.21 mm measured-pose-relative IK offset may
+create a tiny joint error and a correspondingly small incremental torque; the
+reference can reach a fixed IK target long before the robot follows it. The
+neutral request then holds that reference. Alternatively, the torque at the
+controller interface could be meaningful but attenuated by hardware limiting,
+mode/state handling, or robot-side response. A 50 Hz IK timer, a 0.25 s
+freshness gate, the 1 kHz reference step bound and target replacement all
+affect the time spent at each reference; 25 advance events do not measure
+their magnitude or prove continuous 0.5 s physical actuation. The two
+different final TCP deltas cannot distinguish these cases without synchronized
+joint and torque data. No gain, velocity limit, scale or safety change is
+supported yet.
+
+The staged diagnostic generator now also collects one-second peaks of
+`max(abs(q_desired_ - q))`, `max(abs(torque - coriolis))` and
+`max(abs(torque))` **only while a fresh moving target passes the reference
+gate**. The timer exchanges these peaks into the next `FR3_DIAG_V1` log line;
+the existing counters and motion calculation are unchanged. The first peak is
+joint tracking error, the second the incremental PD torque, and the third the
+full controller effort including Coriolis. These are maxima across joints and
+time, not paired seven-joint samples. The generator requires the original,
+uninstrumented controller source and writes only staged files; the running V1
+diagnostic binary is unchanged. Before installing another diagnostic build,
+review the diff and compile/test it offline on the NUC. No such build or
+physical test was performed in this update.
+
+For **one** subsequent operator-supervised pulse at the same request and
+duration, after the staged diagnostic build is reviewed and installed through
+the normal maintenance procedure, save a timestamped trace spanning baseline,
+pulse and at least two seconds after neutral: `FR3_DIAG_V1` lines, measured
+and robot-desired joint
+positions/efforts from the existing broadcaster, controller manager and
+hardware status/faults, and TCP pose. Check the broadcaster field names and
+semantics on the installed version before interpreting robot-desired torque
+as `tau_J_d`; it is not the controller's private `q_desired_`. Compare
+counter *deltas*, the new peak values, and the measured joints. If the
+incremental PD peak is near zero, focus on the size and lifetime of the
+controller reference and the measured-pose target update. If it is meaningful,
+compare timestamped per-joint robot-desired effort with measured effort and
+inspect the hardware effort mode and rate-limited write path. The scalar peaks
+alone cannot establish which joint differed. If robot-desired effort follows
+but measured torque and joints do not, inspect robot state, contact/load and faults with the
+operator. Keep the existing motion and abort guards; do not repeat or increase
+the pulse in response to a weak result.
+
+This update was checked offline on the workstation (Python 3.11 CPU): four
+focused staging and source-anchor tests passed, and `git diff --check`
+passed. It does not establish physical acceptance or a unique root cause.
+
+## Earlier startup and command-path investigation
+
+The 2026-11-12 investigation used the NUC's actual source,
 installed binaries, and saved launch log. It covers runtime loading first, then
-command execution. The original 2026-11-12 investigation was offline-only. A later operator-supervised
-physical controller startup and X-only pulse on 2026-11-18 are documented in a
-separate update below. An AI assistant performed the original offline investigation
-and repository changes, not the physical movement.
+command execution. Physical controller startup and movement remain untested in
+this investigation. An AI assistant performed the investigation and changes.
 
 ## Original Problem
 
@@ -187,16 +259,14 @@ which sends 0.03 without it. Temporal averaging and 10 Hz playback versus 100 Hz
 demonstration input also need qualification; matching axis names alone is
 insufficient to certify physical policy execution.
 
-## Physical Cause Still Unresolved
+## Earlier physical cause assessment
 
 The small offset and measured-pose target regeneration explain why this command
-cannot be treated as a requested travel distance. They do not establish why the
-earlier FR3 pulse moved only 0.045 mm. At the time of the original 2026-11-12
-investigation no matching physical `FR3_DIAG_V1` trace existed: the diagnostic
-launch failed before loading the controller. Receipt, valid IK and reference
-advancement for that **earlier** pulse remain unconfirmed. See the subsequent
-2026-11-18 instrumented physical test below, which qualified those stages for a
-separate pulse but did not isolate the earlier weak-response cause.
+cannot be treated as a requested travel distance. The saved arm-node logs
+inspected in the earlier session had no matching physical `FR3_DIAG_V1` trace;
+that particular diagnostic launch failed before loading the controller. The
+newer operator-reported pulse above confirms receipt, IK and reference
+advancement in a later session, while hardware response remains unconfirmed.
 
 Possible limiting stages include competing neutral publishers or lost input,
 freshness rejection, IK failure at the actual seed pose, insufficient physical
@@ -207,151 +277,14 @@ tool calibration also remain necessary: the controller targets URDF flange FK,
 whereas the pose broadcaster reports robot `O_T_EE`; neither alone certifies the
 Robotiq peg TCP.
 
-## Operator-Supervised Physical Update (2026-11-18)
-
-**Source and scope:** The following results were supplied as terminal output by
-the physical operator, after the original offline investigation. They were not
-generated or independently recorded by the assistant. The supplied evidence
-includes a compact result JSON and 1 Hz cumulative diagnostic log excerpts,
-but **no synchronized raw pose, measured/desired joint, torque, or fault trace**.
-Consequently, physical joint tracking and the cause of cross-axis displacement
-cannot yet be reconstructed.
-
-### Controller startup and command exclusivity
-
-The corrected runtime environment selected
-`~/fr3_controller_diag_build/install/franka_arm_controllers`. The controller
-launch explicitly uses `spawner ... --inactive`; the operator separately
-activated `joint_impedance_ik_controller`. The NUC then reported it and both
-state broadcasters `active` and emitted `FR3_DIAG_V1`. This confirms that
-the previously failing runtime dependency was overcome in an actual supervised
-startup, not merely in `ldd` and `RTLD_NOW` checks.
-
-Before the pulse, the controller showed neutral commands arriving at
-approximately 100 Hz with no moving commands or IK attempts. The source was
-identified on workstation `pca03395` as a running
-`spacemouse_publisher` ROS launch and child process. The operator stopped it,
-after which the NUC reported **0 publishers and 1 subscriber** on
-`/franka_controller/target_cartesian_velocity_percent`. This avoids a known
-competing publisher for the *new* test; it does not prove that competition alone
-caused the weak *old* test.
-
-### Pulse outcome and diagnostics
-
-The operator executed the existing bounded, interactive X-only qualification
-test (`--request 0.03 --duration 0.5`) from the Jazzy workstation:
-
-| Measurement | Earlier uninstrumented test | New instrumented test |
-| --- | ---: | ---: |
-| Nonzero ROS publications | 11 | 11 |
-| Reported final X delta | +0.030 mm | **+0.383 mm** |
-| Reported final Y delta | -0.003 mm | -0.002 mm |
-| Reported final Z delta | -0.031 mm | **-0.539 mm** |
-| Maximum displacement from starting pose | 0.045 mm | **0.662 mm** |
-| X-direction detection flag | false | **true** |
-| Identity policy mapping approved | false | **false** |
-
-The script measures the *position* of
-`/franka_robot_state_broadcaster/current_pose` (`PoseStamped`) before and
-after the pulse plus 0.5 s neutral-command observation. Its JSON property
-`measured_tcp_delta_mm` is the script's name for that position difference:
-**it is not an independently calibrated Robotiq peg-tip TCP**, and the supplied
-result does not include frame IDs, joint angles, orientation, per-sample times
-or uncertainty. The maximum displacement is the largest distance from the
-initial observed position during the pulse/neutral observation; it is not a
-controller-specified motion distance. The resulting 0.662 mm norm is consistent
-with the reported X/Z deltas. Comparing it with the 0.21 mm **single-solve pose
-offset** as if both were expected net travel would be incorrect.
-
-The first supplied post-pulse `FR3_DIAG_V1` line was:
-
-```text
-rx=16845 moving_rx=10 invalid_rx=0 last_x=0.030000
-ik_attempt=25 ik_valid=25 ik_failed=0 gate_ticks=490
-ref_advanced_ticks=25 effort_write_ticks=486534 last_reference_step_rad=0.000000000
-```
-
-Fifteen successive log lines showed these counters unchanged except
-`effort_write_ticks`, which continued increasing by about 1000 per second.
-These are **cumulative counters since activation**; `rx=16845` includes
-the earlier neutral SpaceMouse traffic. `moving_rx=10` represents received
-moving callbacks, while the publisher reported 11 sent requests; delivery is
-not guaranteed one-for-one with depth-one DDS QoS. The roughly 25 IK solves
-and 490 gate ticks are consistent with 50 Hz IK and 1000 Hz control during
-a 0.5 s request, but are not a timestamped latency trace. Zero
-`last_reference_step_rad` on a *post-pulse* line does not negate the 25
-reference advances that occurred earlier. `effort_write_ticks` counts writes
-to effort interfaces, **not** measured hardware torque or tracking.
-
-**Established for this new pulse:** Nonzero commands reached the controller,
-all 25 counted IK attempts were valid, joint references advanced, and
-`current_pose` moved in positive X above the script's 0.2 mm detection
-threshold. The controller was not globally refusing small nonzero requests.
-**Not established:** That the output motion followed its intended Cartesian
-path, that measured joints tracked desired joints well, that hardware torques
-matched the controller output, or that all six policy axes are safe or correctly
-calibrated.
-
-### Why the negative Z motion remains open
-
-An X-only request yielded a reported final **-0.539 mm Z** difference,
-larger in magnitude than the +0.383 mm X difference. A negative-Z command
-was **not** intentionally published by the pulse tool. The offline KDL fixture
-predicts negligible Y/Z offset for a *static, idealized flange FK* under
-an X request; it does not establish the real robot's full trajectory.
-
-Unresolved explanations to distinguish with *time-aligned data* include:
-
-- Dynamics, impedance tracking, gravity compensation or residual movement after
-  the pulse. A neutral request holds the last controller reference, rather than
-  rebasing it to measured joints or applying a hardware stop.
-- Differences between the controller's `base -> fr3_link8` FK target and the
-  broadcaster's `current_pose` robot EE frame, and any tool/peg-tip offset.
-  Without sampled orientations and frame identification, rotation-to-position
-  effects cannot be evaluated.
-- Pose noise/drift, an evolving starting robot state, or asynchronous sampling;
-  the summary contains only an initial-to-final difference and peak distance.
-- Joint or hardware tracking differences not exposed by the coarse counters.
-
-None is confirmed. The previous SpaceMouse publisher is a **plausible** cause
-of prior command interference, not a proven root cause, because the two
-physical tests were not a controlled matched-pose comparison.
-
-### Minimal next evidence, without changing motion controls
-
-Before another supervised physical movement, collect a **read-only stationary
-baseline** of `current_pose`, `measured_joint_states`,
-`desired_joint_states`, and controller status/fault telemetry using their
-verified actual ROS message types and header frame IDs. Record timestamps
-and distinguish robot-side desired joint telemetry from the controller's
-private `q_desired_`. Check stationary Z variation and whether orientation
-and measured joint positions are stable.
-
-If an authorized trained operator later repeats a single bounded motion
-qualification, capture those same streams **synchronously during baseline,
-pulse, and at least two seconds after neutral**, plus `FR3_DIAG_V1` lines
-immediately before and after. Compare change relative to baseline noise,
-the direction of measured and desired joint motion, potential tool offsets,
-and post-neutral settling. Abort for unexpected direction, contact, motion,
-stale telemetry, controller fault, or loss of exclusive publishing. This
-update does **not** authorize another pulse, changing scaling/gains/timeouts,
-or enabling autonomous policy rollout.
-
-The next development gate remains full six-axis request/frame/temporal
-qualification and a calibrated peg TCP before switching from
-`legacy_limited` (0.15 gain) to `identity_verified`. Neither this X test nor
-the added log evidence changes `identity_policy_mapping_approved=false`.
-There are still **zero validated new π₀.₅ policy outcomes** toward the planned
-20 for RECAP.
-
 ## Validation And Remaining Work
 
-In the original **offline** investigation, the tested shell helper selected the
-diagnostic package prefix and domain 70, resolved the exact dependencies, and
-passed both immediate-symbol-resolution library loads. No physical hardware instance
-was created, no physical ROS motion command was sent and no active process was
-restarted **by that investigation**. The subsequent operator-controlled startup
-and physical pulse are recorded in the 2026-11-18 update below.
+The tested shell helper selects the diagnostic package prefix and domain 70,
+resolves the exact dependencies, and passes both immediate-symbol-resolution
+library loads. No physical hardware instance was created, no physical ROS motion
+command was sent, and no active process was restarted. The startup **dependency**
+failure is resolved in the tested process environment; a complete physical launch
+still requires operator approval and may expose other failures.
 
 | Check | Result |
 | --- | --- |
@@ -426,13 +359,11 @@ The upstream `RLinf/RLinf` search found related SpaceMouse/setup issues
 [#1412](https://github.com/RLinf/RLinf/issues/1412), without an established matching
 fix. This report is an experiment record outside the EN/ZH Sphinx trees.
 
-## Supervised Physical Validation Procedure (If a Repeat Is Approved)
+## One Supervised Physical Validation
 
-The following is the original procedure, retained for reference. The operator
-performed the instrumented X-only pulse separately on 2026-11-18 (see update
-above). Any further repeat requires explicit new human approval and the read-only
-baseline/synchronized capture described above. This is controller qualification,
-not an autonomous policy rollout.
+Use one repeat of the existing low-amplitude pulse to locate the limiting stage,
+only after explicit human approval. This procedure was **not executed** by the
+assistant. It is a controller qualification, not a policy rollout.
 
 1. Have the trained operator inspect the workcell, keep the approved hardware
    stop available, and select an obstacle-free starting pose with no peg contact.

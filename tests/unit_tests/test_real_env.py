@@ -1151,6 +1151,7 @@ _ROBOTS = ("franka", "dosw1", "gim_arm", "xsquare")
 
 
 EXPECTED_IDS = {
+    "FR3RequestEnv-v1",
     "FrankaEnv-v1",
     "PegInsertionEnv-v1",
     "FrankaBinRelocationEnv-v1",

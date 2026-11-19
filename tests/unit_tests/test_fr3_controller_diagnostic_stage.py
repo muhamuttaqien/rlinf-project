@@ -1,13 +1,19 @@
+# Copyright 2026 The RLinf Authors.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+
 """Controller diagnostic staging is offline; no ROS or motor commands."""
 
-from pathlib import Path
+import json
 
 import pytest
 
 from toolkits.realworld_check.fr3_controller_diagnostic_stage import (
-    HEADER_REL, SOURCE_REL, instrument, stage,
+    HEADER_REL,
+    SOURCE_REL,
+    instrument,
+    stage,
 )
-
 
 HEADER = """  std::atomic<int64_t> activation_ns_{0};
 """
@@ -21,6 +27,8 @@ SOURCE = """  const auto target = *target_buffer_.readFromRT();
       q_desired_[i] += std::clamp(target.q[i] - q_desired_[i], -step, step);
     }
   }
+  if (!torque.allFinite())
+    return controller_interface::return_type::ERROR;
   for (size_t i = 0; i < 7; ++i)
     command_interfaces_[command_indices_[i]].set_value(torque[i]);
   return controller_interface::return_type::OK;
@@ -65,8 +73,10 @@ def test_staging_preserves_source_and_reports_no_robot_access(tmp_path):
     assert "diag_ik_valid_" in patch
     assert "diag_ref_advanced_ticks_" in patch
     assert "diag_effort_write_ticks_" in patch
+    assert "peak_joint_error_rad" in patch
+    assert "peak_pd_effort_nm" in patch
+    assert "peak_command_effort_nm" in patch
     assert "FR3_DIAG_V1" in patch
-    import json
     assert json.loads((output / "stage_report.json").read_text()) == result
     with pytest.raises(FileExistsError):
         stage(workspace, output)
@@ -74,8 +84,10 @@ def test_staging_preserves_source_and_reports_no_robot_access(tmp_path):
 
 def test_unexpected_source_revision_fails_closed():
     with pytest.raises(ValueError, match="Unexpected controller revision"):
-        instrument(HEADER, SOURCE.replace("target_buffer_.readFromRT()",
-                                          "different_target_buffer()"))
+        instrument(
+            HEADER,
+            SOURCE.replace("target_buffer_.readFromRT()", "different_target_buffer()"),
+        )
 
 
 def test_duplicate_instrumentation_refused():

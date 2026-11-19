@@ -31,12 +31,11 @@ from omegaconf import DictConfig, OmegaConf
 from packaging import version as vs
 from ray._private import ray_logging
 from ray.actor import ActorHandle
-from ray.util.state import list_actors
 
 from ..hardware.accelerators.accelerator import ProfileConfig
 from .config import ClusterConfig, CollectiveConfig
 from .node import NodeGroupInfo, NodeInfo, NodeProbe
-from .utils import DistributedRayLogCollector, without_http_proxies
+from .utils import DistributedRayLogCollector
 
 ray_version = version("ray")
 assert vs.parse(ray_version) >= vs.parse("2.47.0"), (
@@ -461,16 +460,10 @@ class Cluster:
             if self._distributed_log_collector is not None:
                 self._distributed_log_collector.stop()
 
-            with without_http_proxies():
-                alive_actors = list_actors(
-                    filters=[
-                        ("STATE", "=", "ALIVE"),
-                        ("RAY_NAMESPACE", "=", Cluster.NAMESPACE),
-                    ]
-                )
-            for actor_state in alive_actors:
-                actor = ray.get_actor(actor_state.name)
-                ray.kill(actor, no_restart=True)
+            try:
+                self._kill_namespace_actors()
+            except Exception as exc:
+                self._logger.warning("Failed to clean up Ray actors: %s", exc)
 
             if ray.is_initialized():
                 # Mimic ray's sleep before shutdown to ensure log messages are flushed
@@ -480,6 +473,20 @@ class Cluster:
             exit(-1)
 
         signal.signal(signal.SIGUSR1, signal_handler)
+
+    @staticmethod
+    def _kill_namespace_actors() -> None:
+        """Terminate named actors in this namespace on the connected Ray instance."""
+        if not ray.is_initialized():
+            return
+        for actor in ray.util.list_named_actors(all_namespaces=True):
+            if actor["namespace"] != Cluster.NAMESPACE:
+                continue
+            try:
+                handle = ray.get_actor(actor["name"], namespace=Cluster.NAMESPACE)
+            except ValueError:
+                continue
+            ray.kill(handle, no_restart=True)
 
     def _start_local_ray(self, ray_init_kwargs: dict[str, Any]):
         """Start a local Ray instance, retrying once if the node fails to come up.
