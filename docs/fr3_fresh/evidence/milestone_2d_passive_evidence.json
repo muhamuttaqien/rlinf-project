@@ -1,0 +1,2221 @@
+{
+  "schema": "fr3_2d_passive_audit_summary_v1",
+  "baseline": "00dbe4b652eca1edb2f1a2c4d9d322b34e61f552",
+  "physical_command_authorization": "NOT_GRANTED",
+  "qualification_gate": "NO_GO",
+  "full_report_sha256": "26756accfa3fc76ef2bcab4b1df6e8910f020d2f6fafc01bca98a386b378544f",
+  "summary_scope": "Expected control claims only; observation payloads hashed; error flag names with true values retained. This audit summary is not an input to runtime admission.",
+  "merged_categories": {
+    "observation_readiness": "FAIL",
+    "controller_status_visibility": "FAIL",
+    "gripper_status_visibility": "PASS",
+    "interface_identity_consistency": "PASS",
+    "timing_evidence_availability": "PASS",
+    "ownership_evidence_availability": "PASS",
+    "physical_safety_qualification": "NOT_QUALIFIED"
+  },
+  "local": {
+    "origin": {
+      "host": "pca03395",
+      "boot_id": "2231d5c0-1cd1-4da9-b957-a07e5258f1f3",
+      "pid": 1520579,
+      "ros_distro": "unknown",
+      "clock_domain": "linux_monotonic:pca03395:2231d5c0-1cd1-4da9-b957-a07e5258f1f3"
+    },
+    "assessment_wall_ns": 1795081517188637180,
+    "assessment_monotonic_ns": 811325429759141,
+    "categories": {
+      "observation_readiness": "PASS",
+      "controller_status_visibility": "UNKNOWN",
+      "gripper_status_visibility": "UNKNOWN",
+      "interface_identity_consistency": "UNKNOWN",
+      "timing_evidence_availability": "PASS",
+      "ownership_evidence_availability": "UNKNOWN",
+      "physical_safety_qualification": "NOT_QUALIFIED"
+    },
+    "timing": {
+      "fr3": {
+        "joints": {
+          "receipt_age_s": 0.000997458,
+          "source_stamp_ns": 1795081517186739699,
+          "source_wall_difference_s_unqualified": 0.001897481,
+          "frame_id": "base_link",
+          "sequence": 19745
+        },
+        "pose": {
+          "receipt_age_s": 0.001339841,
+          "source_stamp_ns": 1795081517185757315,
+          "source_wall_difference_s_unqualified": 0.002879865,
+          "frame_id": "base",
+          "sequence": 19736
+        },
+        "wrench_base": {
+          "receipt_age_s": 0.001267183,
+          "source_stamp_ns": 1795081517184740304,
+          "source_wall_difference_s_unqualified": 0.003896876,
+          "frame_id": "base",
+          "sequence": 19729
+        },
+        "wrench_stiffness": {
+          "receipt_age_s": 0.001200009,
+          "source_stamp_ns": 1795081517184740304,
+          "source_wall_difference_s_unqualified": 0.003896876,
+          "frame_id": "fr3_link2",
+          "sequence": 19726
+        },
+        "source_stamp_spread_s": 0.001999395
+      },
+      "robotiq": {
+        "knuckle": {
+          "receipt_age_s": 0.000598146,
+          "source_stamp_ns": 1795081517186130226,
+          "source_wall_difference_s_unqualified": 0.002506954,
+          "frame_id": "base_link",
+          "sequence": 9577
+        },
+        "normalized": {
+          "receipt_age_s": 0.000263663,
+          "source_stamp_ns": 1795081517188131195,
+          "source_wall_difference_s_unqualified": 0.000505985,
+          "frame_id": "",
+          "sequence": 9576
+        },
+        "source_stamp_spread_s": 0.002000969
+      }
+    },
+    "configuration_subset_sha256": {
+      "fr3": "61bc65d978165e544f70a3dec0c1b0bc39af303228ba02c935211756921df026",
+      "robotiq": "0150b69547f8ad2b9fa03ec9159e3c8f660335a6d7b61cc022eedf87d14fb9b8"
+    },
+    "diagnostic_failures": {
+      "fr3": {
+        "errors": {
+          "/controller_manager/list_controllers": "Discovery/response timeout within shared diagnostic budget",
+          "/controller_manager/list_hardware_components": "Discovery/response timeout within shared diagnostic budget",
+          "/controller_manager/list_hardware_interfaces": "Discovery/response timeout within shared diagnostic budget"
+        },
+        "service_queries": {
+          "/controller_manager/list_controllers": {
+            "requested_monotonic_ns": 811322497690997,
+            "requested_wall_ns": 1795081514256567973,
+            "failure_kind": "RESPONSE_TIMEOUT"
+          },
+          "/controller_manager/list_hardware_components": {
+            "requested_monotonic_ns": 811322497775352,
+            "requested_wall_ns": 1795081514256651881,
+            "failure_kind": "RESPONSE_TIMEOUT"
+          },
+          "/controller_manager/list_hardware_interfaces": {
+            "requested_monotonic_ns": 811322497812225,
+            "requested_wall_ns": 1795081514256688677,
+            "failure_kind": "RESPONSE_TIMEOUT"
+          },
+          "/controller_manager/get_parameters": {
+            "requested_monotonic_ns": 811322497849460,
+            "requested_wall_ns": 1795081514256725846,
+            "failure_kind": null,
+            "response_monotonic_ns": 811322498922948,
+            "response_wall_ns": 1795081514257799555
+          },
+          "/joint_impedance_ik_controller/get_parameters": {
+            "requested_monotonic_ns": 811322497889683,
+            "requested_wall_ns": 1795081514256766137,
+            "failure_kind": null,
+            "response_monotonic_ns": 811322499072972,
+            "response_wall_ns": 1795081514257949519
+          }
+        },
+        "health_error": "No module named 'franka_msgs'",
+        "health_failure_kind": "MESSAGE_IMPORT_ERROR"
+      },
+      "robotiq": {
+        "errors": {
+          "/controller_manager/list_controllers": "Discovery/response timeout within shared diagnostic budget",
+          "/controller_manager/list_hardware_components": "Discovery/response timeout within shared diagnostic budget",
+          "/controller_manager/list_hardware_interfaces": "Discovery/response timeout within shared diagnostic budget"
+        },
+        "service_queries": {
+          "/controller_manager/list_controllers": {
+            "requested_monotonic_ns": 811322503972143,
+            "requested_wall_ns": 1795081514262849076,
+            "failure_kind": "RESPONSE_TIMEOUT"
+          },
+          "/controller_manager/list_hardware_components": {
+            "requested_monotonic_ns": 811322504072737,
+            "requested_wall_ns": 1795081514262949308,
+            "failure_kind": "RESPONSE_TIMEOUT"
+          },
+          "/controller_manager/list_hardware_interfaces": {
+            "requested_monotonic_ns": 811322504109053,
+            "requested_wall_ns": 1795081514262985503,
+            "failure_kind": "RESPONSE_TIMEOUT"
+          },
+          "/controller_manager/get_parameters": {
+            "requested_monotonic_ns": 811322504143935,
+            "requested_wall_ns": 1795081514263020364,
+            "failure_kind": null,
+            "response_monotonic_ns": 811322505200054,
+            "response_wall_ns": 1795081514264076644
+          },
+          "/robotiq_gripper_controller/get_parameters": {
+            "requested_monotonic_ns": 811322504182154,
+            "requested_wall_ns": 1795081514263058594,
+            "failure_kind": null,
+            "response_monotonic_ns": 811322505354551,
+            "response_wall_ns": 1795081514264231113
+          }
+        },
+        "health_error": "No module named 'robotiq_msgs'",
+        "health_failure_kind": "MESSAGE_IMPORT_ERROR"
+      }
+    }
+  },
+  "nuc_origin": {
+    "host": "aistfranka-NUC13ANK-B",
+    "boot_id": "e81acbd2-081b-4016-8a51-fef266c5d180",
+    "pid": 251192,
+    "ros_distro": "humble",
+    "clock_domain": "linux_monotonic:aistfranka-NUC13ANK-B:e81acbd2-081b-4016-8a51-fef266c5d180"
+  },
+  "nuc_started_wall_ns": 1795081501317255897,
+  "nuc_completed_wall_ns": 1795081513979261358,
+  "manager_inventory_by_sha256": {
+    "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e": {
+      "pid": 232045,
+      "ppid": 232041,
+      "start_ticks": 313073028,
+      "uid": 1000,
+      "executable": "/opt/ros/humble/lib/controller_manager/ros2_control_node",
+      "domain_id": 70,
+      "argv_sha256": "bc9f8f85e20b953a0bf5e714e9da3c3b308f0da6f2d9cc13c9aa5670776970e3",
+      "libraries": {
+        "/home/aist-franka/fr3_controller_diag_production_20261118/install/franka_arm_controllers/lib/libfranka_arm_controllers.so": {
+          "sha256": "3b16083954f38d020ffa4f8b465056e3bc5a8933f9af9109bfb6c2582e7752b4",
+          "mapped_inode": 29507291,
+          "device": "103:02",
+          "file_inode": 29507291
+        },
+        "/home/aist-franka/Desktop/aist-gamma/franka_ros2_ws/build/franka_hardware/libfranka_hardware.so": {
+          "sha256": "26328780995f0a195b18338ad0890bafeb2e0bfc170a2dcd300f76190562b640",
+          "mapped_inode": 28709741,
+          "device": "103:02",
+          "file_inode": 28709741
+        },
+        "/opt/ros/humble/lib/libhardware_interface.so": {
+          "sha256": "16ec4b084f1a515338d7965fd82034d2431ddda7e6ea3ebb899b25efbe8717f8",
+          "mapped_inode": 106192384,
+          "device": "103:02",
+          "file_inode": 106192384
+        },
+        "/opt/ros/humble/lib/libcontroller_manager.so": {
+          "sha256": "5ead8d6c308ddb06aeb1b55370879236ece41f560b324c2cbcd9cb86d0ea0433",
+          "mapped_inode": 106193119,
+          "device": "103:02",
+          "file_inode": 106193119
+        }
+      }
+    },
+    "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26": {
+      "pid": 11985,
+      "ppid": 11981,
+      "start_ticks": 305445094,
+      "uid": 1000,
+      "executable": "/opt/ros/humble/lib/controller_manager/ros2_control_node",
+      "domain_id": 71,
+      "argv_sha256": "1a5c66920a28d22f75ea873425278dcd4863beb393f3c5f7591cdd521d95f35d",
+      "libraries": {
+        "/home/aist-franka/Desktop/aist-gamma/robotiq_ros2_ws/install/robotiq_controllers/lib/librobotiq_controllers.so": {
+          "sha256": "0670aee691f29833cc8cafe3eace0eacb7ab2d014e923262f28db04ae6e37a41",
+          "mapped_inode": 29522982,
+          "device": "103:02",
+          "file_inode": 29522982
+        },
+        "/home/aist-franka/Desktop/aist-gamma/robotiq_ros2_ws/install/robotiq_driver/lib/librobotiq_driver.so": {
+          "sha256": "66360abc62d0bd992e2b58dd63fb374bcb9736f447b71094916a2f2b5fd032c6",
+          "mapped_inode": 29522308,
+          "device": "103:02",
+          "file_inode": 29522308
+        },
+        "/opt/ros/humble/lib/libhardware_interface.so": {
+          "sha256": "16ec4b084f1a515338d7965fd82034d2431ddda7e6ea3ebb899b25efbe8717f8",
+          "mapped_inode": 106192384,
+          "device": "103:02",
+          "file_inode": 106192384
+        },
+        "/opt/ros/humble/lib/libcontroller_manager.so": {
+          "sha256": "5ead8d6c308ddb06aeb1b55370879236ece41f560b324c2cbcd9cb86d0ea0433",
+          "mapped_inode": 106193119,
+          "device": "103:02",
+          "file_inode": 106193119
+        }
+      }
+    }
+  },
+  "snapshots": [
+    {
+      "profile": "fr3",
+      "domain_id": 70,
+      "index": 0,
+      "manager_before": [
+        "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e"
+      ],
+      "manager_after": [
+        "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e"
+      ],
+      "started_wall_ns": 1795081501375120885,
+      "collected_wall_ns": 1795081503379513502,
+      "started_monotonic_ns": 3137061395376864,
+      "collected_monotonic_ns": 3137063399837179,
+      "elapsed_s": 2.00445755,
+      "errors": {},
+      "service_queries": {
+        "/controller_manager/list_controllers": {
+          "requested_monotonic_ns": 3137061483500308,
+          "requested_wall_ns": 1795081501463176450,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137061485300764,
+          "response_wall_ns": 1795081501464976653
+        },
+        "/controller_manager/list_hardware_components": {
+          "requested_monotonic_ns": 3137061483548506,
+          "requested_wall_ns": 1795081501463223962,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137061487685746,
+          "response_wall_ns": 1795081501467361617
+        },
+        "/controller_manager/list_hardware_interfaces": {
+          "requested_monotonic_ns": 3137061483566875,
+          "requested_wall_ns": 1795081501463242347,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137061487908574,
+          "response_wall_ns": 1795081501467584019
+        },
+        "/controller_manager/get_parameters": {
+          "requested_monotonic_ns": 3137061483582458,
+          "requested_wall_ns": 1795081501463257847,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137061485441343,
+          "response_wall_ns": 1795081501465116802
+        },
+        "/joint_impedance_ik_controller/get_parameters": {
+          "requested_monotonic_ns": 3137061483606107,
+          "requested_wall_ns": 1795081501463281565,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137061485619677,
+          "response_wall_ns": 1795081501465295139
+        }
+      },
+      "service_providers": {
+        "/controller_manager/list_controllers": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListControllers"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_components": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareComponents"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_interfaces": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareInterfaces"
+            ]
+          }
+        ]
+      },
+      "controller": [
+        {
+          "name": "joint_impedance_ik_controller",
+          "type": "franka_arm_controllers/JointImpedanceIKController",
+          "state": "active",
+          "claimed": [
+            "fr3_joint1/effort",
+            "fr3_joint2/effort",
+            "fr3_joint3/effort",
+            "fr3_joint4/effort",
+            "fr3_joint5/effort",
+            "fr3_joint6/effort",
+            "fr3_joint7/effort"
+          ]
+        }
+      ],
+      "hardware": [
+        {
+          "name": "FrankaHardwareInterface",
+          "state": "unconfigured",
+          "state_id": 1,
+          "expected_command_interfaces": [
+            {
+              "name": "fr3_joint1/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint2/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint3/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint4/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint5/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint6/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint7/effort",
+              "claimed": false,
+              "available": false
+            }
+          ]
+        }
+      ],
+      "expected_interface_listing": [
+        {
+          "name": "fr3_joint1/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint2/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint3/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint4/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint5/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint6/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint7/effort",
+          "claimed": false,
+          "available": false
+        }
+      ],
+      "parameters": {
+        "/controller_manager/get_parameters": {
+          "update_rate": 1000,
+          "use_sim_time": false
+        },
+        "/joint_impedance_ik_controller/get_parameters": {
+          "ik_update_rate": 50.0,
+          "command_timeout": 0.25,
+          "arm_mounting_orientation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "arm_id": "fr3",
+          "load_gripper": "false",
+          "k_gains": [
+            600.0,
+            600.0,
+            600.0,
+            600.0,
+            250.0,
+            150.0,
+            50.0
+          ],
+          "d_gains": [
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            10.0,
+            10.0,
+            5.0
+          ],
+          "use_sim_time": false
+        }
+      },
+      "health": {
+        "failure_kind": null,
+        "sample_header": {
+          "sec": 1795081503,
+          "nanosec": 374739061,
+          "frame_id": ""
+        },
+        "received_monotonic_ns": 3137063395800869,
+        "data": {
+          "robot_mode": 2,
+          "time": 86371.383,
+          "control_command_success_rate": 1.0,
+          "current_error_field_count": 36,
+          "asserted_current_errors": []
+        },
+        "progress": {
+          "samples": 1914,
+          "device_time_changes": 0,
+          "device_time_reversals": 0,
+          "first_receipt_ns": 3137061484678276,
+          "last_receipt_ns": 3137063395800869,
+          "first_device_time_s": 86371.383,
+          "last_device_time_s": 86371.383
+        }
+      },
+      "observations": {
+        "joints": {
+          "topic": "/franka/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 1912,
+          "error": null,
+          "header": {
+            "sec": 1795081503,
+            "nanosec": 373735987,
+            "frame_id": "base_link"
+          },
+          "received_monotonic_ns": 3137063394844388,
+          "data_sha256": "363f46b66e47cb2489701c6af8eb21ec172877f04b51074739e40a2c5a58b304"
+        },
+        "pose": {
+          "topic": "/franka_robot_state_broadcaster/current_pose",
+          "type": "geometry_msgs/msg/PoseStamped",
+          "sequence": 1912,
+          "error": null,
+          "header": {
+            "sec": 1795081503,
+            "nanosec": 373735987,
+            "frame_id": "base"
+          },
+          "received_monotonic_ns": 3137063394976705,
+          "data_sha256": "9a685028869d3e98058d8996e981a023a8e7abfe50c5bf33692cb0691c6af73f"
+        },
+        "wrench_base": {
+          "topic": "/franka_robot_state_broadcaster/external_wrench_in_base_frame",
+          "type": "geometry_msgs/msg/WrenchStamped",
+          "sequence": 1911,
+          "error": null,
+          "header": {
+            "sec": 1795081503,
+            "nanosec": 372758642,
+            "frame_id": "base"
+          },
+          "received_monotonic_ns": 3137063395111603,
+          "data_sha256": "768dc284e0c64d5fa2752ddf01b01bbee47483880dd58a5f77392a0cc57e7212"
+        },
+        "wrench_stiffness": {
+          "topic": "/franka_robot_state_broadcaster/external_wrench_in_stiffness_frame",
+          "type": "geometry_msgs/msg/WrenchStamped",
+          "sequence": 1901,
+          "error": null,
+          "header": {
+            "sec": 1795081503,
+            "nanosec": 363762458,
+            "frame_id": "fr3_link2"
+          },
+          "received_monotonic_ns": 3137063385090422,
+          "data_sha256": "555a9ca53336a2d1ecb38f787451d1067cdd2e49d0a89ec62d8b50ee53d25045"
+        }
+      },
+      "command_topics": {
+        "/franka_controller/target_cartesian_velocity_percent": {
+          "publishers": [],
+          "subscriptions": [
+            {
+              "node": "joint_impedance_ik_controller",
+              "namespace": "/",
+              "type": "geometry_msgs/msg/Twist",
+              "reliability": "BEST_EFFORT",
+              "durability": "VOLATILE",
+              "depth": 0,
+              "endpoint_gid": [
+                1,
+                15,
+                187,
+                80,
+                109,
+                138,
+                177,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                136,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "/gripper_client/target_gripper_width_percent": {
+          "publishers": [],
+          "subscriptions": [
+            {
+              "node": "spacemouse_input_domain70",
+              "namespace": "/",
+              "type": "std_msgs/msg/Float32",
+              "reliability": "RELIABLE",
+              "durability": "VOLATILE",
+              "depth": 0,
+              "endpoint_gid": [
+                1,
+                15,
+                187,
+                80,
+                108,
+                47,
+                140,
+                42,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                17,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      },
+      "action_servers": [],
+      "action_clients": [],
+      "goal_status": {},
+      "pending_bridge_requests": "UNKNOWN: no safe pending-queue introspection established"
+    },
+    {
+      "profile": "fr3",
+      "domain_id": 70,
+      "index": 1,
+      "manager_before": [
+        "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e"
+      ],
+      "manager_after": [
+        "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e"
+      ],
+      "started_wall_ns": 1795081503516579603,
+      "collected_wall_ns": 1795081505520552235,
+      "started_monotonic_ns": 3137063536848088,
+      "collected_monotonic_ns": 3137065540876103,
+      "elapsed_s": 2.004024755,
+      "errors": {},
+      "service_queries": {
+        "/controller_manager/list_controllers": {
+          "requested_monotonic_ns": 3137063540847833,
+          "requested_wall_ns": 1795081503520523718,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137063542517919,
+          "response_wall_ns": 1795081503522193644
+        },
+        "/controller_manager/list_hardware_components": {
+          "requested_monotonic_ns": 3137063540886533,
+          "requested_wall_ns": 1795081503520562049,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137063542746684,
+          "response_wall_ns": 1795081503522422143
+        },
+        "/controller_manager/list_hardware_interfaces": {
+          "requested_monotonic_ns": 3137063540908445,
+          "requested_wall_ns": 1795081503520583940,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137063544466916,
+          "response_wall_ns": 1795081503524142427
+        },
+        "/controller_manager/get_parameters": {
+          "requested_monotonic_ns": 3137063540930211,
+          "requested_wall_ns": 1795081503520605609,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137063542856800,
+          "response_wall_ns": 1795081503522532226
+        },
+        "/joint_impedance_ik_controller/get_parameters": {
+          "requested_monotonic_ns": 3137063540957317,
+          "requested_wall_ns": 1795081503520632751,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137063543035294,
+          "response_wall_ns": 1795081503522710712
+        }
+      },
+      "service_providers": {
+        "/controller_manager/list_controllers": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListControllers"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_components": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareComponents"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_interfaces": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareInterfaces"
+            ]
+          }
+        ]
+      },
+      "controller": [
+        {
+          "name": "joint_impedance_ik_controller",
+          "type": "franka_arm_controllers/JointImpedanceIKController",
+          "state": "active",
+          "claimed": [
+            "fr3_joint1/effort",
+            "fr3_joint2/effort",
+            "fr3_joint3/effort",
+            "fr3_joint4/effort",
+            "fr3_joint5/effort",
+            "fr3_joint6/effort",
+            "fr3_joint7/effort"
+          ]
+        }
+      ],
+      "hardware": [
+        {
+          "name": "FrankaHardwareInterface",
+          "state": "unconfigured",
+          "state_id": 1,
+          "expected_command_interfaces": [
+            {
+              "name": "fr3_joint1/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint2/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint3/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint4/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint5/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint6/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint7/effort",
+              "claimed": false,
+              "available": false
+            }
+          ]
+        }
+      ],
+      "expected_interface_listing": [
+        {
+          "name": "fr3_joint1/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint2/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint3/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint4/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint5/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint6/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint7/effort",
+          "claimed": false,
+          "available": false
+        }
+      ],
+      "parameters": {
+        "/controller_manager/get_parameters": {
+          "update_rate": 1000,
+          "use_sim_time": false
+        },
+        "/joint_impedance_ik_controller/get_parameters": {
+          "ik_update_rate": 50.0,
+          "command_timeout": 0.25,
+          "arm_mounting_orientation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "arm_id": "fr3",
+          "load_gripper": "false",
+          "k_gains": [
+            600.0,
+            600.0,
+            600.0,
+            600.0,
+            250.0,
+            150.0,
+            50.0
+          ],
+          "d_gains": [
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            10.0,
+            10.0,
+            5.0
+          ],
+          "use_sim_time": false
+        }
+      },
+      "health": {
+        "failure_kind": null,
+        "sample_header": {
+          "sec": 1795081505,
+          "nanosec": 515753156,
+          "frame_id": ""
+        },
+        "received_monotonic_ns": 3137065537230706,
+        "data": {
+          "robot_mode": 2,
+          "time": 86371.383,
+          "control_command_success_rate": 1.0,
+          "current_error_field_count": 36,
+          "asserted_current_errors": []
+        },
+        "progress": {
+          "samples": 1997,
+          "device_time_changes": 0,
+          "device_time_reversals": 0,
+          "first_receipt_ns": 3137063541966002,
+          "last_receipt_ns": 3137065537230706,
+          "first_device_time_s": 86371.383,
+          "last_device_time_s": 86371.383
+        }
+      },
+      "observations": {
+        "joints": {
+          "topic": "/franka/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 1993,
+          "error": null,
+          "header": {
+            "sec": 1795081505,
+            "nanosec": 511741327,
+            "frame_id": "base_link"
+          },
+          "received_monotonic_ns": 3137065533349237,
+          "data_sha256": "363f46b66e47cb2489701c6af8eb21ec172877f04b51074739e40a2c5a58b304"
+        },
+        "pose": {
+          "topic": "/franka_robot_state_broadcaster/current_pose",
+          "type": "geometry_msgs/msg/PoseStamped",
+          "sequence": 1989,
+          "error": null,
+          "header": {
+            "sec": 1795081505,
+            "nanosec": 508766305,
+            "frame_id": "base"
+          },
+          "received_monotonic_ns": 3137065532249381,
+          "data_sha256": "9a685028869d3e98058d8996e981a023a8e7abfe50c5bf33692cb0691c6af73f"
+        },
+        "wrench_base": {
+          "topic": "/franka_robot_state_broadcaster/external_wrench_in_base_frame",
+          "type": "geometry_msgs/msg/WrenchStamped",
+          "sequence": 1985,
+          "error": null,
+          "header": {
+            "sec": 1795081505,
+            "nanosec": 504776120,
+            "frame_id": "base"
+          },
+          "received_monotonic_ns": 3137065526339762,
+          "data_sha256": "768dc284e0c64d5fa2752ddf01b01bbee47483880dd58a5f77392a0cc57e7212"
+        },
+        "wrench_stiffness": {
+          "topic": "/franka_robot_state_broadcaster/external_wrench_in_stiffness_frame",
+          "type": "geometry_msgs/msg/WrenchStamped",
+          "sequence": 1985,
+          "error": null,
+          "header": {
+            "sec": 1795081505,
+            "nanosec": 504776120,
+            "frame_id": "fr3_link2"
+          },
+          "received_monotonic_ns": 3137065526383713,
+          "data_sha256": "555a9ca53336a2d1ecb38f787451d1067cdd2e49d0a89ec62d8b50ee53d25045"
+        }
+      },
+      "command_topics": {
+        "/franka_controller/target_cartesian_velocity_percent": {
+          "publishers": [],
+          "subscriptions": [
+            {
+              "node": "joint_impedance_ik_controller",
+              "namespace": "/",
+              "type": "geometry_msgs/msg/Twist",
+              "reliability": "BEST_EFFORT",
+              "durability": "VOLATILE",
+              "depth": 0,
+              "endpoint_gid": [
+                1,
+                15,
+                187,
+                80,
+                109,
+                138,
+                177,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                136,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "/gripper_client/target_gripper_width_percent": {
+          "publishers": [],
+          "subscriptions": [
+            {
+              "node": "spacemouse_input_domain70",
+              "namespace": "/",
+              "type": "std_msgs/msg/Float32",
+              "reliability": "RELIABLE",
+              "durability": "VOLATILE",
+              "depth": 0,
+              "endpoint_gid": [
+                1,
+                15,
+                187,
+                80,
+                108,
+                47,
+                140,
+                42,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                17,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      },
+      "action_servers": [],
+      "action_clients": [],
+      "goal_status": {},
+      "pending_bridge_requests": "UNKNOWN: no safe pending-queue introspection established"
+    },
+    {
+      "profile": "fr3",
+      "domain_id": 70,
+      "index": 2,
+      "manager_before": [
+        "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e"
+      ],
+      "manager_after": [
+        "834be5405f1de5b1ef17dc5133abd37719b42ddeaacc497206cc97519684a58e"
+      ],
+      "started_wall_ns": 1795081505660350543,
+      "collected_wall_ns": 1795081507663201317,
+      "started_monotonic_ns": 3137065680611780,
+      "collected_monotonic_ns": 3137067683524766,
+      "elapsed_s": 2.00291031,
+      "errors": {},
+      "service_queries": {
+        "/controller_manager/list_controllers": {
+          "requested_monotonic_ns": 3137065685215906,
+          "requested_wall_ns": 1795081505664892267,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137065686909521,
+          "response_wall_ns": 1795081505666585028
+        },
+        "/controller_manager/list_hardware_components": {
+          "requested_monotonic_ns": 3137065685261374,
+          "requested_wall_ns": 1795081505664936844,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137065687161109,
+          "response_wall_ns": 1795081505666836536
+        },
+        "/controller_manager/list_hardware_interfaces": {
+          "requested_monotonic_ns": 3137065685283151,
+          "requested_wall_ns": 1795081505664958563,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137065687458950,
+          "response_wall_ns": 1795081505667134389
+        },
+        "/controller_manager/get_parameters": {
+          "requested_monotonic_ns": 3137065685339328,
+          "requested_wall_ns": 1795081505665014834,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137065687589326,
+          "response_wall_ns": 1795081505667264854
+        },
+        "/joint_impedance_ik_controller/get_parameters": {
+          "requested_monotonic_ns": 3137065685454968,
+          "requested_wall_ns": 1795081505665130460,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137065687833024,
+          "response_wall_ns": 1795081505667508452
+        }
+      },
+      "service_providers": {
+        "/controller_manager/list_controllers": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListControllers"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_components": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareComponents"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_interfaces": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareInterfaces"
+            ]
+          }
+        ]
+      },
+      "controller": [
+        {
+          "name": "joint_impedance_ik_controller",
+          "type": "franka_arm_controllers/JointImpedanceIKController",
+          "state": "active",
+          "claimed": [
+            "fr3_joint1/effort",
+            "fr3_joint2/effort",
+            "fr3_joint3/effort",
+            "fr3_joint4/effort",
+            "fr3_joint5/effort",
+            "fr3_joint6/effort",
+            "fr3_joint7/effort"
+          ]
+        }
+      ],
+      "hardware": [
+        {
+          "name": "FrankaHardwareInterface",
+          "state": "unconfigured",
+          "state_id": 1,
+          "expected_command_interfaces": [
+            {
+              "name": "fr3_joint1/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint2/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint3/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint4/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint5/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint6/effort",
+              "claimed": false,
+              "available": false
+            },
+            {
+              "name": "fr3_joint7/effort",
+              "claimed": false,
+              "available": false
+            }
+          ]
+        }
+      ],
+      "expected_interface_listing": [
+        {
+          "name": "fr3_joint1/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint2/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint3/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint4/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint5/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint6/effort",
+          "claimed": false,
+          "available": false
+        },
+        {
+          "name": "fr3_joint7/effort",
+          "claimed": false,
+          "available": false
+        }
+      ],
+      "parameters": {
+        "/controller_manager/get_parameters": {
+          "update_rate": 1000,
+          "use_sim_time": false
+        },
+        "/joint_impedance_ik_controller/get_parameters": {
+          "ik_update_rate": 50.0,
+          "command_timeout": 0.25,
+          "arm_mounting_orientation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "arm_id": "fr3",
+          "load_gripper": "false",
+          "k_gains": [
+            600.0,
+            600.0,
+            600.0,
+            600.0,
+            250.0,
+            150.0,
+            50.0
+          ],
+          "d_gains": [
+            30.0,
+            30.0,
+            30.0,
+            30.0,
+            10.0,
+            10.0,
+            5.0
+          ],
+          "use_sim_time": false
+        }
+      },
+      "health": {
+        "failure_kind": null,
+        "sample_header": {
+          "sec": 1795081507,
+          "nanosec": 659752139,
+          "frame_id": ""
+        },
+        "received_monotonic_ns": 3137067680778790,
+        "data": {
+          "robot_mode": 2,
+          "time": 86371.383,
+          "control_command_success_rate": 1.0,
+          "current_error_field_count": 36,
+          "asserted_current_errors": []
+        },
+        "progress": {
+          "samples": 1997,
+          "device_time_changes": 0,
+          "device_time_reversals": 0,
+          "first_receipt_ns": 3137065686459905,
+          "last_receipt_ns": 3137067680778790,
+          "first_device_time_s": 86371.383,
+          "last_device_time_s": 86371.383
+        }
+      },
+      "observations": {
+        "joints": {
+          "topic": "/franka/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 1995,
+          "error": null,
+          "header": {
+            "sec": 1795081507,
+            "nanosec": 658758834,
+            "frame_id": "base_link"
+          },
+          "received_monotonic_ns": 3137067679996090,
+          "data_sha256": "363f46b66e47cb2489701c6af8eb21ec172877f04b51074739e40a2c5a58b304"
+        },
+        "pose": {
+          "topic": "/franka_robot_state_broadcaster/current_pose",
+          "type": "geometry_msgs/msg/PoseStamped",
+          "sequence": 1993,
+          "error": null,
+          "header": {
+            "sec": 1795081507,
+            "nanosec": 656752708,
+            "frame_id": "base"
+          },
+          "received_monotonic_ns": 3137067680137860,
+          "data_sha256": "9a685028869d3e98058d8996e981a023a8e7abfe50c5bf33692cb0691c6af73f"
+        },
+        "wrench_base": {
+          "topic": "/franka_robot_state_broadcaster/external_wrench_in_base_frame",
+          "type": "geometry_msgs/msg/WrenchStamped",
+          "sequence": 1984,
+          "error": null,
+          "header": {
+            "sec": 1795081507,
+            "nanosec": 647752245,
+            "frame_id": "base"
+          },
+          "received_monotonic_ns": 3137067670522254,
+          "data_sha256": "768dc284e0c64d5fa2752ddf01b01bbee47483880dd58a5f77392a0cc57e7212"
+        },
+        "wrench_stiffness": {
+          "topic": "/franka_robot_state_broadcaster/external_wrench_in_stiffness_frame",
+          "type": "geometry_msgs/msg/WrenchStamped",
+          "sequence": 1984,
+          "error": null,
+          "header": {
+            "sec": 1795081507,
+            "nanosec": 647752245,
+            "frame_id": "fr3_link2"
+          },
+          "received_monotonic_ns": 3137067670566005,
+          "data_sha256": "555a9ca53336a2d1ecb38f787451d1067cdd2e49d0a89ec62d8b50ee53d25045"
+        }
+      },
+      "command_topics": {
+        "/franka_controller/target_cartesian_velocity_percent": {
+          "publishers": [],
+          "subscriptions": [
+            {
+              "node": "joint_impedance_ik_controller",
+              "namespace": "/",
+              "type": "geometry_msgs/msg/Twist",
+              "reliability": "BEST_EFFORT",
+              "durability": "VOLATILE",
+              "depth": 0,
+              "endpoint_gid": [
+                1,
+                15,
+                187,
+                80,
+                109,
+                138,
+                177,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                136,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        },
+        "/gripper_client/target_gripper_width_percent": {
+          "publishers": [],
+          "subscriptions": [
+            {
+              "node": "spacemouse_input_domain70",
+              "namespace": "/",
+              "type": "std_msgs/msg/Float32",
+              "reliability": "RELIABLE",
+              "durability": "VOLATILE",
+              "depth": 0,
+              "endpoint_gid": [
+                1,
+                15,
+                187,
+                80,
+                108,
+                47,
+                140,
+                42,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                17,
+                4,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      },
+      "action_servers": [],
+      "action_clients": [],
+      "goal_status": {},
+      "pending_bridge_requests": "UNKNOWN: no safe pending-queue introspection established"
+    },
+    {
+      "profile": "robotiq",
+      "domain_id": 71,
+      "index": 0,
+      "manager_before": [
+        "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26"
+      ],
+      "manager_after": [
+        "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26"
+      ],
+      "started_wall_ns": 1795081507703914166,
+      "collected_wall_ns": 1795081509705367893,
+      "started_monotonic_ns": 3137067724181167,
+      "collected_monotonic_ns": 3137069725691664,
+      "elapsed_s": 2.001508379,
+      "errors": {},
+      "service_queries": {
+        "/controller_manager/list_controllers": {
+          "requested_monotonic_ns": 3137067728948985,
+          "requested_wall_ns": 1795081507708625116,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137067729679789,
+          "response_wall_ns": 1795081507709355258
+        },
+        "/controller_manager/list_hardware_components": {
+          "requested_monotonic_ns": 3137067728984062,
+          "requested_wall_ns": 1795081507708659531,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137067730181337,
+          "response_wall_ns": 1795081507709856938
+        },
+        "/controller_manager/list_hardware_interfaces": {
+          "requested_monotonic_ns": 3137067729014417,
+          "requested_wall_ns": 1795081507708689846,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137067730276408,
+          "response_wall_ns": 1795081507709951872
+        },
+        "/controller_manager/get_parameters": {
+          "requested_monotonic_ns": 3137067729083249,
+          "requested_wall_ns": 1795081507708758986,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137067729790418,
+          "response_wall_ns": 1795081507709465873
+        },
+        "/robotiq_gripper_controller/get_parameters": {
+          "requested_monotonic_ns": 3137067729134158,
+          "requested_wall_ns": 1795081507708809584,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137067730486913,
+          "response_wall_ns": 1795081507710162361
+        }
+      },
+      "service_providers": {
+        "/controller_manager/list_controllers": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListControllers"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_components": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareComponents"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_interfaces": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareInterfaces"
+            ]
+          }
+        ]
+      },
+      "controller": [
+        {
+          "name": "robotiq_gripper_controller",
+          "type": "robotiq_controllers/GripperCommandController",
+          "state": "active",
+          "claimed": [
+            "robotiq_85_left_knuckle_joint/position"
+          ]
+        }
+      ],
+      "hardware": [
+        {
+          "name": "RobotiqGripperHardwareInterface",
+          "state": "active",
+          "state_id": 3,
+          "expected_command_interfaces": [
+            {
+              "name": "robotiq_85_left_knuckle_joint/position",
+              "claimed": true,
+              "available": true
+            }
+          ]
+        }
+      ],
+      "expected_interface_listing": [
+        {
+          "name": "robotiq_85_left_knuckle_joint/position",
+          "claimed": true,
+          "available": true
+        }
+      ],
+      "parameters": {
+        "/controller_manager/get_parameters": {
+          "update_rate": 500,
+          "use_sim_time": false
+        },
+        "/robotiq_gripper_controller/get_parameters": {
+          "gripper_profile": "2f_85",
+          "gripper_closed_position": 0.7929,
+          "max_effort": 50.0,
+          "allow_stalling": true,
+          "use_object_status": true,
+          "object_status_timeout": 10.0,
+          "goal_tolerance": 0.02,
+          "stall_timeout": 0.05,
+          "action_monitor_rate": 100.0,
+          "use_sim_time": false
+        }
+      },
+      "health": {
+        "failure_kind": null,
+        "sample_header": {
+          "sec": 1795081509,
+          "nanosec": 702168529,
+          "frame_id": ""
+        },
+        "received_monotonic_ns": 3137069722632880,
+        "data": {
+          "object_detection": 3,
+          "motor_current": 0.0,
+          "gripper_fault": 0,
+          "gripper_fault_severity": 0
+        },
+        "progress": {
+          "samples": 998,
+          "device_time_changes": 0,
+          "device_time_reversals": 0,
+          "first_receipt_ns": 3137067729381389,
+          "last_receipt_ns": 3137069722632880
+        }
+      },
+      "observations": {
+        "knuckle": {
+          "topic": "/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 998,
+          "error": null,
+          "header": {
+            "sec": 1795081509,
+            "nanosec": 702168529,
+            "frame_id": "base_link"
+          },
+          "received_monotonic_ns": 3137069722886854,
+          "data_sha256": "786a0f94d5c1482059f28b7aa0fbaac1b375437f0998f499be18e28e5ebf9b2a"
+        },
+        "normalized": {
+          "topic": "/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 998,
+          "error": null,
+          "header": {
+            "sec": 1795081509,
+            "nanosec": 702168529,
+            "frame_id": ""
+          },
+          "received_monotonic_ns": 3137069722772151,
+          "data_sha256": "36a69758f504621a23ed4071568d808b30eba251a50e5d442a7164175ce7b0be"
+        }
+      },
+      "command_topics": {},
+      "action_servers": [
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        },
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/normalized_gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        }
+      ],
+      "action_clients": [
+        {
+          "node": "robotiq_output_domain71",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        },
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        }
+      ],
+      "goal_status": {
+        "/robotiq_gripper_controller/gripper_cmd/_action/status": {
+          "sample": {
+            "statuses": [
+              {
+                "goal_id": "fd543d8a90c9457b8fc6ebddf4418060",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795074759,
+                  "nanosec": 318567111
+                }
+              },
+              {
+                "goal_id": "c270d79505d240a9beb6ff2d427672e8",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075031,
+                  "nanosec": 618620099
+                }
+              },
+              {
+                "goal_id": "a72a8e67897b4560b793f5b34a5a291a",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075494,
+                  "nanosec": 218552528
+                }
+              },
+              {
+                "goal_id": "00e2e4b5ec304b20b8ff969a702b9718",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075501,
+                  "nanosec": 918675046
+                }
+              },
+              {
+                "goal_id": "a5771ccf18904cbb890904d7b78beb96",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075611,
+                  "nanosec": 18581643
+                }
+              }
+            ],
+            "publication_timestamp": null,
+            "timestamp_semantics": "GoalStatusArray has no header; per-goal stamps are creation times",
+            "received_monotonic_ns": 3137067739252044
+          },
+          "failure_kind": null
+        },
+        "/robotiq_gripper_controller/normalized_gripper_cmd/_action/status": {
+          "sample": null,
+          "failure_kind": "NO_SAMPLE"
+        }
+      },
+      "pending_bridge_requests": "UNKNOWN: no safe pending-queue introspection established"
+    },
+    {
+      "profile": "robotiq",
+      "domain_id": 71,
+      "index": 1,
+      "manager_before": [
+        "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26"
+      ],
+      "manager_after": [
+        "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26"
+      ],
+      "started_wall_ns": 1795081509833791187,
+      "collected_wall_ns": 1795081511835212701,
+      "started_monotonic_ns": 3137069854052169,
+      "collected_monotonic_ns": 3137071855536334,
+      "elapsed_s": 2.001482021,
+      "errors": {},
+      "service_queries": {
+        "/controller_manager/list_controllers": {
+          "requested_monotonic_ns": 3137069856858399,
+          "requested_wall_ns": 1795081509836534131,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137069857529908,
+          "response_wall_ns": 1795081509837205411
+        },
+        "/controller_manager/list_hardware_components": {
+          "requested_monotonic_ns": 3137069856894906,
+          "requested_wall_ns": 1795081509836570341,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137069858148845,
+          "response_wall_ns": 1795081509837824348
+        },
+        "/controller_manager/list_hardware_interfaces": {
+          "requested_monotonic_ns": 3137069856910483,
+          "requested_wall_ns": 1795081509836585893,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137069858228747,
+          "response_wall_ns": 1795081509837904225
+        },
+        "/controller_manager/get_parameters": {
+          "requested_monotonic_ns": 3137069856925319,
+          "requested_wall_ns": 1795081509836600725,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137069857632462,
+          "response_wall_ns": 1795081509837307916
+        },
+        "/robotiq_gripper_controller/get_parameters": {
+          "requested_monotonic_ns": 3137069856945959,
+          "requested_wall_ns": 1795081509836621353,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137069857841375,
+          "response_wall_ns": 1795081509837516834
+        }
+      },
+      "service_providers": {
+        "/controller_manager/list_controllers": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListControllers"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_components": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareComponents"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_interfaces": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareInterfaces"
+            ]
+          }
+        ]
+      },
+      "controller": [
+        {
+          "name": "robotiq_gripper_controller",
+          "type": "robotiq_controllers/GripperCommandController",
+          "state": "active",
+          "claimed": [
+            "robotiq_85_left_knuckle_joint/position"
+          ]
+        }
+      ],
+      "hardware": [
+        {
+          "name": "RobotiqGripperHardwareInterface",
+          "state": "active",
+          "state_id": 3,
+          "expected_command_interfaces": [
+            {
+              "name": "robotiq_85_left_knuckle_joint/position",
+              "claimed": true,
+              "available": true
+            }
+          ]
+        }
+      ],
+      "expected_interface_listing": [
+        {
+          "name": "robotiq_85_left_knuckle_joint/position",
+          "claimed": true,
+          "available": true
+        }
+      ],
+      "parameters": {
+        "/controller_manager/get_parameters": {
+          "update_rate": 500,
+          "use_sim_time": false
+        },
+        "/robotiq_gripper_controller/get_parameters": {
+          "gripper_profile": "2f_85",
+          "gripper_closed_position": 0.7929,
+          "max_effort": 50.0,
+          "allow_stalling": true,
+          "use_object_status": true,
+          "object_status_timeout": 10.0,
+          "goal_tolerance": 0.02,
+          "stall_timeout": 0.05,
+          "action_monitor_rate": 100.0,
+          "use_sim_time": false
+        }
+      },
+      "health": {
+        "failure_kind": null,
+        "sample_header": {
+          "sec": 1795081511,
+          "nanosec": 832126507,
+          "frame_id": ""
+        },
+        "received_monotonic_ns": 3137071852582372,
+        "data": {
+          "object_detection": 3,
+          "motor_current": 0.0,
+          "gripper_fault": 0,
+          "gripper_fault_severity": 0
+        },
+        "progress": {
+          "samples": 999,
+          "device_time_changes": 0,
+          "device_time_reversals": 0,
+          "first_receipt_ns": 3137069857221983,
+          "last_receipt_ns": 3137071852582372
+        }
+      },
+      "observations": {
+        "knuckle": {
+          "topic": "/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 999,
+          "error": null,
+          "header": {
+            "sec": 1795081511,
+            "nanosec": 832126507,
+            "frame_id": "base_link"
+          },
+          "received_monotonic_ns": 3137071852854401,
+          "data_sha256": "786a0f94d5c1482059f28b7aa0fbaac1b375437f0998f499be18e28e5ebf9b2a"
+        },
+        "normalized": {
+          "topic": "/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 999,
+          "error": null,
+          "header": {
+            "sec": 1795081511,
+            "nanosec": 832126507,
+            "frame_id": ""
+          },
+          "received_monotonic_ns": 3137071852733834,
+          "data_sha256": "36a69758f504621a23ed4071568d808b30eba251a50e5d442a7164175ce7b0be"
+        }
+      },
+      "command_topics": {},
+      "action_servers": [
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        },
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/normalized_gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        }
+      ],
+      "action_clients": [
+        {
+          "node": "robotiq_output_domain71",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        },
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        }
+      ],
+      "goal_status": {
+        "/robotiq_gripper_controller/gripper_cmd/_action/status": {
+          "sample": {
+            "statuses": [
+              {
+                "goal_id": "fd543d8a90c9457b8fc6ebddf4418060",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795074759,
+                  "nanosec": 318567111
+                }
+              },
+              {
+                "goal_id": "c270d79505d240a9beb6ff2d427672e8",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075031,
+                  "nanosec": 618620099
+                }
+              },
+              {
+                "goal_id": "a72a8e67897b4560b793f5b34a5a291a",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075494,
+                  "nanosec": 218552528
+                }
+              },
+              {
+                "goal_id": "00e2e4b5ec304b20b8ff969a702b9718",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075501,
+                  "nanosec": 918675046
+                }
+              },
+              {
+                "goal_id": "a5771ccf18904cbb890904d7b78beb96",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075611,
+                  "nanosec": 18581643
+                }
+              }
+            ],
+            "publication_timestamp": null,
+            "timestamp_semantics": "GoalStatusArray has no header; per-goal stamps are creation times",
+            "received_monotonic_ns": 3137069867078937
+          },
+          "failure_kind": null
+        },
+        "/robotiq_gripper_controller/normalized_gripper_cmd/_action/status": {
+          "sample": null,
+          "failure_kind": "NO_SAMPLE"
+        }
+      },
+      "pending_bridge_requests": "UNKNOWN: no safe pending-queue introspection established"
+    },
+    {
+      "profile": "robotiq",
+      "domain_id": 71,
+      "index": 2,
+      "manager_before": [
+        "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26"
+      ],
+      "manager_after": [
+        "64264a8982280570060e18a799b51e36e3393929ec6fe8068f4bd475c5198d26"
+      ],
+      "started_wall_ns": 1795081511962710206,
+      "collected_wall_ns": 1795081513964511461,
+      "started_monotonic_ns": 3137071982969755,
+      "collected_monotonic_ns": 3137073984835431,
+      "elapsed_s": 2.001863198,
+      "errors": {},
+      "service_queries": {
+        "/controller_manager/list_controllers": {
+          "requested_monotonic_ns": 3137071985738664,
+          "requested_wall_ns": 1795081511965414558,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137071986566675,
+          "response_wall_ns": 1795081511966242447
+        },
+        "/controller_manager/list_hardware_components": {
+          "requested_monotonic_ns": 3137071985775649,
+          "requested_wall_ns": 1795081511965451107,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137071986777985,
+          "response_wall_ns": 1795081511966453543
+        },
+        "/controller_manager/list_hardware_interfaces": {
+          "requested_monotonic_ns": 3137071985791987,
+          "requested_wall_ns": 1795081511965467392,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137071986925900,
+          "response_wall_ns": 1795081511966601471
+        },
+        "/controller_manager/get_parameters": {
+          "requested_monotonic_ns": 3137071985807691,
+          "requested_wall_ns": 1795081511965483113,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137071987147322,
+          "response_wall_ns": 1795081511966822944
+        },
+        "/robotiq_gripper_controller/get_parameters": {
+          "requested_monotonic_ns": 3137071985829049,
+          "requested_wall_ns": 1795081511965504479,
+          "failure_kind": null,
+          "response_monotonic_ns": 3137071987371346,
+          "response_wall_ns": 1795081511967046804
+        }
+      },
+      "service_providers": {
+        "/controller_manager/list_controllers": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListControllers"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_components": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareComponents"
+            ]
+          }
+        ],
+        "/controller_manager/list_hardware_interfaces": [
+          {
+            "node": "controller_manager",
+            "namespace": "/",
+            "types": [
+              "controller_manager_msgs/srv/ListHardwareInterfaces"
+            ]
+          }
+        ]
+      },
+      "controller": [
+        {
+          "name": "robotiq_gripper_controller",
+          "type": "robotiq_controllers/GripperCommandController",
+          "state": "active",
+          "claimed": [
+            "robotiq_85_left_knuckle_joint/position"
+          ]
+        }
+      ],
+      "hardware": [
+        {
+          "name": "RobotiqGripperHardwareInterface",
+          "state": "active",
+          "state_id": 3,
+          "expected_command_interfaces": [
+            {
+              "name": "robotiq_85_left_knuckle_joint/position",
+              "claimed": true,
+              "available": true
+            }
+          ]
+        }
+      ],
+      "expected_interface_listing": [
+        {
+          "name": "robotiq_85_left_knuckle_joint/position",
+          "claimed": true,
+          "available": true
+        }
+      ],
+      "parameters": {
+        "/controller_manager/get_parameters": {
+          "update_rate": 500,
+          "use_sim_time": false
+        },
+        "/robotiq_gripper_controller/get_parameters": {
+          "gripper_profile": "2f_85",
+          "gripper_closed_position": 0.7929,
+          "max_effort": 50.0,
+          "allow_stalling": true,
+          "use_object_status": true,
+          "object_status_timeout": 10.0,
+          "goal_tolerance": 0.02,
+          "stall_timeout": 0.05,
+          "action_monitor_rate": 100.0,
+          "use_sim_time": false
+        }
+      },
+      "health": {
+        "failure_kind": null,
+        "sample_header": {
+          "sec": 1795081513,
+          "nanosec": 962127893,
+          "frame_id": ""
+        },
+        "received_monotonic_ns": 3137073982556637,
+        "data": {
+          "object_detection": 3,
+          "motor_current": 0.0,
+          "gripper_fault": 0,
+          "gripper_fault_severity": 0
+        },
+        "progress": {
+          "samples": 999,
+          "device_time_changes": 0,
+          "device_time_reversals": 0,
+          "first_receipt_ns": 3137071987584578,
+          "last_receipt_ns": 3137073982556637
+        }
+      },
+      "observations": {
+        "knuckle": {
+          "topic": "/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 999,
+          "error": null,
+          "header": {
+            "sec": 1795081513,
+            "nanosec": 962127893,
+            "frame_id": "base_link"
+          },
+          "received_monotonic_ns": 3137073982763996,
+          "data_sha256": "786a0f94d5c1482059f28b7aa0fbaac1b375437f0998f499be18e28e5ebf9b2a"
+        },
+        "normalized": {
+          "topic": "/joint_states",
+          "type": "sensor_msgs/msg/JointState",
+          "sequence": 999,
+          "error": null,
+          "header": {
+            "sec": 1795081513,
+            "nanosec": 962127893,
+            "frame_id": ""
+          },
+          "received_monotonic_ns": 3137073982664557,
+          "data_sha256": "36a69758f504621a23ed4071568d808b30eba251a50e5d442a7164175ce7b0be"
+        }
+      },
+      "command_topics": {},
+      "action_servers": [
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        },
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/normalized_gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        }
+      ],
+      "action_clients": [
+        {
+          "node": "robotiq_output_domain71",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        },
+        {
+          "node": "robotiq_gripper_controller",
+          "namespace": "/",
+          "endpoint": "/robotiq_gripper_controller/gripper_cmd",
+          "types": [
+            "control_msgs/action/GripperCommand"
+          ]
+        }
+      ],
+      "goal_status": {
+        "/robotiq_gripper_controller/gripper_cmd/_action/status": {
+          "sample": {
+            "statuses": [
+              {
+                "goal_id": "fd543d8a90c9457b8fc6ebddf4418060",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795074759,
+                  "nanosec": 318567111
+                }
+              },
+              {
+                "goal_id": "c270d79505d240a9beb6ff2d427672e8",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075031,
+                  "nanosec": 618620099
+                }
+              },
+              {
+                "goal_id": "a72a8e67897b4560b793f5b34a5a291a",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075494,
+                  "nanosec": 218552528
+                }
+              },
+              {
+                "goal_id": "00e2e4b5ec304b20b8ff969a702b9718",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075501,
+                  "nanosec": 918675046
+                }
+              },
+              {
+                "goal_id": "a5771ccf18904cbb890904d7b78beb96",
+                "status": 4,
+                "goal_stamp": {
+                  "sec": 1795075611,
+                  "nanosec": 18581643
+                }
+              }
+            ],
+            "publication_timestamp": null,
+            "timestamp_semantics": "GoalStatusArray has no header; per-goal stamps are creation times",
+            "received_monotonic_ns": 3137071995836873
+          },
+          "failure_kind": null
+        },
+        "/robotiq_gripper_controller/normalized_gripper_cmd/_action/status": {
+          "sample": null,
+          "failure_kind": "NO_SAMPLE"
+        }
+      },
+      "pending_bridge_requests": "UNKNOWN: no safe pending-queue introspection established"
+    }
+  ]
+}

@@ -31,10 +31,28 @@ FR3_NAMES = [f"fr3_joint{i}" for i in (1, 3, 6, 7, 2, 4, 5)]
 def state_message(topic, tick=0, joint_name=None):
     """Return standard-message-shaped test data with deliberately shuffled joints."""
     header = NS(stamp=NS(sec=123, nanosec=tick), frame_id="base_link")
+    if "/_action/status" in topic:
+        if MODE in ("active_goal", "invalid_goal"):
+            return NS(
+                status_list=[
+                    NS(
+                        status=2,
+                        goal_info=NS(
+                            goal_id=NS(
+                                uuid=list(range(15 if MODE == "invalid_goal" else 16))
+                            ),
+                            stamp=NS(sec=123, nanosec=0),
+                        ),
+                    )
+                ]
+            )
+        return NS(status_list=[])
     if topic.endswith("/robot_state"):
         return NS(
             header=header,
             robot_mode=2,
+            time=100.0 if MODE == "frozen_device" else tick / 1000,
+            control_command_success_rate=1.0,
             current_errors=NS(
                 joint_reflex=MODE == "fault",
                 get_fields_and_field_types=lambda: {"joint_reflex": "boolean"},
@@ -98,6 +116,7 @@ class Context:
 def init(*, args, context, domain_id):
     assert str(domain_id) == os.environ["ROS_DOMAIN_ID"]
     assert args == []
+    context.domain_id = domain_id
     if MODE == "startup_error":
         raise RuntimeError("test ROS initialization failed")
 
@@ -116,7 +135,7 @@ class Node:
         self.created = time.monotonic()
         self.callbacks = {}
         self.tick = 0
-        self.profile = "fr3" if "fr3" in name else "robotiq"
+        self.profile = "fr3" if context.domain_id == 70 else "robotiq"
 
     def get_publishers_info_by_topic(self, topic):
         if MODE == "hang":
@@ -143,6 +162,8 @@ class Node:
             ros_type = "franka_msgs/msg/FrankaRobotState"
         if topic.endswith("/status"):
             ros_type = "robotiq_msgs/msg/GripperStatus"
+        if "/_action/status" in topic:
+            ros_type = "action_msgs/msg/GoalStatusArray"
         if "target_" in topic:
             return []
         return [self.endpoint(ros_type, "state_broadcaster")]
@@ -187,6 +208,21 @@ class Node:
             names.append("controller_manager")
         return [(name, "/") for name in names]
 
+    def get_service_names_and_types_by_node(self, name, namespace):
+        if name == "controller_manager":
+            return [
+                (
+                    "/controller_manager/" + suffix,
+                    ["controller_manager_msgs/srv/" + kind],
+                )
+                for suffix, kind in (
+                    ("list_controllers", "ListControllers"),
+                    ("list_hardware_components", "ListHardwareComponents"),
+                    ("list_hardware_interfaces", "ListHardwareInterfaces"),
+                )
+            ]
+        return []
+
     def create_client(self, kind, name):
         if MODE == "diagnostic_crash":
             os._exit(17)
@@ -204,11 +240,14 @@ class Node:
         return NS(
             service_is_ready=lambda: MODE != "service_timeout",
             call_async=lambda request: NS(
-                done=lambda: True, result=lambda: self.response(name, request)
+                done=lambda: MODE != "response_timeout",
+                result=lambda: self.response(name, request),
             ),
         )
 
     def response(self, name, request):
+        if MODE == "invalid_response":
+            raise ValueError("Invalid service payload")
         arm = self.profile == "fr3"
         claims = (
             [f"fr3_joint{i}/effort" for i in range(1, 8)]
@@ -301,6 +340,14 @@ class Node:
         }
 
     def create_subscription(self, msg_type, topic, callback, qos):
+        if "/_action/status" in topic:
+            assert (qos.depth, qos.reliability, qos.durability) == (
+                1,
+                "reliable",
+                "transient_local",
+            )
+            self.callbacks[topic] = callback
+            return callback
         assert qos.depth == 5
         assert (qos.history, qos.reliability, qos.durability) == (
             "keep_last",
@@ -389,8 +436,12 @@ if __name__ == "rclpy":
         "rclpy.qos",
         QoSProfile=lambda **kw: NS(**{"history": "keep_last", **kw}),
         HistoryPolicy=NS(KEEP_LAST="keep_last"),
-        ReliabilityPolicy=NS(BEST_EFFORT="best_effort"),
-        DurabilityPolicy=NS(VOLATILE="volatile"),
+        ReliabilityPolicy=NS(BEST_EFFORT="best_effort", RELIABLE="reliable"),
+        DurabilityPolicy=NS(VOLATILE="volatile", TRANSIENT_LOCAL="transient_local"),
+        qos_check_compatible=lambda *args: (
+            NS(name="ERROR" if MODE == "bad_health_qos" else "OK"),
+            "",
+        ),
     )
     module("rosidl_runtime_py")
     module(

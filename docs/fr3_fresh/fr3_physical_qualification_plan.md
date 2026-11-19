@@ -13,6 +13,11 @@ thresholds are blocking evidence, never assumed passes. Classifications are
 **Verified runtime**, **Source-supported**, **Proposed**, and
 **Unverified / blocked**, as defined in the milestone report.
 
+**2D evidence update:** [Passive gap resolution](milestone_2d_passive_readiness_gaps.md)
+corroborates the arm I/O failure and frozen acquisition under a stable manager.
+P1 remains FAIL; P3 requires independently restored device acquisition as well as
+visible ROS status. No recovery, physical test or operator signoff is supplied.
+
 ## 1. Qualification Record and Responsibilities
 
 Assign accountable people before reviewing physical evidence. The human safety

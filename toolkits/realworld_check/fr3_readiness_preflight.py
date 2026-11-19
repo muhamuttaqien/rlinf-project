@@ -32,6 +32,11 @@ def main() -> None:
     parser.add_argument("--ros-python", default="/usr/bin/python3")
     parser.add_argument("--ros-setup", default="/opt/ros/jazzy/setup.bash")
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--nuc",
+        action="store_true",
+        help="Also run the fixed read-only Humble probe through authorized SSH alias nuc-franka",
+    )
     args = parser.parse_args()
     try:
         report = run_preflight(

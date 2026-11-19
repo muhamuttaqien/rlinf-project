@@ -23,7 +23,7 @@ from numbers import Real
 from typing import Any
 
 from .ros2_observation import FR3ROS2Observation, RobotiqROS2Observation
-from .transports.ros2.passive import COMMAND_TOPIC, GRIPPER_ACTIONS, PARAMETERS
+from .transports.ros2.passive import COMMAND_TOPIC, GRIPPER_ACTIONS, PARAMETERS, origin
 from .transports.ros2.protocol import FR3_JOINTS, PROFILES
 
 EXPECTED = {
@@ -88,6 +88,8 @@ def check(state: str, detail: str) -> dict[str, str]:
 
 def summarize(checks: list[dict[str, str]]) -> dict[str, Any]:
     """Retain all findings and prefer failure or missing evidence over pass."""
+    if not checks:
+        return {"state": "UNKNOWN", "checks": []}
     state = next(
         (
             s
@@ -145,6 +147,7 @@ def assess_readiness(
     max_age: float = 0.25,
     now_ns: int | None = None,
     wall_ns: int | None = None,
+    profiles: tuple[str, ...] = ("fr3", "robotiq"),
 ) -> dict[str, Any]:
     """Assess same-host evidence, retaining unknowns and contradictory reports.
 
@@ -154,11 +157,18 @@ def assess_readiness(
     """
     if not math.isfinite(max_age) or max_age <= 0:
         raise ValueError("Expected positive finite observation max_age")
+    if (
+        not profiles
+        or len(set(profiles)) != len(profiles)
+        or any(p not in EXPECTED for p in profiles)
+    ):
+        raise ValueError("Expected distinct fixed readiness profiles")
     now_ns = time.monotonic_ns() if now_ns is None else now_ns
     wall_ns = time.time_ns() if wall_ns is None else wall_ns
     categories: dict[str, list] = {name: [] for name in CATEGORIES}
     timing, fingerprints = {}, {}
-    for profile, expected in EXPECTED.items():
+    for profile in profiles:
+        expected = EXPECTED[profile]
 
         def add(category: str, state: str, detail: str) -> None:
             categories[category].append(check(state, f"{profile}: {detail}"))
@@ -269,6 +279,12 @@ def assess_readiness(
                     )
                 else:
                     controller, component = selected[0], components[0]
+                    if profile == "fr3" and component["state_id"] in (1, 4):
+                        add(
+                            "observation_readiness",
+                            "FAIL",
+                            "FR3 hardware unconfigured/finalized; fresh ROS headers cannot establish current device measurements",
+                        )
                     consistent = (
                         controller["state"] == "active"
                         and component["state"] == "active"
@@ -422,6 +438,27 @@ def assess_readiness(
                     f"{len(owners)} external gripper client identities; controller's internal relay is recorded separately; handover remains unqualified",
                 )
             health = evidence.get("health", {})
+            progress = health.get("progress", {})
+            if profile == "fr3" and progress.get("samples", 0) >= 2:
+                interval = (
+                    progress.get("last_receipt_ns", 0)
+                    - progress.get("first_receipt_ns", 0)
+                ) / 1e9
+                if progress.get("device_time_reversals", 0) or (
+                    interval >= 0.1
+                    and "first_device_time_s" in progress
+                    and progress.get("device_time_changes", 0) == 0
+                ):
+                    add(
+                        "observation_readiness",
+                        "FAIL",
+                        "FR3 device time frozen/reversed despite ROS publication; receipt freshness does not establish measurement validity",
+                    )
+                    add(
+                        "controller_status_visibility",
+                        "FAIL",
+                        "FR3 device-time progression inconsistent with live acquisition",
+                    )
             sample = health.get("sample")
             category = (
                 "gripper_status_visibility"
@@ -431,7 +468,14 @@ def assess_readiness(
             if not sample or health.get("error"):
                 add(
                     category,
-                    "UNKNOWN",
+                    "FAIL"
+                    if health.get("failure_kind")
+                    in (
+                        "QOS_INCOMPATIBLE",
+                        "INVALID_RESPONSE",
+                        "INTERFACE_TYPE_MISMATCH",
+                    )
+                    else "UNKNOWN",
                     "typed health unavailable: " + str(health.get("error")),
                 )
             elif not 0 <= (now_ns - sample["received_monotonic_ns"]) / 1e9 <= max_age:
@@ -447,6 +491,7 @@ def assess_readiness(
                         data["gripper_fault"],
                         data["gripper_fault_severity"],
                     )
+                    unknown |= data["object_detection"] not in (0, 1, 2, 3)
                     healthy = (
                         data["gripper_fault"] == data["gripper_fault_severity"] == 0
                     )
@@ -498,6 +543,7 @@ def assess_readiness(
         "assessment_monotonic_ns": now_ns,
         "assessment_wall_ns": wall_ns,
         "monotonic_clock_domain": "preflight_host",
+        "origin": origin(),
         "physical_command_authorization": "NOT_GRANTED",
         "qualification_gate": "NO_GO",
         "categories": {name: summarize(values) for name, values in categories.items()},
@@ -525,6 +571,7 @@ def run_preflight(
     timeout: float = 6.0,
     ros_python: str = "/usr/bin/python3",
     ros_setup: str = "/opt/ros/jazzy/setup.bash",
+    nuc: bool = False,
 ) -> dict[str, Any]:
     """Own two bounded passive workers, then release only those resources.
 
@@ -550,6 +597,7 @@ def run_preflight(
         )
     }
     observations, diagnostics, errors = {}, {}, {}
+    remote_evidence, remote_error = None, None
     started = time.monotonic_ns()
     try:
         for name, part in parts.items():
@@ -558,6 +606,13 @@ def run_preflight(
             except Exception as exc:
                 errors[name] = str(exc)[:2048]
         time.sleep(duration)
+        if nuc:
+            from .transports.ros2.remote import collect_nuc_evidence
+
+            try:
+                remote_evidence = collect_nuc_evidence()
+            except (ConnectionError, OSError, ValueError) as exc:
+                remote_error = str(exc)[:2048]
 
         def inspect(part: Any) -> dict[str, Any]:
             before = time.monotonic_ns()
@@ -587,4 +642,299 @@ def run_preflight(
         for part in parts.values():
             part.disconnect()
     report["elapsed_s"] = (time.monotonic_ns() - started) / 1e9
+    if nuc:
+        report = merge_nuc_evidence(
+            report, remote_evidence, error=remote_error, max_age=max_age
+        )
+    return report
+
+
+def merge_nuc_evidence(
+    local: dict[str, Any],
+    remote: dict[str, Any] | None,
+    *,
+    error: str | None = None,
+    max_age: float = 0.25,
+) -> dict[str, Any]:
+    """Merge origin-specific snapshots without comparing cross-host monotonic time.
+
+    Remote health is evaluated at its collector's snapshot time. Visibility can
+    be supplied by Humble, while every known local failure and remote conflict
+    remains blocking. These snapshots never establish present device safety.
+    """
+    report = {
+        **local,
+        "schema": "fr3_passive_readiness_v2",
+        "local_categories": local["categories"],
+        "remote_evidence": remote,
+        "remote_error": error,
+        "remote_assessments": [],
+        "remote_live_freshness": "UNKNOWN: collected snapshots, no qualified clock/transport-age bound",
+        "device_measurement_validity": {
+            "fr3": "UNKNOWN",
+            "robotiq": "UNKNOWN: fresh publication does not attest serial acquisition",
+        },
+    }
+    findings: dict[str, list] = {key: [] for key in CATEGORIES}
+    try:
+        if remote is None:
+            raise ConnectionError(error or "No NUC evidence received")
+        if (
+            remote.get("schema") != "fr3_nuc_passive_v1"
+            or remote.get("physical_command_authorization") != "NOT_GRANTED"
+            or remote.get("qualification_gate") != "NO_GO"
+        ):
+            raise ValueError("Expected versioned, non-authorizing NUC evidence")
+        source = remote["origin"]
+        if (
+            not all(
+                isinstance(source.get(k), str) and source[k] not in ("", "unknown")
+                for k in ("host", "boot_id", "clock_domain")
+            )
+            or source.get("ros_distro") != "humble"
+        ):
+            raise ValueError("Expected identified Humble host/boot/clock provenance")
+        snapshots = remote["snapshots"]
+        if len(snapshots) != 6:
+            raise ValueError("Expected exactly six NUC snapshots")
+        manager_identities: dict[str, Any] = {}
+        last_times: dict[str, int] = {}
+        seen = set()
+        for snapshot in snapshots:
+            profile = snapshot["profile"]
+            domain = EXPECTED[profile]["domain"]
+            index = snapshot["index"]
+            if (
+                type(index) is not int
+                or not 0 <= index < 3
+                or (profile, index) in seen
+                or snapshot["domain_id"] != domain
+            ):
+                raise ValueError(
+                    "Expected unique indices 0..2 and matching fixed domains"
+                )
+            seen.add((profile, index))
+            evidence = snapshot["evidence"]
+            if evidence["origin"] != source:
+                raise ValueError(
+                    "Expected one identified collector origin for every snapshot"
+                )
+            now = evidence["collected_monotonic_ns"]
+            if type(now) is not int or now < evidence["started_monotonic_ns"]:
+                raise ValueError("Expected ordered remote collection timestamps")
+            if now <= last_times.get(profile, -1):
+                raise ValueError(
+                    "Expected strictly increasing same-host snapshot timestamps"
+                )
+            last_times[profile] = now
+            checks = []
+            before, after = snapshot["manager_before"], snapshot["manager_after"]
+            if len(before) != 1 or len(after) != 1:
+                checks.append(
+                    check(
+                        "UNKNOWN" if not before or not after else "FAIL",
+                        "Missing/ambiguous same-uid manager identity",
+                    )
+                )
+            elif before != after or before[0]["domain_id"] != domain:
+                checks.append(
+                    check(
+                        "FAIL",
+                        "Manager/process/library identity changed during snapshot",
+                    )
+                )
+            else:
+                manager = before[0]
+                if (
+                    type(manager["pid"]) is not int
+                    or manager["pid"] <= 0
+                    or type(manager["start_ticks"]) is not int
+                    or manager["start_ticks"] <= 0
+                ):
+                    raise ValueError(
+                        "Expected positive manager PID and process start ticks"
+                    )
+                identity = (
+                    manager["pid"],
+                    manager["start_ticks"],
+                    manager["argv_sha256"],
+                    manager["libraries"],
+                )
+                if (
+                    profile in manager_identities
+                    and identity != manager_identities[profile]
+                ):
+                    checks.append(
+                        check("FAIL", "Manager epoch/library changed across snapshots")
+                    )
+                manager_identities.setdefault(profile, identity)
+                if not manager["libraries"] or any(
+                    v["mapped_inode"] != v["file_inode"]
+                    for v in manager["libraries"].values()
+                ):
+                    checks.append(
+                        check(
+                            "FAIL", "Mapped library identity unavailable/inconsistent"
+                        )
+                    )
+                required = {"libcontroller_manager.so", "libhardware_interface.so"} | (
+                    {"libfranka_hardware.so", "libfranka_arm_controllers.so"}
+                    if profile == "fr3"
+                    else {"librobotiq_controllers.so", "librobotiq_driver.so"}
+                )
+                if not required.issubset(
+                    {str(path).rsplit("/", 1)[-1] for path in manager["libraries"]}
+                ):
+                    checks.append(
+                        check(
+                            "UNKNOWN",
+                            "Required mapped controller/hardware library identities incomplete",
+                        )
+                    )
+            for name in (
+                "list_controllers",
+                "list_hardware_components",
+                "list_hardware_interfaces",
+            ):
+                service = "/controller_manager/" + name
+                providers = evidence.get("service_providers", {}).get(service, [])
+                if (
+                    len(providers) != 1
+                    or providers[0]["node"] != "controller_manager"
+                    or providers[0]["namespace"] != "/"
+                ):
+                    checks.append(
+                        check(
+                            "FAIL" if providers else "UNKNOWN",
+                            "Manager service-provider graph identity missing/ambiguous: "
+                            + name,
+                        )
+                    )
+            for service, query in evidence.get("service_queries", {}).items():
+                if (
+                    query.get("failure_kind") is None
+                    and not evidence["started_monotonic_ns"]
+                    <= query["requested_monotonic_ns"]
+                    <= query["response_monotonic_ns"]
+                    <= now
+                ):
+                    raise ValueError(
+                        "Expected request/response timestamps inside this collector window"
+                    )
+            streams = json.loads(
+                json.dumps(evidence.get("observation_streams", {}), allow_nan=False)
+            )
+            complete = True
+            for stream in streams.values():
+                sample = stream.get("sample")
+                stream["connected"] = stream.get("publishers", 0) > 0
+                complete &= (
+                    bool(sample) and stream["connected"] and not stream.get("error")
+                )
+            observed = {
+                profile: {
+                    "ros2": {
+                        "domain_id": domain,
+                        "complete": complete,
+                        "streams": streams,
+                    }
+                }
+            }
+            view = assess_readiness(
+                observed,
+                {
+                    profile: {
+                        "domain_id": domain,
+                        "profile": profile,
+                        "evidence": evidence,
+                    }
+                },
+                now_ns=now,
+                wall_ns=evidence["collected_wall_ns"],
+                profiles=(profile,),
+                max_age=max_age,
+            )
+            for category, value in view["categories"].items():
+                if category == "physical_safety_qualification" or (
+                    profile == "fr3" and category == "gripper_status_visibility"
+                ):
+                    continue
+                findings[category].extend(value["checks"])
+            for category in (
+                "controller_status_visibility",
+                "interface_identity_consistency",
+                "ownership_evidence_availability",
+            ):
+                findings[category].extend(checks)
+            local_services = (
+                local.get("diagnostics", {})
+                .get(profile, {})
+                .get("evidence", {})
+                .get("services", {})
+            )
+            for service, values in evidence.get("services", {}).items():
+                if service not in local_services:
+                    continue
+                if values != local_services[service]:
+                    findings["interface_identity_consistency"].append(
+                        check(
+                            "FAIL",
+                            f"{profile}: Workstation/NUC reported different values for {service}; asynchronous evidence retained",
+                        )
+                    )
+            progress = evidence.get("health", {}).get("progress", {})
+            if profile == "fr3":
+                if progress.get("device_time_reversals", 0) or (
+                    progress.get("samples", 0) >= 2
+                    and "first_device_time_s" in progress
+                    and not progress.get("device_time_changes", 0)
+                ):
+                    report["device_measurement_validity"][profile] = (
+                        "FAIL: device time did not progress or reversed"
+                    )
+                elif progress.get("device_time_changes", 0) and not report[
+                    "device_measurement_validity"
+                ][profile].startswith("FAIL"):
+                    report["device_measurement_validity"][profile] = (
+                        "SOURCE_PROGRESS_OBSERVED: not physical qualification"
+                    )
+            report["remote_assessments"].append(
+                {
+                    "profile": profile,
+                    "index": index,
+                    "domain_id": domain,
+                    "clock_domain": source["clock_domain"],
+                    "collected_monotonic_ns": now,
+                    "manager_checks": checks,
+                    "categories": view["categories"],
+                }
+            )
+    except (KeyError, TypeError, ValueError, AttributeError, ConnectionError) as exc:
+        report["remote_error"] = str(exc)[:2048]
+        for category in CATEGORIES[:-1]:
+            findings[category].append(
+                check(
+                    "UNKNOWN" if isinstance(exc, ConnectionError) else "FAIL",
+                    "NUC evidence unavailable/invalid: " + str(exc)[:512],
+                )
+            )
+    combined = {}
+    for category in CATEGORIES[:-1]:
+        checks = findings[category]
+        local_value = local["categories"][category]
+        if (
+            category in ("observation_readiness", "timing_evidence_availability")
+            or local_value["state"] == "FAIL"
+            or not checks
+        ):
+            checks = local_value["checks"] + checks
+        combined[category] = summarize(checks)
+    combined["physical_safety_qualification"] = summarize(
+        [check("NOT_QUALIFIED", "Passive evidence cannot grant physical qualification")]
+    )
+    report.update(
+        categories=combined,
+        physical_command_authorization="NOT_GRANTED",
+        qualification_gate="NO_GO",
+    )
     return report

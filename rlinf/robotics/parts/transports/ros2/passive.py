@@ -15,8 +15,16 @@
 """Fixed read-only ROS diagnostics, imported only by the ROS-compatible worker."""
 
 import math
+import os
+import platform
 import time
+from pathlib import Path
 from typing import Any
+
+try:
+    from .protocol import PROFILES, decode_message
+except ImportError:
+    from protocol import PROFILES, decode_message
 
 STATE_TOPICS = {
     "fr3": (
@@ -121,6 +129,7 @@ def endpoints(items: Any) -> list[dict[str, Any]]:
             "reliability": x.qos_profile.reliability.name,
             "durability": x.qos_profile.durability.name,
             "depth": x.qos_profile.depth,
+            "endpoint_gid": list(getattr(x, "endpoint_gid", ())),
         }
         for x in bounded(items, 16)
     ]
@@ -129,6 +138,13 @@ def endpoints(items: Any) -> list[dict[str, Any]]:
 def health_sample(msg: Any, profile: str) -> dict[str, Any]:
     """Retain current typed status independently of measured motion streams."""
     stamp = msg.header.stamp
+    if (
+        type(stamp.sec) is not int
+        or type(stamp.nanosec) is not int
+        or stamp.sec < 0
+        or not 0 <= stamp.nanosec < 10**9
+    ):
+        raise ValueError("Expected a valid ROS health header timestamp")
     if profile == "robotiq":
         data = {
             key: getattr(msg, key)
@@ -145,11 +161,23 @@ def health_sample(msg: Any, profile: str) -> dict[str, Any]:
         ):
             raise ValueError("Expected finite current and uint8 gripper status")
     else:
+        if type(msg.robot_mode) is not int or not 0 <= msg.robot_mode <= 6:
+            raise ValueError("Expected a defined FR3 robot mode")
         names = bounded(msg.current_errors.get_fields_and_field_types(), 128)
         data = {
             "robot_mode": int(msg.robot_mode),
             "current_errors": {key: getattr(msg.current_errors, key) for key in names},
         }
+        for field in ("time", "control_command_success_rate"):
+            value = getattr(msg, field, None)
+            if value is not None and (not math.isfinite(value) or value < 0):
+                raise ValueError(f"Expected finite nonnegative FR3 {field}")
+            data[field] = value
+        if (
+            data["control_command_success_rate"] is not None
+            and data["control_command_success_rate"] > 1
+        ):
+            raise ValueError("Expected FR3 control_command_success_rate in [0,1]")
         if not names or any(
             type(v) is not bool for v in data["current_errors"].values()
         ):
@@ -166,7 +194,12 @@ def health_sample(msg: Any, profile: str) -> dict[str, Any]:
 
 
 def collect_status(
-    node: Any, executor: Any, profile: str, budget: float
+    node: Any,
+    executor: Any,
+    profile: str,
+    budget: float,
+    *,
+    include_observations: bool = False,
 ) -> dict[str, Any]:
     """Collect whitelisted listing/parameter services, graph and latest health.
 
@@ -177,7 +210,12 @@ def collect_status(
         get_action_client_names_and_types_by_node,
         get_action_server_names_and_types_by_node,
     )
-    from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+    from rclpy.qos import (
+        DurabilityPolicy,
+        QoSProfile,
+        ReliabilityPolicy,
+        qos_check_compatible,
+    )
     from rosidl_runtime_py.utilities import get_message, get_service
 
     if (
@@ -191,15 +229,56 @@ def collect_status(
     result: dict[str, Any] = {
         "errors": {},
         "services": {},
+        "service_queries": {},
+        "origin": origin(),
+        "started_wall_ns": time.time_ns(),
+        "started_monotonic_ns": started,
         "health": {
             "topic": HEALTH[profile][0],
             "type": HEALTH[profile][1],
             "sample": None,
             "error": "No matching health publisher discovered",
+            "failure_kind": "TOPIC_NOT_DISCOVERED",
+            "progress": {
+                "samples": 0,
+                "device_time_changes": 0,
+                "device_time_reversals": 0,
+            },
         },
     }
     clients, pending = [], {}
     subscription = None
+    state_subscriptions: dict[str, Any] = {}
+    goal_subscriptions: dict[str, Any] = {}
+    result["goal_status"] = (
+        {
+            endpoint + "/_action/status": {
+                "sample": None,
+                "failure_kind": "TOPIC_NOT_DISCOVERED",
+            }
+            for endpoint in GRIPPER_ACTIONS
+        }
+        if profile == "robotiq"
+        else {}
+    )
+    result["pending_bridge_requests"] = (
+        "UNKNOWN: no safe pending-queue introspection established"
+    )
+    observation_streams = (
+        {
+            key: {
+                "topic": topic,
+                "type": kind,
+                "sample": None,
+                "error": None,
+                "sequence": 0,
+                "publishers": 0,
+            }
+            for key, (topic, kind, _) in PROFILES[profile].items()
+        }
+        if include_observations
+        else {}
+    )
     try:
         queries = {
             "/controller_manager/" + name: ("controller_manager_msgs/srv/" + kind, ())
@@ -226,45 +305,197 @@ def collect_status(
                 pending[name] = [client, request, None, names]
             except Exception as exc:
                 result["errors"][name] = str(exc)[:512]
+                result["service_queries"][name] = {
+                    "failure_kind": "SERVICE_TYPE_IMPORT_ERROR"
+                    if isinstance(exc, ImportError)
+                    else "CLIENT_CREATION_ERROR"
+                }
 
         def callback(msg: Any) -> None:
             try:
-                result["health"]["sample"] = health_sample(msg, profile)
+                sample = health_sample(msg, profile)
+                progress = result["health"]["progress"]
+                previous = result["health"]["sample"]
+                progress["samples"] += 1
+                progress.setdefault("first_receipt_ns", sample["received_monotonic_ns"])
+                progress["last_receipt_ns"] = sample["received_monotonic_ns"]
+                device_time = sample["data"].get("time")
+                if profile == "fr3" and device_time is not None:
+                    progress.setdefault("first_device_time_s", device_time)
+                    progress["last_device_time_s"] = device_time
+                    if previous and previous["data"].get("time") is not None:
+                        before = previous["data"]["time"]
+                        progress["device_time_changes"] += device_time > before
+                        progress["device_time_reversals"] += device_time < before
+                result["health"]["sample"] = sample
                 result["health"]["error"] = None
+                result["health"]["failure_kind"] = None
             except (ValueError, TypeError, AttributeError) as exc:
                 result["health"]["sample"] = None
                 result["health"]["error"] = str(exc)[:512]
+                result["health"]["failure_kind"] = "INVALID_RESPONSE"
+
+        def state_callback(msg: Any, topic: str) -> None:
+            for key, (expected_topic, kind, joints) in PROFILES[profile].items():
+                if expected_topic != topic:
+                    continue
+                stream = observation_streams[key]
+                try:
+                    sample = decode_message(msg, kind, joints)
+                    if sample is not None:
+                        sample["received_monotonic_ns"] = time.monotonic_ns()
+                        stream.update(
+                            sample=sample, error=None, sequence=stream["sequence"] + 1
+                        )
+                except (ValueError, TypeError, AttributeError, OverflowError) as exc:
+                    stream.update(sample=None, error=str(exc)[:512])
+
+        def goal_callback(msg: Any, topic: str) -> None:
+            record = result["goal_status"][topic]
+            try:
+                statuses = []
+                for item in bounded(msg.status_list, 32):
+                    identifier = list(item.goal_info.goal_id.uuid)
+                    if (
+                        len(identifier) != 16
+                        or type(item.status) is not int
+                        or not 0 <= item.status <= 6
+                    ):
+                        raise ValueError(
+                            "Expected 16-byte UUID and defined action status"
+                        )
+                    statuses.append(
+                        {
+                            "goal_id": bytes(identifier).hex(),
+                            "status": item.status,
+                            "goal_stamp": {
+                                "sec": item.goal_info.stamp.sec,
+                                "nanosec": item.goal_info.stamp.nanosec,
+                            },
+                        }
+                    )
+                record.update(
+                    sample={
+                        "statuses": statuses,
+                        "publication_timestamp": None,
+                        "timestamp_semantics": "GoalStatusArray has no header; per-goal stamps are creation times",
+                        "received_monotonic_ns": time.monotonic_ns(),
+                    },
+                    failure_kind=None,
+                )
+            except (ValueError, TypeError, AttributeError) as exc:
+                record.update(
+                    sample=None, failure_kind="INVALID_RESPONSE", error=str(exc)[:512]
+                )
 
         next_health_discovery = 0.0
         while time.monotonic() < stop:
-            if subscription is None and time.monotonic() >= next_health_discovery:
+            if time.monotonic() >= next_health_discovery:
                 next_health_discovery = time.monotonic() + 0.25
                 topic, kind = HEALTH[profile]
                 try:
                     infos = node.get_publishers_info_by_topic(topic)
                     if any(x.topic_type != kind for x in infos):
                         raise ValueError("Conflicting health publisher type")
-                    if infos:
+                    if infos and subscription is None:
+                        requested_qos = QoSProfile(
+                            depth=5,
+                            reliability=ReliabilityPolicy.BEST_EFFORT,
+                            durability=DurabilityPolicy.VOLATILE,
+                        )
+                        compatibility = [
+                            qos_check_compatible(x.qos_profile, requested_qos)
+                            for x in infos
+                        ]
+                        result["health"]["qos_compatibility"] = [
+                            x[0].name for x in compatibility
+                        ]
+                        if any(x[0].name == "ERROR" for x in compatibility):
+                            result["health"]["error"] = (
+                                "Health publisher QoS incompatible with passive reader"
+                            )
+                            result["health"]["failure_kind"] = "QOS_INCOMPATIBLE"
+                            continue
                         subscription = node.create_subscription(
                             get_message(kind),
                             topic,
                             callback,
+                            requested_qos,
+                        )
+                        result["health"]["error"] = (
+                            "No health sample during diagnostic window"
+                        )
+                        result["health"]["failure_kind"] = "NO_SAMPLE"
+                except Exception as exc:
+                    result["health"]["error"] = str(exc)[:512]
+                    result["health"]["failure_kind"] = (
+                        "MESSAGE_IMPORT_ERROR"
+                        if isinstance(exc, ImportError)
+                        else "INTERFACE_TYPE_MISMATCH"
+                        if isinstance(exc, ValueError) and "Conflicting" in str(exc)
+                        else "INTERFACE_OR_SUBSCRIPTION_ERROR"
+                    )
+                for key, stream in observation_streams.items():
+                    topic, kind = stream["topic"], stream["type"]
+                    infos = node.get_publishers_info_by_topic(topic)
+                    stream["publishers"] = sum(x.topic_type == kind for x in infos)
+                    if any(x.topic_type != kind for x in infos):
+                        stream["error"] = "Conflicting state publisher type"
+                    elif stream["publishers"] and topic not in state_subscriptions:
+                        state_subscriptions[topic] = node.create_subscription(
+                            get_message(kind),
+                            topic,
+                            lambda msg, topic=topic: state_callback(msg, topic),
                             QoSProfile(
                                 depth=5,
                                 reliability=ReliabilityPolicy.BEST_EFFORT,
                                 durability=DurabilityPolicy.VOLATILE,
                             ),
                         )
-                except Exception as exc:
-                    result["health"]["error"] = str(exc)[:512]
+                for topic, record in result["goal_status"].items():
+                    if topic in goal_subscriptions:
+                        continue
+                    try:
+                        infos = node.get_publishers_info_by_topic(topic)
+                        if any(
+                            x.topic_type != "action_msgs/msg/GoalStatusArray"
+                            for x in infos
+                        ):
+                            record["failure_kind"] = "INTERFACE_TYPE_MISMATCH"
+                        elif infos:
+                            goal_subscriptions[topic] = node.create_subscription(
+                                get_message("action_msgs/msg/GoalStatusArray"),
+                                topic,
+                                lambda msg, topic=topic: goal_callback(msg, topic),
+                                QoSProfile(
+                                    depth=1,
+                                    reliability=ReliabilityPolicy.RELIABLE,
+                                    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                ),
+                            )
+                            record["failure_kind"] = "NO_SAMPLE"
+                    except Exception as exc:
+                        record.update(
+                            failure_kind="MESSAGE_IMPORT_OR_SUBSCRIPTION_ERROR",
+                            error=str(exc)[:512],
+                        )
             for name, (client, request, future, names) in list(pending.items()):
                 try:
                     if future is None and client.service_is_ready():
+                        result["service_queries"][name] = {
+                            "requested_monotonic_ns": time.monotonic_ns(),
+                            "requested_wall_ns": time.time_ns(),
+                            "failure_kind": None,
+                        }
                         future = client.call_async(request)
                         pending[name][2] = future
                     if future is None or not future.done():
                         continue
                     response = future.result()
+                    result["service_queries"][name].update(
+                        response_monotonic_ns=time.monotonic_ns(),
+                        response_wall_ns=time.time_ns(),
+                    )
                     if name.endswith("list_controllers"):
                         data = [
                             {
@@ -297,11 +528,20 @@ def collect_status(
                     del pending[name]
                 except Exception as exc:
                     result["errors"][name] = str(exc)[:512]
+                    result["service_queries"].setdefault(name, {})["failure_kind"] = (
+                        "INVALID_RESPONSE"
+                    )
                     del pending[name]
             executor.spin_once(timeout_sec=min(0.01, max(0.0, stop - time.monotonic())))
         for name in pending:
             result["errors"][name] = (
                 "Discovery/response timeout within shared diagnostic budget"
+            )
+            query = result["service_queries"].setdefault(name, {})
+            query["failure_kind"] = (
+                "RESPONSE_TIMEOUT"
+                if query.get("requested_monotonic_ns")
+                else "SERVICE_NOT_DISCOVERED"
             )
         topics = (*STATE_TOPICS[profile], HEALTH[profile][0])
         if profile == "fr3":
@@ -315,8 +555,20 @@ def collect_status(
         }
         nodes = bounded(node.get_node_names_and_namespaces(), 128)
         result["nodes"] = nodes
+        result["service_providers"] = {name: [] for name in queries}
         result["action_servers"], result["action_clients"] = [], []
         for name, namespace in nodes:
+            for service_name, kinds in bounded(
+                node.get_service_names_and_types_by_node(name, namespace), 128
+            ):
+                if service_name in queries:
+                    result["service_providers"][service_name].append(
+                        {
+                            "node": name,
+                            "namespace": namespace,
+                            "types": bounded(kinds, 4),
+                        }
+                    )
             for key, getter in (
                 ("action_servers", get_action_server_names_and_types_by_node),
                 ("action_clients", get_action_client_names_and_types_by_node),
@@ -339,6 +591,30 @@ def collect_status(
             node.destroy_subscription(subscription)
         for client in clients:
             node.destroy_client(client)
+        for state_subscription in state_subscriptions.values():
+            node.destroy_subscription(state_subscription)
+        for goal_subscription in goal_subscriptions.values():
+            node.destroy_subscription(goal_subscription)
     result["elapsed_s"] = (time.monotonic_ns() - started) / 1e9
     result["collected_monotonic_ns"] = time.monotonic_ns()
+    result["collected_wall_ns"] = time.time_ns()
+    if include_observations:
+        result["observation_streams"] = observation_streams
+    if result["health"]["sample"] is None and result["health"]["failure_kind"] is None:
+        result["health"]["failure_kind"] = "NO_SAMPLE"
     return result
+
+
+def origin() -> dict[str, Any]:
+    """Identify the collector host/boot so monotonic clocks cannot be conflated."""
+    try:
+        boot = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        boot = "unknown"
+    return {
+        "host": platform.node(),
+        "boot_id": boot,
+        "pid": os.getpid(),
+        "ros_distro": os.environ.get("ROS_DISTRO", "unknown"),
+        "clock_domain": f"linux_monotonic:{platform.node()}:{boot}",
+    }

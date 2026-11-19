@@ -15,6 +15,11 @@ branch was inspected or reused. An AI assistant performed this implementation
 and passive inspection for the human submitter on **2026-11-19 UTC**. The required
 open upstream PR/issue search for `FR3 readiness` returned no matches.
 
+**Follow-up:** [Milestone 2D](milestone_2d_passive_readiness_gaps.md) identifies
+frozen Franka device time despite fresh ROS headers and provides a source-supported
+explanation of the hardware/controller status divergence. The receipt-fresh PASS
+in this historical 2C snapshot does not establish device-measurement validity.
+
 ## 1. Evidence and Architecture
 
 Separate what the software reports from what an operator has physically

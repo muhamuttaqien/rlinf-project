@@ -7717,6 +7717,8 @@ def test_ros2_readiness_no_control_capability():
         "rlinf/robotics/parts/ros2_readiness.py",
         "rlinf/robotics/parts/transports/ros2/passive.py",
         "rlinf/robotics/parts/transports/ros2/worker.py",
+        "rlinf/robotics/parts/transports/ros2/remote.py",
+        "rlinf/robotics/parts/transports/ros2/remote_probe.py",
         "toolkits/realworld_check/fr3_readiness_preflight.py",
     ]
     forbidden = {
@@ -7797,4 +7799,460 @@ def test_ros2_readiness_bounded_graph_overflow(ros2_runtime, monkeypatch):
         assert "at most 128" in diagnostic["evidence"]["errors"]["collection"]
     assert report["categories"]["ownership_evidence_availability"]["state"] == "UNKNOWN"
     assert report["categories"]["interface_identity_consistency"]["state"] == "UNKNOWN"
+    assert report["qualification_gate"] == "NO_GO"
+
+
+@pytest.fixture
+def nuc_readiness_evidence(passive_readiness_report):
+    import copy
+
+    local = passive_readiness_report
+    origin = {
+        "host": "synthetic-nuc",
+        "boot_id": "synthetic-boot",
+        "pid": 123,
+        "ros_distro": "humble",
+        "clock_domain": "linux_monotonic:synthetic-nuc:synthetic-boot",
+    }
+    snapshots = []
+    for profile, domain in (("fr3", 70), ("robotiq", 71)):
+        for index in range(3):
+            evidence = copy.deepcopy(local["diagnostics"][profile]["evidence"])
+            evidence["origin"] = origin.copy()
+            # All timestamps in this synthetic collector remain internally ordered.
+            evidence["collected_monotonic_ns"] += index * 10**8
+            evidence["observation_streams"] = copy.deepcopy(
+                local["observations"][profile]["ros2"]["streams"]
+            )
+            for stream in evidence["observation_streams"].values():
+                stream["sample"]["received_monotonic_ns"] = evidence[
+                    "collected_monotonic_ns"
+                ]
+            evidence["health"]["sample"]["received_monotonic_ns"] = evidence[
+                "collected_monotonic_ns"
+            ]
+            names = {"libcontroller_manager.so", "libhardware_interface.so"} | (
+                {"libfranka_hardware.so", "libfranka_arm_controllers.so"}
+                if profile == "fr3"
+                else {"librobotiq_controllers.so", "librobotiq_driver.so"}
+            )
+            manager = {
+                "pid": domain,
+                "start_ticks": 42,
+                "domain_id": domain,
+                "argv_sha256": "a" * 64,
+                "libraries": {
+                    "/synthetic/" + name: {
+                        "sha256": "b" * 64,
+                        "mapped_inode": 12,
+                        "file_inode": 12,
+                    }
+                    for name in names
+                },
+            }
+            snapshots.append(
+                {
+                    "profile": profile,
+                    "domain_id": domain,
+                    "index": index,
+                    "manager_before": [manager],
+                    "manager_after": [copy.deepcopy(manager)],
+                    "evidence": evidence,
+                }
+            )
+    return {
+        "schema": "fr3_nuc_passive_v1",
+        "nonce": "0" * 32,
+        "origin": origin,
+        "physical_command_authorization": "NOT_GRANTED",
+        "qualification_gate": "NO_GO",
+        "snapshots": snapshots,
+    }
+
+
+def test_ros2_readiness_nuc_merge_preserves_origins(
+    passive_readiness_report, nuc_readiness_evidence
+):
+    from rlinf.robotics.parts.ros2_readiness import merge_nuc_evidence
+
+    local = passive_readiness_report
+    # Locally unavailable Humble status is supplied by the independently tagged remote view.
+    local["categories"]["controller_status_visibility"] = {
+        "state": "UNKNOWN",
+        "checks": [{"state": "UNKNOWN", "detail": "cross-distribution discovery"}],
+    }
+    merged = merge_nuc_evidence(local, nuc_readiness_evidence)
+    assert merged["remote_error"] is None
+    assert len(merged["remote_assessments"]) == 6
+    assert merged["categories"]["controller_status_visibility"]["state"] == "PASS"
+    assert (
+        merged["local_categories"]["controller_status_visibility"]["state"] == "UNKNOWN"
+    )
+    assert merged["remote_evidence"]["origin"]["host"] == "synthetic-nuc"
+    assert merged["physical_command_authorization"] == "NOT_GRANTED"
+    assert merged["qualification_gate"] == "NO_GO"
+    assert merged["device_measurement_validity"]["robotiq"].startswith("UNKNOWN")
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "domain",
+        "origin",
+        "schema",
+        "duplicate",
+        "missing",
+        "timestamp",
+        "response_clock",
+        "manager_epoch",
+        "manager_during",
+        "inode",
+        "provider",
+        "unknown_manager",
+        "hardware",
+        "frozen",
+        "local_conflict",
+    ],
+)
+def test_ros2_readiness_nuc_conflicts_fail_closed(
+    passive_readiness_report, nuc_readiness_evidence, change
+):
+    from rlinf.robotics.parts.ros2_readiness import merge_nuc_evidence
+
+    remote = nuc_readiness_evidence
+    snapshot = remote["snapshots"][1]
+    evidence = snapshot["evidence"]
+    expected, category = "FAIL", "interface_identity_consistency"
+    if change == "domain":
+        snapshot["domain_id"] = 71
+    elif change == "origin":
+        evidence["origin"]["boot_id"] = "other-boot"
+    elif change == "schema":
+        remote["schema"] = "unknown"
+    elif change == "duplicate":
+        snapshot["index"] = 0
+    elif change == "missing":
+        remote["snapshots"].pop()
+    elif change == "timestamp":
+        evidence["collected_monotonic_ns"] = 1
+    elif change == "response_clock":
+        query = next(iter(evidence["service_queries"].values()))
+        query["response_monotonic_ns"] = evidence["collected_monotonic_ns"] + 10**10
+    elif change == "manager_epoch":
+        snapshot["manager_before"][0]["start_ticks"] += 1
+        snapshot["manager_after"][0]["start_ticks"] += 1
+    elif change == "manager_during":
+        snapshot["manager_after"][0]["pid"] += 1
+    elif change == "inode":
+        for phase in ("manager_before", "manager_after"):
+            next(iter(snapshot[phase][0]["libraries"].values()))["file_inode"] = 99
+    elif change == "provider":
+        evidence["service_providers"]["/controller_manager/list_controllers"].append(
+            {"node": "other", "namespace": "/", "types": []}
+        )
+    elif change == "unknown_manager":
+        snapshot["manager_before"] = snapshot["manager_after"] = []
+        expected = "UNKNOWN"
+    elif change == "hardware":
+        hardware = evidence["services"]["/controller_manager/list_hardware_components"][
+            0
+        ]
+        hardware.update(state="unconfigured", state_id=1)
+        category = "controller_status_visibility"
+    elif change == "frozen":
+        progress = evidence["health"]["progress"]
+        progress.update(
+            samples=20,
+            first_receipt_ns=1,
+            last_receipt_ns=10**9,
+            first_device_time_s=123.0,
+            last_device_time_s=123.0,
+            device_time_changes=0,
+        )
+        category = "observation_readiness"
+    elif change == "local_conflict":
+        passive_readiness_report["categories"][category] = {
+            "state": "FAIL",
+            "checks": [{"state": "FAIL", "detail": "local conflicting endpoint"}],
+        }
+    report = merge_nuc_evidence(passive_readiness_report, remote)
+    assert report["categories"][category]["state"] == expected
+    assert report["qualification_gate"] == "NO_GO"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+def test_ros2_readiness_nuc_never_compares_host_monotonic_clocks(
+    passive_readiness_report, nuc_readiness_evidence
+):
+    from rlinf.robotics.parts.ros2_readiness import merge_nuc_evidence
+
+    keys = {
+        "received_monotonic_ns",
+        "collected_monotonic_ns",
+        "started_monotonic_ns",
+        "requested_monotonic_ns",
+        "response_monotonic_ns",
+        "first_receipt_ns",
+        "last_receipt_ns",
+    }
+
+    def shift(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in keys:
+                    value[key] += 10**18
+                else:
+                    shift(item)
+        elif isinstance(value, list):
+            for item in value:
+                shift(item)
+
+    shift(nuc_readiness_evidence)
+    report = merge_nuc_evidence(passive_readiness_report, nuc_readiness_evidence)
+    assert report["remote_error"] is None
+    assert report["categories"]["observation_readiness"]["state"] == "PASS"
+    assert report["categories"]["gripper_status_visibility"]["state"] == "PASS"
+
+
+@pytest.mark.parametrize(
+    "mode,failure",
+    [
+        ("missing_health_type", "MESSAGE_IMPORT_ERROR"),
+        ("bad_health_qos", "QOS_INCOMPATIBLE"),
+        ("service_timeout", "SERVICE_NOT_DISCOVERED"),
+        ("response_timeout", "RESPONSE_TIMEOUT"),
+        ("invalid_response", "INVALID_RESPONSE"),
+    ],
+)
+def test_ros2_readiness_diagnostic_failure_classification(
+    ros2_runtime, monkeypatch, mode, failure
+):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    report = run_preflight(duration=0.03, budget=0.05, **ros2_runtime)
+    for diagnostic in report["diagnostics"].values():
+        evidence = diagnostic["evidence"]
+        actual = (
+            evidence["health"]["failure_kind"]
+            if mode in ("missing_health_type", "bad_health_qos")
+            else evidence["service_queries"]["/controller_manager/list_controllers"][
+                "failure_kind"
+            ]
+        )
+        assert actual == failure
+    if mode == "bad_health_qos":
+        assert report["categories"]["gripper_status_visibility"]["state"] == "FAIL"
+
+
+def test_ros2_readiness_frozen_device_is_not_fresh_measurement(
+    ros2_runtime, monkeypatch
+):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", "frozen_device")
+    report = run_preflight(duration=0.05, budget=0.2, **ros2_runtime)
+    assert report["observations"]["fr3"]["ros2"]["complete"]
+    assert report["categories"]["observation_readiness"]["state"] == "FAIL"
+    assert (
+        report["diagnostics"]["fr3"]["evidence"]["health"]["progress"][
+            "device_time_changes"
+        ]
+        == 0
+    )
+
+
+@pytest.fixture
+def fake_nuc_ssh(tmp_path, monkeypatch, nuc_readiness_evidence):
+    import json
+
+    executable = tmp_path / "ssh"
+    executable.write_text((_ROOT / "tests/robot_mocks/ssh.py").read_text())
+    executable.chmod(0o755)
+    evidence = tmp_path / "nuc.json"
+    evidence.write_text(json.dumps(nuc_readiness_evidence))
+    pid = tmp_path / "ssh.pid"
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("RLINF_TEST_NUC_EVIDENCE", str(evidence))
+    monkeypatch.setenv("RLINF_TEST_SSH_PID", str(pid))
+    return pid
+
+
+@pytest.mark.parametrize("mode", ["normal", "stderr"])
+def test_ros2_readiness_nuc_ssh_success(fake_nuc_ssh, monkeypatch, mode):
+    from rlinf.robotics.parts.transports.ros2.remote import collect_nuc_evidence
+
+    monkeypatch.setenv("RLINF_TEST_SSH_MODE", mode)
+    report = collect_nuc_evidence()
+    assert report["schema"] == "fr3_nuc_passive_v1"
+    assert len(report["snapshots"]) == 6
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(fake_nuc_ssh.read_text()), 0)
+
+
+@pytest.mark.parametrize(
+    "mode", ["nonce", "schema", "malformed", "overflow", "exit", "hang"]
+)
+def test_ros2_readiness_nuc_ssh_failure_cleanup(fake_nuc_ssh, monkeypatch, mode):
+    from rlinf.robotics.parts.transports.ros2.remote import collect_nuc_evidence
+
+    monkeypatch.setenv("RLINF_TEST_SSH_MODE", mode)
+    with pytest.raises(ConnectionError):
+        collect_nuc_evidence(timeout=0.2 if mode == "hang" else 5)
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(fake_nuc_ssh.read_text()), 0)
+
+
+def test_ros2_readiness_nuc_cli(ros2_runtime, fake_nuc_ssh, tmp_path):
+    import json
+
+    path = tmp_path / "merged.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_ROOT / "toolkits/realworld_check/fr3_readiness_preflight.py"),
+            "--nuc",
+            "--duration",
+            "0.02",
+            "--budget",
+            "0.05",
+            "--timeout",
+            "1",
+            "--ros-python",
+            ros2_runtime["ros_python"],
+            "--ros-setup",
+            ros2_runtime["ros_setup"],
+            "--output",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(path.read_text())
+    assert report["schema"] == "fr3_passive_readiness_v2"
+    assert report["remote_evidence"]["origin"]["host"] == "synthetic-nuc"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+def test_ros2_readiness_remote_probe_bundle_without_ros(ros2_runtime, tmp_path):
+    import json
+
+    from rlinf.robotics.parts.transports.ros2.remote import BOOTSTRAP
+
+    directory = _ROOT / "rlinf/robotics/parts/transports/ros2"
+    packet = {
+        "schema": "fr3_nuc_probe_request_v1",
+        "nonce": "a" * 32,
+        "modules": {
+            name: (directory / (name + ".py")).read_text()
+            for name in ("protocol", "passive", "remote_probe")
+        },
+    }
+    env = {**os.environ, "PYTHONPATH": str(tmp_path), "ROS_DISTRO": "humble"}
+    result = subprocess.run(
+        [sys.executable, "-c", BOOTSTRAP],
+        input=json.dumps(packet),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=25,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert len(report["snapshots"]) == 6
+    for snapshot in report["snapshots"]:
+        evidence = snapshot["evidence"]
+        assert evidence["health"]["sample"]
+        assert all(x["sample"] for x in evidence["observation_streams"].values())
+        assert not evidence["errors"]
+        assert snapshot["manager_before"] == snapshot["manager_after"] == []
+        if snapshot["profile"] == "robotiq":
+            assert len(evidence["goal_status"]) == 2
+            assert all(x["sample"] for x in evidence["goal_status"].values())
+
+
+def test_ros2_readiness_manager_process_identity(tmp_path, monkeypatch):
+    import hashlib
+
+    monkeypatch.syspath_prepend(str(_ROOT / "rlinf/robotics/parts/transports/ros2"))
+    helper = runpy.run_path(
+        str(_ROOT / "rlinf/robotics/parts/transports/ros2/remote_probe.py")
+    )
+    process = tmp_path / "123"
+    process.mkdir()
+    executable = tmp_path / "ros2_control_node"
+    executable.write_bytes(b"synthetic executable")
+    (process / "exe").symlink_to(executable)
+    (process / "environ").write_bytes(b"ROS_DOMAIN_ID=70\0SECRET=not-collected\0")
+    (process / "cmdline").write_bytes(b"ros2_control_node\0--ros-args\0")
+    fields = ["S", "1"] + ["0"] * 18
+    fields[19] = "42"
+    (process / "stat").write_text("123 (ros2_control_node) " + " ".join(fields))
+    library = tmp_path / "libcontroller_manager.so"
+    library.write_bytes(b"synthetic mapped library")
+    (process / "maps").write_text(
+        f"100-200 r-xp 00000000 00:00 {library.stat().st_ino} {library}\n"
+    )
+    assert helper["manager_processes"](71, tmp_path) == []
+    observed = helper["manager_processes"](70, tmp_path)
+    assert len(observed) == 1
+    assert (observed[0]["pid"], observed[0]["ppid"], observed[0]["start_ticks"]) == (
+        123,
+        1,
+        42,
+    )
+    assert (
+        observed[0]["libraries"][str(library)]["sha256"]
+        == hashlib.sha256(library.read_bytes()).hexdigest()
+    )
+    assert "SECRET" not in repr(observed)
+
+
+def test_ros2_readiness_remote_transport_has_no_generic_command_interface():
+    import inspect
+
+    from rlinf.robotics.parts.transports.ros2.remote import collect_nuc_evidence
+
+    assert set(inspect.signature(collect_nuc_evidence).parameters) == {"timeout"}
+    for value in (float("inf"), 0, 36):
+        with pytest.raises(ValueError, match="timeout"):
+            collect_nuc_evidence(value)
+
+
+@pytest.mark.parametrize("mode", ["active_goal", "invalid_goal"])
+def test_ros2_readiness_passive_goal_status_has_no_header(
+    ros2_runtime, monkeypatch, mode
+):
+    from rlinf.robotics.parts.ros2_readiness import run_preflight
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    report = run_preflight(duration=0.02, budget=0.05, **ros2_runtime)
+    records = report["diagnostics"]["robotiq"]["evidence"]["goal_status"]
+    for record in records.values():
+        if mode == "invalid_goal":
+            assert record["failure_kind"] == "INVALID_RESPONSE"
+            continue
+        sample = record["sample"]
+        assert sample["publication_timestamp"] is None
+        assert sample["statuses"][0]["status"] == 2
+        assert sample["statuses"][0]["goal_stamp"] == {"sec": 123, "nanosec": 0}
+        assert len(sample["statuses"][0]["goal_id"]) == 32
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+def test_ros2_readiness_single_profile_never_passes_uninspected_category(
+    passive_readiness_report,
+):
+    from rlinf.robotics.parts.ros2_readiness import assess_readiness
+
+    report = assess_readiness(
+        passive_readiness_report["observations"],
+        passive_readiness_report["diagnostics"],
+        now_ns=passive_readiness_report["assessment_monotonic_ns"],
+        profiles=("fr3",),
+    )
+    assert report["categories"]["observation_readiness"]["state"] == "PASS"
+    assert report["categories"]["gripper_status_visibility"]["state"] == "UNKNOWN"
     assert report["qualification_gate"] == "NO_GO"
