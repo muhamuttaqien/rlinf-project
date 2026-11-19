@@ -20,6 +20,8 @@ connect RLinf to physical hardware.
      - Run RL on physical robot hardware.
    * - :doc:`Teleoperation <../teleoperation>`
      - Let an operator take over from the policy mid-rollout.
+   * - :doc:`Read FR3 and Robotiq State Through ROS 2 <../fr3_ros2_observation>`
+     - Attach to existing state publishers with read-only parts.
 
 .. toctree::
    :hidden:
@@ -29,3 +31,4 @@ connect RLinf to physical hardware.
    Cloud-Edge Collaboration <../cloud_edge>
    Real-World Robots <../realworld_robot>
    Teleoperation <../teleoperation>
+   Read FR3 and Robotiq State Through ROS 2 <../fr3_ros2_observation>

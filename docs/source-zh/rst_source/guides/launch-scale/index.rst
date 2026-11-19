@@ -19,6 +19,8 @@
      - 在真实机器人硬件上运行 RL。
    * - :doc:`遥操作 <../teleoperation>`
      - 让操作者在 rollout 中途从策略手里接管。
+   * - :doc:`通过 ROS 2 读取 FR3 和 Robotiq 状态 <../fr3_ros2_observation>`
+     - 通过只读 parts 接入现有状态 publisher。
 
 .. toctree::
    :hidden:
@@ -28,3 +30,4 @@
    云边协同 <../cloud_edge>
    真机机器人 <../realworld_robot>
    遥操作 <../teleoperation>
+   通过 ROS 2 读取 FR3 和 Robotiq 状态 <../fr3_ros2_observation>

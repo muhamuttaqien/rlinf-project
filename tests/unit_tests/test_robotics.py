@@ -6368,3 +6368,272 @@ def test_SE3_body_delta_compose_round_trip():
 
         assert np.allclose(T_rec[..., :3, :3], T_abs[..., :3, :3], atol=1e-6)
         assert np.allclose(T_rec[..., :3, 3], T_abs[..., :3, 3], atol=1e-6)
+
+
+@pytest.fixture
+def ros2_runtime(tmp_path):
+    """Run the real subscriber worker against a process-edge ROS SDK fake."""
+    import shlex
+
+    fake = tmp_path / "rclpy.py"
+    fake.symlink_to(_ROOT / "tests/robot_mocks/ros2.py")
+    setup = tmp_path / "setup.bash"
+    setup.write_text(f"export PYTHONPATH={shlex.quote(str(tmp_path))}\n")
+    return {"ros_python": sys.executable, "ros_setup": str(setup), "timeout": 1.0}
+
+
+def test_ros2_observation_robot_composition(ros2_runtime):
+    from rlinf.robotics.parts.ros2_observation import (
+        FR3ROS2Observation,
+        RobotiqROS2Observation,
+    )
+
+    arm = FR3ROS2Observation(**ros2_runtime)
+    gripper = RobotiqROS2Observation(**ros2_runtime)
+    assert not isinstance(arm, ControllablePart)
+    assert not isinstance(gripper, ControllablePart)
+    robot = Robot(arm=arm, gripper=gripper)
+    assert robot.action_features == {}
+    assert not arm.get_observation()["ros2"]["bridge_alive"]
+    try:
+        robot.connect()
+        arm.wait_for_observation()
+        gripper.wait_for_observation()
+        observation = robot.get_observation()
+        state = observation["arm"]["state"]
+        assert state["arm_joint_position"] == [1, 2, 3, 4, 5, 6, 7]
+        assert state["arm_joint_velocity"] == pytest.approx(
+            [i / 10 for i in range(1, 8)]
+        )
+        assert state["arm_joint_effort"] == pytest.approx(
+            [i / 100 for i in range(1, 8)]
+        )
+        assert state["tcp_pose"] == [0.1, 0.2, 0.3, 0, 0, 0.6, 0.8]
+        assert state["tcp_force"] == [1, 2, 3]
+        assert state["base_torque"] == [4, 5, 6]
+        assert "tcp_vel" not in state and "arm_jacobian" not in state
+        status = observation["arm"]["ros2"]
+        assert status["domain_id"] == 70
+        assert status["complete"]
+        streams = status["streams"]
+        assert streams["joints"]["sample"]["header"]["frame_id"] == "base_link"
+        assert streams["pose"]["sample"]["header"]["frame_id"] == "base"
+        assert streams["pose"]["sample"]["header"]["sec"] == 123
+        assert streams["pose"]["sample"]["received_monotonic_ns"] > 123
+        assert observation["gripper"]["state"] == {
+            "knuckle_position_rad": 0.1,
+            "normalized_closure": 0.25,
+        }
+        assert observation["gripper"]["ros2"]["domain_id"] == 71
+        assert observation["gripper"]["ros2"]["complete"]
+        # Caller mutation cannot change the worker's retained state.
+        state["arm_joint_position"][0] = 99
+        assert arm.get_observation()["state"]["arm_joint_position"][0] == 1
+        robot.reset()
+        assert arm.get_observation()["ros2"]["complete"]
+    finally:
+        robot.disconnect()
+        robot.disconnect()
+    assert not arm._transport.is_alive
+    assert not gripper._transport.is_alive
+    robot.connect()
+    try:
+        arm.wait_for_observation()
+        assert arm.get_observation()["ros2"]["complete"]
+    finally:
+        robot.disconnect()
+
+
+@pytest.mark.parametrize("mode", ["partial", "malformed", "missing", "wrong_type"])
+def test_ros2_observation_incomplete(ros2_runtime, monkeypatch, mode):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    arm = FR3ROS2Observation(**ros2_runtime)
+    try:
+        arm.connect()
+        with pytest.raises(TimeoutError, match="Expected complete ROS observations"):
+            arm.wait_for_observation(0.1)
+        observation = arm.get_observation()
+        assert not observation["ros2"]["complete"]
+        if mode == "partial":
+            assert observation["state"]["arm_joint_velocity"] is None
+            assert "arm_joint_velocity" in observation["ros2"]["missing_fields"]
+        if mode == "malformed":
+            assert observation["state"]["arm_joint_position"] is None
+            assert "finite" in observation["ros2"]["streams"]["joints"]["error"]
+    finally:
+        arm.disconnect()
+
+
+@pytest.mark.parametrize("mode", ["stale", "disconnect", "delayed"])
+def test_ros2_observation_freshness_and_discovery(ros2_runtime, monkeypatch, mode):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    arm = FR3ROS2Observation(max_age=0.05, **ros2_runtime)
+    try:
+        arm.connect()
+        arm.wait_for_observation(2)
+        time.sleep(0.65)
+        status = arm.get_observation()["ros2"]
+        if mode == "stale":
+            assert not status["complete"]
+            assert status["stale_streams"]
+        elif mode == "disconnect":
+            assert not status["complete"]
+            assert not status["streams"]["joints"]["connected"]
+        else:
+            assert status["complete"]
+    finally:
+        arm.disconnect()
+
+
+@pytest.mark.parametrize("mode", ["startup_error", "hang"])
+def test_ros2_observation_process_failures(ros2_runtime, monkeypatch, mode):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    monkeypatch.setenv("RLINF_TEST_ROS2_MODE", mode)
+    arm = FR3ROS2Observation(**{**ros2_runtime, "timeout": 0.2})
+    try:
+        if mode == "startup_error":
+            with pytest.raises(ConnectionError, match="test ROS initialization failed"):
+                arm.connect()
+            assert not arm.is_connected
+        else:
+            arm.connect()
+            observation = arm.get_observation()
+            assert not observation["ros2"]["bridge_alive"]
+            assert "IPC failed" in observation["ros2"]["error"]
+        assert not arm._transport.is_alive
+        assert arm._transport._channel is None
+    finally:
+        arm.disconnect()
+
+
+def test_ros2_observation_worker_death(ros2_runtime):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    arm = FR3ROS2Observation(**ros2_runtime)
+    try:
+        arm.connect()
+        arm.wait_for_observation()
+        arm._transport._process.kill()
+        arm._transport._process.wait()
+        observation = arm.get_observation()
+        assert not observation["ros2"]["bridge_alive"]
+        assert not observation["ros2"]["complete"]
+        assert observation["state"]["tcp_pose"] is None
+        with pytest.raises(ConnectionError):
+            arm.wait_for_observation()
+    finally:
+        arm.disconnect()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "duplicate",
+        "missing",
+        "dimension",
+        "nan",
+        "inf",
+        "quaternion",
+        "timestamp",
+        "normalized",
+    ],
+)
+def test_ros2_observation_rejects_invalid_messages(fault):
+    from rlinf.robotics.parts.transports.ros2.protocol import (
+        FR3_JOINTS,
+        NORMALIZED_JOINT,
+        decode_message,
+    )
+
+    state_message = runpy.run_path(str(_ROOT / "tests/robot_mocks/ros2.py"))[
+        "state_message"
+    ]
+
+    msg = state_message("/franka/joint_states")
+    ros_type, joints = "sensor_msgs/msg/JointState", FR3_JOINTS
+    if fault == "duplicate":
+        msg.name[1] = msg.name[0]
+    elif fault == "missing":
+        msg.name[1] = "other_joint"
+    elif fault == "dimension":
+        msg.position.pop()
+    elif fault == "nan":
+        msg.velocity[0] = float("nan")
+    elif fault == "inf":
+        msg.effort[0] = float("inf")
+    elif fault == "quaternion":
+        ros_type = "geometry_msgs/msg/PoseStamped"
+        msg = state_message("/current_pose")
+        msg.pose.orientation.w = 0.0
+    elif fault == "timestamp":
+        msg.header.stamp.nanosec = 1_000_000_000
+    elif fault == "normalized":
+        joints = (NORMALIZED_JOINT,)
+        msg = state_message("/joint_states", joint_name=NORMALIZED_JOINT)
+        msg.position[0] = 2.0
+    with pytest.raises(ValueError):
+        decode_message(msg, ros_type, joints)
+
+
+def test_ros2_observation_parent_eof_cleanup(ros2_runtime):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    arm = FR3ROS2Observation(**ros2_runtime)
+    try:
+        arm.connect()
+        arm.wait_for_observation()
+        process = arm._transport._process
+        arm._transport._channel.close()
+        process.wait(timeout=2)
+        assert process.returncode == 0
+    finally:
+        arm.disconnect()
+
+
+def test_ros2_observation_bounded_ipc():
+    import socket
+
+    from rlinf.robotics.parts.transports.ros2.protocol import (
+        MAX_PACKET,
+        receive_packet,
+        send_packet,
+    )
+
+    left, right = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    try:
+        send_packet(left, {"op": "snapshot"})
+        assert receive_packet(right) == {"version": 1, "op": "snapshot"}
+        left.send(b'{"version":2}')
+        with pytest.raises(ValueError, match="protocol version"):
+            receive_packet(right)
+        with pytest.raises(ValueError, match="exceeds"):
+            send_packet(left, {"data": "x" * MAX_PACKET})
+        left.send(b"x" * (MAX_PACKET + 1))
+        with pytest.raises(ValueError, match="exceeds"):
+            receive_packet(right)
+    finally:
+        left.close()
+        right.close()
+
+
+@pytest.mark.parametrize(
+    "setting",
+    [
+        {"domain_id": -1},
+        {"domain_id": True},
+        {"max_age": 0},
+        {"max_age": float("nan")},
+        {"timeout": 0},
+        {"ros_python": "python3"},
+    ],
+)
+def test_ros2_observation_rejects_bad_configuration(setting):
+    from rlinf.robotics.parts.ros2_observation import FR3ROS2Observation
+
+    with pytest.raises(ValueError):
+        FR3ROS2Observation(**setting)
