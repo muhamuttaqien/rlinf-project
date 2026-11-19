@@ -6637,3 +6637,844 @@ def test_ros2_observation_rejects_bad_configuration(setting):
 
     with pytest.raises(ValueError):
         FR3ROS2Observation(**setting)
+
+
+# Offline action profiles below are synthetic test fixtures, never hardware approval.
+@pytest.fixture
+def offline_parts():
+    from rlinf.robotics.parts.ros2_offline_action import (
+        FR3OfflineAction,
+        RobotiqOfflineAction,
+    )
+    from rlinf.robotics.parts.transports.ros2.action_contract import ManualClock
+
+    opened = []
+
+    def make(gripper=False, **settings):
+        part = (RobotiqOfflineAction if gripper else FR3OfflineAction)(
+            clock=ManualClock(), **settings
+        )
+        part.connect()
+        opened.append(part)
+        return part
+
+    yield make
+    for part in opened:
+        part.disconnect()
+
+
+def _offline_approval(part, **overrides):
+    from rlinf.robotics.parts.transports.ros2.action_contract import (
+        MockAuthorization,
+        MockLimitProfile,
+    )
+
+    width = 6 if part.ACTION_FIELD == "normalized_pose_offset" else 1
+    profile = MockLimitProfile(
+        profile_id="synthetic-profile",
+        approval_id="test-only-approval",
+        calibration_id="synthetic-calibration",
+        interface=part.interface,
+        lower=(-0.5,) * width if width == 6 else (0.0,),
+        upper=(0.5,) * width if width == 6 else (1.0,),
+        max_action_age_ns=100_000_000,
+        max_lifetime_ns=1_000_000_000,
+        max_observation_age_ns=100_000_000,
+        max_observation_skew_ns=10_000_000,
+        max_timing_uncertainty_ns=1_000_000,
+        acknowledgement_timeout_ns=20_000_000,
+        result_timeout_ns=100_000_000,
+    )
+    if overrides:
+        from dataclasses import replace
+
+        profile = replace(profile, **overrides)
+    authorization = MockAuthorization(
+        authorization_id="test-only-authorization",
+        source_id="synthetic-operator",
+        session_id=part.session_id,
+        authority_id=part.authority_id,
+        profile_id=profile.profile_id,
+        clock_domain=part.clock.domain,
+        deadline_ns=part.clock.now_ns() + 2_000_000_000,
+    )
+    return profile, authorization
+
+
+def _offline_observation(part):
+    """Synthetic 2A-shaped measured data, never a physical readiness claim."""
+    from rlinf.robotics.parts.transports.ros2.protocol import PROFILES
+
+    arm = part.ACTION_FIELD == "normalized_pose_offset"
+    streams = {}
+    for key, (topic, ros_type, _) in PROFILES["fr3" if arm else "robotiq"].items():
+        streams[key] = {
+            "topic": topic,
+            "type": ros_type,
+            "sequence": 1,
+            "connected": True,
+            "fresh": True,
+            "error": None,
+            "graph_error": None,
+            "sample": {
+                "received_monotonic_ns": part.clock.now_ns(),
+                "header": {"sec": 123, "nanosec": 456, "frame_id": "synthetic-frame"},
+                "data": {"synthetic_reading": [0.0]},
+            },
+        }
+    return {
+        "state": {"synthetic_reading": [0.0]},
+        "ros2": {
+            "domain_id": 70 if arm else 71,
+            "bridge_alive": True,
+            "complete": True,
+            "error": None,
+            "streams": streams,
+        },
+    }
+
+
+def _offline_request(part, sequence=1, observation=None, **overrides):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import (
+        ActionRequest,
+        ObservationProvenance,
+    )
+
+    request = ActionRequest(
+        kind=part.KIND,
+        values=(0.1,) * (6 if part.ACTION_FIELD == "normalized_pose_offset" else 1),
+        source_id="synthetic-operator",
+        session_id=part.session_id,
+        authority_id=part.authority_id,
+        sequence=sequence,
+        generated_ns=part.clock.now_ns(),
+        deadline_ns=part.clock.now_ns() + 500_000_000,
+        clock_domain=part.clock.domain,
+        interface=part.interface,
+        observation=ObservationProvenance.from_observation(
+            _offline_observation(part) if observation is None else observation,
+            clock_domain=part.clock.domain,
+            timing_uncertainty_ns=1000,
+        ),
+    )
+    return replace(request, **overrides)
+
+
+@pytest.mark.parametrize("gripper", [False, True])
+def test_offline_action_native_composition_and_events(offline_parts, gripper):
+    from rlinf.robotics.parts.arms.base import BaseArm
+    from rlinf.robotics.parts.end_effectors.grippers.base import BaseGripper
+
+    part = offline_parts(gripper)
+    assert isinstance(part, ControllablePart)
+    assert not isinstance(part, (BaseArm, BaseGripper))
+    assert not part.armed
+    profile, auth = _offline_approval(part)
+    part.arm_mock(profile, auth)
+    robot = FrankaRobot(**({"end_effector": part} if gripper else {"arm": part}))
+    request = _offline_request(part)
+    sent = robot.send_action(
+        {"end_effector" if gripper else "arm": {part.ACTION_FIELD: request}}
+    )
+    assert sent["end_effector" if gripper else "arm"][part.ACTION_FIELD] == request
+    events = part.events()
+    assert [e["state"] for e in events] == [
+        "created",
+        "validated",
+        "admitted",
+        "submitted",
+        "mock_acknowledged" if gripper else "acceptance_unknown",
+    ]
+    wire = events[3]["detail"]["wire"]
+    if gripper:
+        assert wire == {"command": {"position": 0.1, "max_effort": 0.0}}
+        assert part.poll()["mock_action"]["last_disposition"] == "mock_completed"
+        assert part.events()[-1]["detail"]["result"]["physical_grasp_success"] is None
+    else:
+        assert wire == {
+            "linear": {"x": 0.1, "y": 0.1, "z": 0.1},
+            "angular": {"x": 0.1, "y": 0.1, "z": 0.1},
+        }
+        assert part.poll()["mock_action"]["last_disposition"] == "acceptance_unknown"
+        assert request.interface.translation_scale_m == 0.007
+        assert request.interface.rotation_scale_rad == 0.03
+        assert request.interface.translation_frame != request.interface.rotation_frame
+    for event in part.events():
+        assert event["schema_version"] == 1
+        assert event["offline"] and event["physical_execution"] is False
+        assert event["request"]["source_id"] == "synthetic-operator"
+        assert (
+            event["request"]["observation"]["snapshot_json"]
+            == request.observation.snapshot_json
+        )
+    copied = part.events()
+    copied[0]["request"]["source_id"] = "changed"
+    assert part.events()[0]["request"]["source_id"] == "synthetic-operator"
+
+
+@pytest.mark.parametrize(
+    "changes,code",
+    [
+        ({"schema_version": 2}, "schema"),
+        ({"schema_version": True}, "schema"),
+        ({"disposition": "admitted"}, "schema"),
+        ({"kind": "tcp_pose"}, "kind"),
+        ({"values": (0.0,) * 7}, "payload"),
+        ({"values": [0.0] * 6}, "payload"),
+        ({"values": (float("nan"),) * 6}, "payload"),
+        ({"values": (float("inf"),) * 6}, "payload"),
+        ({"values": (float("-inf"),) * 6}, "payload"),
+        ({"values": (True,) * 6}, "payload"),
+        ({"values": ("0.1",) * 6}, "payload"),
+        ({"values": (0.75,) * 6}, "range"),
+        ({"values": (-1.01,) * 6}, "range"),
+        ({"source_id": "other"}, "authority"),
+        ({"session_id": "other"}, "authority"),
+        ({"authority_id": "other"}, "authority"),
+        ({"clock_domain": "other-host"}, "clock_domain"),
+        ({"sequence": 0}, "sequence"),
+        ({"sequence": True}, "sequence"),
+        ({"generated_ns": 2_000_000_000}, "action_age"),
+        ({"generated_ns": 1}, "action_age"),
+        ({"deadline_ns": 1_000_000_000}, "expiry"),
+        ({"deadline_ns": 3_000_000_000}, "expiry"),
+    ],
+)
+def test_offline_action_invalid_requests_fail_closed(offline_parts, changes, code):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    with pytest.raises(ActionRejected) as caught:
+        part.send_action({part.ACTION_FIELD: _offline_request(part, **changes)})
+    assert caught.value.code == code
+    assert not part.armed
+    assert not any(event["state"] == "submitted" for event in part.events())
+    assert part.events()[-1]["state"] == "rejected"
+
+
+@pytest.mark.parametrize("value", [-0.01, 1.01, float("nan"), float("inf"), True])
+def test_offline_action_invalid_closure(offline_parts, value):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts(True)
+    part.arm_mock(*_offline_approval(part))
+    with pytest.raises(ActionRejected):
+        part.send_action({part.ACTION_FIELD: _offline_request(part, values=(value,))})
+    assert not part.armed
+
+
+@pytest.mark.parametrize(
+    "field", ["tcp_pose", "joint_position", "target", "width", "normalized_closure"]
+)
+def test_offline_action_no_generic_control_alias(offline_parts, field):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    with pytest.raises(ActionRejected, match="action_field"):
+        part.send_action({field: [0] * 7})
+    assert not part.armed
+    assert not any(event["state"] == "submitted" for event in part.events())
+
+
+@pytest.mark.parametrize(
+    "alteration",
+    [
+        "missing_profile",
+        "missing_auth",
+        "calibration",
+        "approval",
+        "limits",
+        "timing",
+        "scope",
+        "controller",
+        "expired_auth",
+    ],
+)
+def test_offline_action_missing_or_incompatible_approval(offline_parts, alteration):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    profile, auth = _offline_approval(part)
+    if alteration == "missing_profile":
+        profile = None
+    elif alteration == "missing_auth":
+        auth = None
+    elif alteration == "calibration":
+        profile = replace(profile, calibration_id="")
+    elif alteration == "approval":
+        profile = replace(profile, approval_id="")
+    elif alteration == "limits":
+        profile = replace(profile, upper=(1.1,) * 6)
+    elif alteration == "timing":
+        profile = replace(profile, max_action_age_ns=0)
+    elif alteration == "scope":
+        profile = replace(profile, scope="hardware")
+    elif alteration == "controller":
+        profile = replace(
+            profile, interface=replace(part.interface, configuration_id="different")
+        )
+    elif alteration == "expired_auth":
+        auth = replace(auth, deadline_ns=part.clock.now_ns())
+    with pytest.raises(ActionRejected):
+        part.arm_mock(profile, auth)
+    assert not part.armed
+
+
+@pytest.mark.parametrize(
+    "alteration",
+    [
+        "stale",
+        "future",
+        "incomplete",
+        "missing_stream",
+        "wrong_type",
+        "source_domain",
+        "error",
+        "skew",
+        "clock",
+        "uncertainty",
+        "malformed",
+    ],
+)
+def test_offline_action_observation_admission(offline_parts, alteration):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    observation = _offline_observation(part)
+    streams = observation["ros2"]["streams"]
+    if alteration == "stale":
+        streams["joints"]["sample"]["received_monotonic_ns"] -= 101_000_000
+    elif alteration == "future":
+        streams["joints"]["sample"]["received_monotonic_ns"] += 1
+    elif alteration == "incomplete":
+        observation["ros2"]["complete"] = False
+    elif alteration == "missing_stream":
+        streams.pop("pose")
+    elif alteration == "wrong_type":
+        streams["joints"]["type"] = "other"
+    elif alteration == "source_domain":
+        observation["ros2"]["domain_id"] = 71
+    elif alteration == "error":
+        streams["pose"]["error"] = "bad state"
+    elif alteration == "skew":
+        streams["joints"]["sample"]["received_monotonic_ns"] -= 11_000_000
+    request = _offline_request(part, observation=observation)
+    if alteration == "clock":
+        request = replace(
+            request, observation=replace(request.observation, clock_domain="other-host")
+        )
+    elif alteration == "uncertainty":
+        request = replace(
+            request,
+            observation=replace(request.observation, timing_uncertainty_ns=2_000_000),
+        )
+    elif alteration == "malformed":
+        request = replace(
+            request, observation=replace(request.observation, snapshot_json="{")
+        )
+    with pytest.raises(ActionRejected):
+        part.queue_action(request)
+    assert not part.armed
+
+
+def test_offline_action_replay_and_sequence_consumption(offline_parts):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    approval = _offline_approval(part)
+    part.arm_mock(*approval)
+    part.queue_action(_offline_request(part, sequence=5))
+    with pytest.raises(ActionRejected, match="replay"):
+        part.queue_action(_offline_request(part, sequence=4))
+    part.arm_mock(*approval)
+    with pytest.raises(ActionRejected, match="replay"):
+        part.queue_action(_offline_request(part, sequence=5))
+    part.arm_mock(*approval)
+    part.queue_action(_offline_request(part, sequence=6))
+    part.submit_pending()
+    assert part.get_state()["mock_action"]["last_admitted_sequence"] == 6
+
+
+def test_offline_action_bounded_pending_and_events(offline_parts):
+    part = offline_parts(event_capacity=5)
+    part.arm_mock(*_offline_approval(part))
+    part.queue_action(_offline_request(part, 1))
+    part.queue_action(_offline_request(part, 2))
+    assert len(part.events()) == 5
+    assert any(e["reason"] == "replaced_pending" for e in part.events())
+    state = part.submit_pending()["mock_action"]
+    assert state["active_sequence"] == 2 and state["pending_sequence"] is None
+    assert state["events_evicted"] > 0
+    assert (
+        part._transport.exchange("status", now_ns=part.clock.now_ns())[
+            "submitted_count"
+        ]
+        == 1
+    )
+
+
+def test_offline_action_revalidates_before_submission(offline_parts):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    part.queue_action(_offline_request(part))
+    part.clock.advance(500_000_001)
+    with pytest.raises(ActionRejected):
+        part.submit_pending()
+    assert part.get_state()["mock_action"]["last_disposition"] == "expired"
+    assert not any(e["state"] == "submitted" for e in part.events())
+
+
+@pytest.mark.parametrize(
+    "behavior", ["ownership_conflict", "inconsistent", "identity_mismatch"]
+)
+def test_offline_action_mock_readiness_conflicts(offline_parts, behavior):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    part.queue_action(_offline_request(part))
+    part.configure_mock_behavior(behavior)
+    with pytest.raises(ActionRejected):
+        part.submit_pending()
+    assert not part.armed
+    assert not any(e["state"] == "submitted" for e in part.events())
+
+
+@pytest.mark.parametrize("behavior", ["reject", "worker_crash", "ipc_failure", "hang"])
+def test_offline_action_submission_failures(offline_parts, behavior):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts(ipc_timeout=0.3)
+    part.arm_mock(*_offline_approval(part))
+    part.configure_mock_behavior(behavior)
+    with pytest.raises(ActionRejected):
+        part.send_action({part.ACTION_FIELD: _offline_request(part)})
+    assert not part.armed
+    assert part.get_state()["mock_action"]["last_disposition"] == "failed"
+    if behavior != "reject":
+        assert part._transport._channel is None
+        assert not part._transport.is_alive
+
+
+def test_offline_action_gripper_delayed_result(offline_parts):
+    part = offline_parts(True)
+    part.configure_mock_behavior("normal", delay_ns=50_000_000)
+    part.arm_mock(*_offline_approval(part))
+    part.send_action({part.ACTION_FIELD: _offline_request(part)})
+    part.clock.advance(49_000_000)
+    assert part.poll()["mock_action"]["last_disposition"] == "mock_acknowledged"
+    part.clock.advance(1_000_000)
+    assert part.poll()["mock_action"]["last_disposition"] == "mock_completed"
+
+
+@pytest.mark.parametrize(
+    "behavior,delay,advance,reason",
+    [
+        ("drop", 0, 21_000_000, "mock_ack_timeout"),
+        ("normal", 200_000_000, 101_000_000, "mock_result_timeout"),
+        ("fail", 0, 0, "mock_terminal"),
+        ("preempt", 0, 0, "mock_terminal"),
+    ],
+)
+def test_offline_action_gripper_timeout_and_preemption(
+    offline_parts, behavior, delay, advance, reason
+):
+    part = offline_parts(True)
+    part.configure_mock_behavior(behavior, delay_ns=delay)
+    part.arm_mock(*_offline_approval(part))
+    part.send_action({part.ACTION_FIELD: _offline_request(part)})
+    part.clock.advance(advance)
+    state = part.poll()["mock_action"]
+    assert state["last_disposition"] in ("failed", "mock_canceled")
+    assert part.events()[-1]["reason"] == reason
+    assert not part.armed
+
+
+def test_offline_action_expiry_and_mock_goal_replacement(offline_parts):
+    part = offline_parts(True)
+    part.configure_mock_behavior("normal", delay_ns=90_000_000)
+    part.arm_mock(*_offline_approval(part))
+    part.send_action({part.ACTION_FIELD: _offline_request(part, 1)})
+    part.send_action({part.ACTION_FIELD: _offline_request(part, 2)})
+    assert any(
+        e["reason"] == "preempted_by_new_request" and e["request"]["sequence"] == 1
+        for e in part.events()
+    )
+    arm = offline_parts()
+    arm.arm_mock(*_offline_approval(arm))
+    arm.send_action({arm.ACTION_FIELD: _offline_request(arm)})
+    arm.clock.advance(500_000_000)
+    assert arm.poll()["mock_action"]["last_disposition"] == "expired"
+
+
+def test_offline_action_reset_reconnect_and_worker_death(offline_parts):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    profile, auth = _offline_approval(part)
+    part.arm_mock(profile, auth)
+    old_request = _offline_request(part)
+    part.send_action({part.ACTION_FIELD: old_request})
+    part.reset()
+    assert not part.armed
+    assert part.events()[-1]["state"] == "mock_canceled"
+    part.arm_mock(profile, auth)
+    part.send_action({part.ACTION_FIELD: _offline_request(part, 2)})
+    part._transport._process.kill()
+    part._transport._process.wait()
+    assert part.poll()["mock_action"]["last_disposition"] == "failed"
+    assert not part.armed
+    part.disconnect()
+    part.disconnect()
+    old_session, old_authority = part.session_id, part.authority_id
+    part.connect()
+    assert (part.session_id, part.authority_id) != (old_session, old_authority)
+    assert not part.armed
+    with pytest.raises(ActionRejected):
+        part.arm_mock(profile, auth)
+    part.arm_mock(*_offline_approval(part))
+    with pytest.raises(ActionRejected, match="authority"):
+        part.queue_action(old_request)
+
+
+def test_offline_action_has_no_live_ros_surface(offline_parts, monkeypatch):
+    monkeypatch.setenv("ROS_DOMAIN_ID", "70")
+    monkeypatch.setenv("RMW_IMPLEMENTATION", "invalid-for-any-live-ROS")
+    part = offline_parts()
+    assert (
+        part._transport.exchange("status", now_ns=part.clock.now_ns())["ros_domain_id"]
+        is None
+    )
+    part.arm_mock(*_offline_approval(part))
+    part.send_action({part.ACTION_FIELD: _offline_request(part)})
+    paths = [
+        _ROOT / "rlinf/robotics/parts/ros2_offline_action.py",
+        *(_ROOT / "rlinf/robotics/parts/transports/ros2").glob("*action*.py"),
+    ]
+    forbidden = {"rclpy", "rospy", "geometry_msgs", "control_msgs", "serial", "franky"}
+    for path in paths:
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                assert not any(
+                    alias.name.split(".")[0] in forbidden for alias in node.names
+                )
+            if isinstance(node, ast.ImportFrom):
+                assert (node.module or "").split(".")[0] not in forbidden
+        assert "create_publisher" not in path.read_text()
+        assert "ActionClient" not in path.read_text()
+    with pytest.raises(TypeError):
+        type(part)(domain_id=70)
+    with pytest.raises(TypeError):
+        type(part)(live=True)
+
+
+@pytest.mark.parametrize("gripper", [False, True])
+def test_offline_action_reuses_2a_observation_contract(ros2_runtime, gripper):
+    from rlinf.robotics.parts.ros2_observation import (
+        FR3ROS2Observation,
+        RobotiqROS2Observation,
+    )
+    from rlinf.robotics.parts.ros2_offline_action import (
+        FR3OfflineAction,
+        RobotiqOfflineAction,
+    )
+
+    observation = (RobotiqROS2Observation if gripper else FR3ROS2Observation)(
+        **ros2_runtime
+    )
+    part = (RobotiqOfflineAction if gripper else FR3OfflineAction)()
+    try:
+        observation.connect()
+        sample = observation.wait_for_observation()
+        part.connect()
+        part.arm_mock(*_offline_approval(part))
+        part.send_action(
+            {part.ACTION_FIELD: _offline_request(part, observation=sample)}
+        )
+        assert part.get_state()["measured"] == sample
+        part.reset()
+        assert observation.get_observation()["ros2"]["complete"]
+    finally:
+        part.disconnect()
+        observation.disconnect()
+
+
+@pytest.mark.parametrize("values", [(np.float32(0.1),) * 6, (np.int64(0),) * 6])
+def test_offline_action_numeric_scalars_and_approval_provenance(offline_parts, values):
+    from types import MappingProxyType
+
+    part = offline_parts()
+    profile, authorization = _offline_approval(part)
+    part.arm_mock(profile, authorization)
+    part.send_action(
+        MappingProxyType({part.ACTION_FIELD: _offline_request(part, values=values)})
+    )
+    part.reset()
+    for event in part.events():
+        assert event["approval"]["profile"]["profile_id"] == profile.profile_id
+        assert event["approval"]["profile"]["calibration_id"] == profile.calibration_id
+        assert (
+            event["approval"]["authorization"]["authorization_id"]
+            == authorization.authorization_id
+        )
+        assert event["approval"]["profile"]["scope"] == "offline_synthetic"
+
+
+def test_offline_action_authorization_expiry_and_pending_freshness(offline_parts):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    profile, auth = _offline_approval(part, max_action_age_ns=500_000_000)
+    auth = replace(auth, deadline_ns=part.clock.now_ns() + 600_000_000)
+    part.arm_mock(profile, auth)
+    part.queue_action(_offline_request(part))
+    part.clock.advance(101_000_000)
+    with pytest.raises(ActionRejected, match="observation_stale"):
+        part.submit_pending()
+    assert not part.armed
+    part.arm_mock(profile, auth)
+    with pytest.raises(ActionRejected, match="expiry"):
+        part.queue_action(_offline_request(part, 2, deadline_ns=auth.deadline_ns + 1))
+    part.arm_mock(profile, auth)
+    part.queue_action(_offline_request(part, 3, deadline_ns=auth.deadline_ns))
+    part.clock.advance(500_000_000)
+    status = part.poll()["mock_action"]
+    assert not status["armed"] and status["last_disposition"] == "expired"
+
+
+@pytest.mark.parametrize("malformed", ["wrong_type", "huge_number", "deep_observation"])
+def test_offline_action_malformed_inputs_are_recorded(offline_parts, malformed):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    request = _offline_request(part)
+    if malformed == "wrong_type":
+        request = {"kind": part.KIND}
+    elif malformed == "huge_number":
+        request = replace(request, values=(10**5000,) * 6)
+    else:
+        request = replace(
+            request,
+            observation=replace(
+                request.observation, snapshot_json="[" * 1200 + "0" + "]" * 1200
+            ),
+        )
+    with pytest.raises(ActionRejected):
+        part.queue_action(request)
+    assert not part.armed
+    assert part.events()[-1]["state"] == "rejected"
+
+
+def test_offline_action_pending_expiry_and_parent_eof(offline_parts):
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    part.queue_action(_offline_request(part))
+    part.clock.advance(500_000_000)
+    assert part.poll()["mock_action"]["pending_sequence"] is None
+    assert part.events()[-1]["state"] == "expired"
+    process = part._transport._process
+    part._transport._channel.close()
+    process.wait(timeout=2)
+    assert process.returncode == 0
+    assert not part.poll()["mock_action"]["armed"]
+
+
+def test_offline_action_startup_rollback_for_live_endpoint():
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import (
+        FR3_KIND,
+        InterfaceIdentity,
+    )
+    from rlinf.robotics.parts.transports.ros2.mock_action import MockROS2ActionTransport
+
+    transport = MockROS2ActionTransport()
+    bad = replace(
+        InterfaceIdentity.mock(FR3_KIND, "mock:controller", "synthetic:config"),
+        endpoint="/franka_controller/target_cartesian_velocity_percent",
+    )
+    with pytest.raises(ConnectionError):
+        transport.start(bad, "test-session", "test-authority")
+    assert not transport.is_alive and transport._channel is None
+    transport.close()
+
+
+@pytest.mark.parametrize("gripper", [False, True])
+def test_offline_action_connect_authorize_reset_never_submits(offline_parts, gripper):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts(gripper)
+    before = part._transport.exchange("status", now_ns=part.clock.now_ns())
+    assert before["submitted_count"] == 0
+    with pytest.raises(ActionRejected, match="authorization"):
+        part.queue_action(_offline_request(part))
+    part.arm_mock(*_offline_approval(part))
+    part.reset()
+    part.reset()
+    after = part._transport.exchange("status", now_ns=part.clock.now_ns())
+    assert after["submitted_count"] == 0 and after["last_wire"] is None
+    part.disconnect()
+    part.connect()
+    assert not part.armed
+    assert (
+        part._transport.exchange("status", now_ns=part.clock.now_ns())[
+            "submitted_count"
+        ]
+        == 0
+    )
+
+
+@pytest.mark.parametrize("gripper", [False, True])
+def test_offline_action_full_representation_bounds_require_explicit_profile(
+    offline_parts, gripper
+):
+    part = offline_parts(gripper)
+    width = 1 if gripper else 6
+    part.arm_mock(
+        *_offline_approval(
+            part, lower=((0.0,) if gripper else (-1.0,) * 6), upper=(1.0,) * width
+        )
+    )
+    values = (1.0,) if gripper else (-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
+    part.send_action({part.ACTION_FIELD: _offline_request(part, values=values)})
+    assert part.events()[3]["state"] == "submitted"
+
+
+@pytest.mark.parametrize("change", ["scope", "expired", "missing"])
+def test_offline_action_reusable_validator_checks_approval(offline_parts, change):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import (
+        ActionRejected,
+        validate_request,
+    )
+
+    part = offline_parts()
+    profile, auth = _offline_approval(part)
+    request = _offline_request(part)
+    if change == "scope":
+        profile = replace(profile, scope="hardware")
+    elif change == "expired":
+        auth = replace(auth, deadline_ns=part.clock.now_ns())
+    else:
+        profile = None
+    with pytest.raises(ActionRejected):
+        validate_request(
+            request,
+            profile,
+            auth,
+            part.interface,
+            part.session_id,
+            part.authority_id,
+            part.clock.domain,
+            0,
+            part.clock.now_ns(),
+        )
+
+
+@pytest.mark.parametrize("change", ["flags", "fresh", "interface"])
+def test_offline_action_inconsistent_observation_and_semantics(offline_parts, change):
+    from dataclasses import replace
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    part.arm_mock(*_offline_approval(part))
+    observation = _offline_observation(part)
+    if change == "flags":
+        observation["ros2"]["missing_fields"] = ["tcp_pose"]
+    elif change == "fresh":
+        observation["ros2"]["streams"]["pose"]["fresh"] = False
+    request = _offline_request(part, observation=observation)
+    if change == "interface":
+        request = replace(
+            request,
+            interface=replace(part.interface, rotation_composition="left_multiplied"),
+        )
+    with pytest.raises(ActionRejected):
+        part.queue_action(request)
+    assert not part.armed
+
+
+def test_offline_action_robot_partial_failure_remains_explicit(offline_parts):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    arm, gripper = offline_parts(), offline_parts(True)
+    arm.arm_mock(*_offline_approval(arm))
+    gripper.arm_mock(*_offline_approval(gripper))
+    robot = FrankaRobot(arm=arm, end_effector=gripper)
+    try:
+        with pytest.raises(ActionRejected):
+            robot.send_action(
+                {
+                    "arm": {arm.ACTION_FIELD: _offline_request(arm)},
+                    "end_effector": {
+                        gripper.ACTION_FIELD: _offline_request(gripper, values=(2.0,))
+                    },
+                }
+            )
+        assert not gripper.armed
+        assert not any(e["state"] == "submitted" for e in gripper.events())
+        # Native multi-part dispatch is not a transaction; explicitly disarm all.
+        robot.reset()
+        assert not arm.armed and not gripper.armed
+    finally:
+        robot.disconnect()
+
+
+def test_offline_action_unserializable_timing_profile_is_rejected(offline_parts):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    part = offline_parts()
+    with pytest.raises(ActionRejected, match="profile_timing"):
+        part.arm_mock(*_offline_approval(part, max_lifetime_ns=10**5000))
+    assert not part.armed
+    assert part.events()[-1]["state"] == "rejected"
+
+
+def test_offline_action_worker_rechecks_admission_age_at_submission(offline_parts):
+    import json
+
+    from rlinf.robotics.parts.transports.ros2.action_contract import (
+        admission_deadline_ns,
+        request_json,
+    )
+
+    part = offline_parts()
+    profile, auth = _offline_approval(part)
+    part.arm_mock(profile, auth)
+    request = _offline_request(part)
+    valid_until = admission_deadline_ns(request, profile, auth)
+    # Model a delay after local validation but before endpoint submission.
+    part.clock.advance(100_000_001)
+    response = part._transport.exchange(
+        "submit",
+        now_ns=part.clock.now_ns(),
+        action=json.loads(request_json(request)),
+        admission_deadline_ns=valid_until,
+    )
+    assert response["state"] == "rejected"
+    assert response["reason"] == "mock_admission_expired"
+    assert (
+        part._transport.exchange("status", now_ns=part.clock.now_ns())[
+            "submitted_count"
+        ]
+        == 0
+    )
