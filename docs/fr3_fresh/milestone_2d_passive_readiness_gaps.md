@@ -8,6 +8,11 @@ reports unconfigured hardware and continues publishing state whose device time
 is frozen. Read this report for the source-supported explanation, interface and
 ownership findings, implementation contract, and remaining operator decisions.
 
+**November 20 follow-up:** [Passive recovery revalidation](milestone_2d_revalidation_2026-11-20.md)
+records a later controller session with advancing device time. The historical
+findings below remain unchanged; physical qualification and command authorization
+remain ungranted.
+
 This milestone uses `branch-openpi-recap-franka-fresh` at clean baseline
 `00dbe4b652eca1edb2f1a2c4d9d322b34e61f552`. It follows the
 [Milestone 1 audit](milestone_1_hardware_interface_audit.md),
