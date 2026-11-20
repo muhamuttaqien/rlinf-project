@@ -156,3 +156,23 @@ Fixture 的源时间与到达时间使用显式合成时钟，实际本地接收
 合成数据的源采样年龄和跨流时间偏差上限分别为 50 ms 和 20 ms。这些值是带显式时钟域的 fixture 验证限制，不是经过资格验证的物理时序预算。导出的任务文本表示未评分的合成流水线验证；原生轨迹没有保留可恢复的任务指令。完整请求、准入及模拟结果日志保存在原生归档中。
 
 LeRobot 重新加载成功只确认导出子集及其归档的兼容性。OpenPI pi0.5 兼容性仍未获得资格确认：FR3 state 包含 42 个值，现有 realworld transform 要求 19 个值；checkpoint 的动作语义、归一化、相机角色及 horizon 处理还需核实。RECAP 还需要经过资格验证的结果、rollout/checkpoint 标识、干预记录及数据划分信息。审计 schema 与验证结果见 ``docs/fr3_fresh/milestone_5_dataset_validation.md``。物理执行仍为 ``NO_GO / NOT_GRANTED``。
+
+检查 OpenPI 结构样本
+--------------------
+
+通过 FR3 结构适配器加载经过验证的 Milestone 5 导出包，检查 state、相机 probe、动作窗口及 RECAP 注释关联。版本化 contract 固定 ``rlinf-openpi==0.1.1`` 及其源文件哈希。请在 CPU 上运行预处理，并为报告选择新目录：
+
+.. code-block:: bash
+
+   JAX_PLATFORMS=cpu PYTHONPATH="$PWD" HF_HUB_OFFLINE=1 \
+     HF_DATASETS_CACHE=/tmp/fr3-milestone6-hf-cache \
+     python -m toolkits.realworld_check.qualify_fr3_openpi \
+     --export /tmp/fr3-milestone5-final/export \
+     --output /tmp/fr3-milestone6-final --horizon 4 \
+     --check-normalization-fixture
+
+命令验证原生归档、全部八个 transition、合成图像预处理及 episode 内动作窗口后，写入 ``qualification.json``。归一化选项使用显式合成统计量检查 OpenPI 原生数学运算，不生成 checkpoint assets。``--horizon`` 设置结构检查窗口长度。Padding 会重复当前 episode 的最后一个动作，同时保留显式 mask、源索引和时间戳；使用 ``--padding-policy require_full_window_v1`` 则在缺少未来动作时拒绝窗口。
+
+``FR3OfflineDataset`` 完整保留 42 个 state 值及七个已记录的控制器请求通道。OpenPI observation probe 使用 224×224 图像和 Boolean array mask。两个相机 slot 仅表示合成样本的位置路由，物理角色仍未获得资格确认。原始任务文本与模型 target 保持不可用；导出时的验证标签不会被当成任务指令。``FR3Outputs`` 与 ``require_model_ready`` 始终拒绝 checkpoint 执行。
+
+可选 ``--annotations`` 接收 ``fr3_recap_metadata_v1`` episode 注释，并要求与源 manifest 哈希关联。``--split train``、``validation`` 或 ``test`` 只选择显式分配的完整 episode；未分配数据不会自动成为训练集。缺失的指令、标签和 rollout 标识仍会出现在报告中。原生记录器、验证器及通用 ``RealworldInputs`` 行为保持不变。资格确认范围及剩余 checkpoint 门禁见 ``docs/fr3_fresh/milestone_6a_openpi_recap_contract.md`` 和 ``docs/fr3_fresh/milestone_6b_fr3_openpi_adapter.md``。物理执行仍为 ``NO_GO / NOT_GRANTED``。

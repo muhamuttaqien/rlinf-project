@@ -4045,3 +4045,671 @@ def test_fr3_quality_mock_snapshot_must_agree_with_journal(fr3_dataset, field, v
     report = assess_synthetic_dataset(root)
     assert not report["valid"]
     assert report["readiness"]["typed_action_provenance"] == "FAIL"
+
+
+@pytest.fixture(scope="module")
+def fr3_openpi_export(tmp_path_factory):
+    pytest.importorskip(
+        "openpi",
+        reason="FR3 structural qualification requires the pinned optional OpenPI package",
+    )
+    import datasets.config
+
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+    from rlinf.data.storage.lerobot.fr3_export import export_synthetic_dataset
+    from toolkits.realworld_check.validate_fr3_config import load_config
+
+    root = tmp_path_factory.mktemp("fr3-openpi")
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(datasets.config, "HF_DATASETS_CACHE", root / "hf-cache")
+        cfg = load_config(
+            [
+                "runner.num_data_episodes=2",
+                "env.eval.max_episode_steps=4",
+                "env.eval.seed=7",
+            ]
+        )
+        collect_synthetic_dataset(cfg, root / "native")
+        export_synthetic_dataset(root / "native", root / "export")
+    return root / "export"
+
+
+@pytest.fixture(scope="module")
+def fr3_openpi_dataset(fr3_openpi_export):
+    from rlinf.data.datasets.openpi.fr3 import FR3OfflineDataset
+
+    return FR3OfflineDataset(fr3_openpi_export)
+
+
+def _fr3_input_from_sample(sample):
+    return {
+        "state": sample["native_state"].copy(),
+        "actions": sample["recorded_controller_requests"].copy(),
+        "image": sample["raw_images"]["d435i"].copy(),
+        "extra_view_image": sample["raw_images"]["d405"].copy(),
+        "actions_is_pad": sample["actions_is_pad"].copy(),
+        "fr3_context": copy.deepcopy(sample["provenance"]),
+    }
+
+
+def _fr3_norm_fixture(method="zscore"):
+    from rlinf.data.datasets.openpi.fr3_contract import CONTRACT_ID
+
+    stats = {
+        key: {"mean": [0.25] * dim, "std": [2.0] * dim}
+        for key, dim in (("state", 42), ("actions", 7))
+    }
+    if method == "quantile":
+        for dim, entry in zip((42, 7), stats.values()):
+            entry.update(q01=[-2.0] * dim, q99=[3.0] * dim)
+    return {
+        "schema": "fr3_normalization_fixture_v1",
+        "scope": "synthetic_math_only",
+        "contract_id": CONTRACT_ID,
+        "method": method,
+        "statistics": stats,
+    }
+
+
+def test_fr3_openpi_end_to_end_native_semantics(fr3_openpi_dataset):
+    from openpi.models.model import Observation
+    from openpi.transforms import ResizeImages
+
+    ds = fr3_openpi_dataset
+    original = _fr3_dataset_hashes(ds.root)
+    assert len(ds) == 8
+    for i in range(len(ds)):
+        sample = ds[i]
+        assert sample["state"].shape == sample["native_state"].shape == (42,)
+        assert np.array_equal(sample["state"], sample["native_state"])
+        assert sample["recorded_controller_requests"].shape == (4, 7)
+        assert (
+            sample["model_training_target"]
+            is sample["predicted_model_action"]
+            is sample["prompt"]
+            is None
+        )
+        assert sample["checkpoint_status"] == "CHECKPOINT_UNVERIFIED"
+        assert sample["provenance"]["episode_index"] == i // 4
+        assert sample["provenance"]["frame_index"] == i % 4
+        assert sample["provenance"]["metadata"]["task"] is None
+        assert (
+            sample["provenance"]["operator_request"]["physical_mapping_verified"]
+            is False
+        )
+        assert (
+            sample["provenance"]["typed_requests"]["arm"]["kind"]
+            == "fr3_normalized_pose_offset_v1"
+        )
+        assert sample["provenance"]["mock_outcome"]["physical_grasp_success"] is None
+        assert sample["image_mask"] == {
+            "base_0_rgb": True,
+            "left_wrist_0_rgb": True,
+            "right_wrist_0_rgb": False,
+        }
+        for sensor, slot in (("d435i", "base_0_rgb"), ("d405", "left_wrist_0_rgb")):
+            raw = sample["raw_images"][sensor]
+            resized = np.asarray(
+                ResizeImages(224, 224)({"image": {"camera": raw}})["image"]["camera"]
+            )
+            np.testing.assert_array_equal(
+                sample["image"][slot], resized.astype(np.float32) / 255 * 2 - 1
+            )
+            assert sample["image"][slot].shape == (224, 224, 3)
+        observation = Observation.from_dict(
+            {
+                "state": sample["state"],
+                "image": sample["image"],
+                "image_mask": sample["image_mask"],
+            }
+        )
+        assert observation.state.shape == (42,)
+        assert observation.tokenized_prompt is None
+        assert not observation.image_masks["right_wrist_0_rgb"]
+        sample["state"][0] = 123
+        sample["provenance"]["metadata"]["split"] = "test"
+        assert ds[i]["state"][0] != 123
+        assert ds.metadata_document()["episodes"][i // 4]["split"] == "unassigned"
+    assert _fr3_dataset_hashes(ds.root) == original
+    assert ds.metadata_report["missing"]["task_instruction"] == 2
+    with pytest.raises(ValueError, match="CHECKPOINT_UNVERIFIED"):
+        ds.require_model_ready()
+
+
+@pytest.mark.parametrize("horizon", [1, 2, 4, 20, 50])
+def test_fr3_openpi_native_windows_never_cross_episodes(fr3_openpi_export, horizon):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig, FR3OfflineDataset
+
+    ds = FR3OfflineDataset(
+        fr3_openpi_export, config=FR3DatasetConfig(action_horizon=horizon)
+    )
+    for i in range(len(ds)):
+        sample = ds[i]
+        step = i % 4
+        indices = np.minimum(np.arange(step, step + horizon), 3)
+        np.testing.assert_array_equal(
+            sample["provenance"]["source_frame_indices"], indices
+        )
+        np.testing.assert_array_equal(
+            sample["actions_is_pad"], np.arange(step, step + horizon) >= 4
+        )
+        assert sample["recorded_controller_requests"].shape == (horizon, 7)
+        times = np.asarray(sample["provenance"]["source_timestamps_ns"])
+        assert (np.diff(times[~sample["actions_is_pad"]]) == 100_000_000).all()
+    last = ds[3]
+    np.testing.assert_array_equal(
+        last["recorded_controller_requests"],
+        np.repeat(last["recorded_controller_requests"][:1], horizon, axis=0),
+    )
+    assert not np.array_equal(
+        ds[3]["recorded_controller_requests"][0],
+        ds[4]["recorded_controller_requests"][0],
+    )
+
+
+@pytest.mark.parametrize("horizon", [0, -1, True, 1.5, 1001])
+def test_fr3_openpi_invalid_horizon_is_rejected(horizon):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig
+
+    with pytest.raises(ValueError, match="horizon"):
+        FR3DatasetConfig(action_horizon=horizon).validate()
+
+
+def test_fr3_openpi_strict_short_windows_reject_missing_future(fr3_openpi_export):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig, FR3OfflineDataset
+
+    ds = FR3OfflineDataset(
+        fr3_openpi_export,
+        config=FR3DatasetConfig(
+            action_horizon=4, padding_policy="require_full_window_v1"
+        ),
+    )
+    assert not ds[0]["actions_is_pad"].any()
+    with pytest.raises(ValueError, match="Missing future actions"):
+        ds[3]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "ordering",
+        "missing_feature",
+        "dimension19",
+        "quaternion",
+        "joints",
+        "action_kind",
+        "absolute",
+        "gripper",
+        "frame",
+        "camera_role",
+        "physical",
+        "missing_camera",
+        "mask",
+        "nonfinite",
+        "permuted_values",
+        "swapped_images",
+    ],
+)
+def test_fr3_openpi_structural_input_failure_injection(fr3_openpi_dataset, failure):
+    data = _fr3_input_from_sample(fr3_openpi_dataset[0])
+    context = data["fr3_context"]
+    if failure == "ordering":
+        context["state_fields"].reverse()
+    elif failure == "missing_feature":
+        context["state_fields"].pop()
+    elif failure == "dimension19":
+        data["state"] = data["state"][:19]
+    elif failure == "quaternion":
+        data["state"][35:39] = 0
+    elif failure == "joints":
+        context["joint_names"].reverse()
+    elif failure == "action_kind":
+        context["action_kinds"][0] = "twist"
+    elif failure == "absolute":
+        context["action_semantics"] = "absolute_xyz_rpy"
+    elif failure == "gripper":
+        data["actions"][:, 6] = 85.0
+    elif failure == "frame":
+        context["frame_contract"]["tcp_pose"] = "calibrated_tcp"
+    elif failure == "camera_role":
+        context["camera_roles"]["d405"] = "wrist"
+    elif failure == "physical":
+        context["physical_execution"] = True
+    elif failure == "missing_camera":
+        data["extra_view_image"] = None
+    elif failure == "mask":
+        data["actions_is_pad"] = np.ones(4, dtype=np.float32)
+    elif failure == "permuted_values":
+        data["state"][:14] = np.concatenate([data["state"][7:14], data["state"][:7]])
+    elif failure == "swapped_images":
+        data["image"], data["extra_view_image"] = (
+            data["extra_view_image"],
+            data["image"],
+        )
+    else:
+        data["state"][0] = float("nan")
+    with pytest.raises(ValueError):
+        fr3_openpi_dataset._transform(data)
+
+
+@pytest.mark.parametrize("dimension", [19, 32])
+def test_fr3_openpi_model_dimensions_cannot_be_silently_adapted(dimension):
+    from rlinf.models.embodiment.openpi.policies.fr3_policy import FR3Inputs
+
+    with pytest.raises(ValueError, match="42 state / 7 request"):
+        FR3Inputs(state_dimension=dimension)
+
+
+def test_fr3_openpi_transform_composes_without_enabling_prediction(fr3_openpi_dataset):
+    from rlinf.data.datasets.openpi.transform_fn import compose
+    from rlinf.models.embodiment.openpi.policies.fr3_policy import FR3Outputs
+
+    result = compose([fr3_openpi_dataset._transform])(
+        _fr3_input_from_sample(fr3_openpi_dataset[0])
+    )
+    assert result["state"].shape == (42,)
+    with pytest.raises(ValueError, match="CHECKPOINT_UNVERIFIED"):
+        FR3Outputs()({"actions": np.zeros((4, 7), dtype=np.float32)})
+
+
+@pytest.mark.parametrize("method", ["zscore", "quantile"])
+def test_fr3_openpi_synthetic_normalization_uses_native_math(
+    method, fr3_openpi_dataset
+):
+    from rlinf.data.datasets.openpi.fr3_contract import normalization_fixture_check
+
+    state = np.linspace(-1, 1, 42, dtype=np.float32)
+    actions = np.linspace(-1, 1, 28, dtype=np.float32).reshape(4, 7)
+    before = state.copy(), actions.copy()
+    result = normalization_fixture_check(state, actions, _fr3_norm_fixture(method))
+    expected = (
+        (state - 0.25) / (2 + 1e-6)
+        if method == "zscore"
+        else (state + 2) / (5 + 1e-6) * 2 - 1
+    )
+    np.testing.assert_allclose(result["normalized"]["state"], expected, atol=1e-6)
+    np.testing.assert_allclose(result["restored"]["actions"], actions, atol=1e-6)
+    np.testing.assert_array_equal(state, before[0])
+    np.testing.assert_array_equal(actions, before[1])
+    assert result["checkpoint_qualification"] == "UNQUALIFIED"
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["missing", "scope", "contract", "dimension", "zero_std", "nonfinite", "quantiles"],
+)
+def test_fr3_openpi_invalid_normalization_metadata(failure, fr3_openpi_dataset):
+    from rlinf.data.datasets.openpi.fr3_contract import normalization_fixture_check
+
+    fixture = _fr3_norm_fixture("quantile")
+    if failure == "missing":
+        fixture["statistics"] = None
+    elif failure == "scope":
+        fixture["scope"] = "qualified_checkpoint_assets"
+    elif failure == "contract":
+        fixture["contract_id"] = "absolute_pose"
+    elif failure == "dimension":
+        fixture["statistics"]["state"]["mean"].pop()
+    elif failure == "zero_std":
+        fixture["statistics"]["actions"]["std"][0] = 0
+    elif failure == "nonfinite":
+        fixture["statistics"]["actions"]["q01"][0] = float("nan")
+    else:
+        fixture["statistics"]["actions"]["q99"][0] = -3
+    with pytest.raises(ValueError):
+        normalization_fixture_check(
+            np.zeros(42, dtype=np.float32), np.zeros((4, 7), dtype=np.float32), fixture
+        )
+
+
+def test_fr3_openpi_contract_tampering_fails_before_loading(tmp_path):
+    from rlinf.data.datasets.openpi.fr3_contract import CONTRACT_PATH, load_fr3_contract
+
+    data = json.loads(CONTRACT_PATH.read_text())
+    data["checkpoint"]["execution_allowed"] = True
+    path = tmp_path / "contract.json"
+    path.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="fingerprint"):
+        load_fr3_contract(path)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "leakage",
+        "missing",
+        "task",
+        "source",
+        "checkpoint",
+        "physical",
+        "manifest",
+        "reward",
+        "unknown_field",
+    ],
+)
+def test_fr3_recap_metadata_failure_injection(fr3_openpi_dataset, tmp_path, failure):
+    from rlinf.data.datasets.openpi.fr3 import FR3OfflineDataset
+
+    doc = fr3_openpi_dataset.metadata_document()
+    record = doc["episodes"][0]
+    if failure == "leakage":
+        other = copy.deepcopy(record)
+        other["split"] = "test"
+        record["split"] = "train"
+        doc["episodes"].append(other)
+    elif failure == "missing":
+        doc["episodes"].pop()
+    elif failure == "task":
+        record["task"] = {
+            "task_id": "task",
+            "instruction": "",
+            "version": "1",
+            "origin": "recorded_original",
+            "provenance": {},
+        }
+    elif failure == "source":
+        record["source_type"] = "human_demonstration"
+    elif failure == "checkpoint":
+        record["policy"] = {
+            "policy_id": "unknown",
+            "checkpoint_sha256": "unknown",
+            "configuration_sha256": "unknown",
+        }
+    elif failure == "physical":
+        record["physical_execution"] = True
+    elif failure == "manifest":
+        record["source_manifest_sha256"] = "0" * 64
+    elif failure == "reward":
+        record["frame_annotations"] = [
+            {"frame_index": 0, "reward": 1.0, "provenance": {}}
+        ]
+    else:
+        record["silently_ignored"] = True
+    path = tmp_path / "annotations.json"
+    path.write_text(json.dumps(doc))
+    with pytest.raises(ValueError):
+        FR3OfflineDataset(fr3_openpi_dataset.root, annotations_path=path)
+
+
+def test_fr3_recap_typed_annotations_are_synthetic_and_episode_bound(
+    fr3_openpi_dataset, tmp_path
+):
+    from dataclasses import asdict
+
+    from rlinf.data.datasets.openpi.fr3 import FR3OfflineDataset
+    from rlinf.data.datasets.recap.fr3_metadata import (
+        AnnotationProvenance,
+        FrameAnnotation,
+        Intervention,
+        Outcome,
+        TaskIdentity,
+    )
+
+    provenance = AnnotationProvenance(
+        "synthetic:test",
+        "literal_schema_fixture",
+        "1",
+        1,
+        "synthetic:annotations",
+        "synthetic_fixture",
+    )
+    doc = fr3_openpi_dataset.metadata_document()
+    a, b = doc["episodes"]
+    a["split"], b["split"] = "train", "test"
+    a["task"] = asdict(
+        TaskIdentity(
+            "synthetic:task",
+            "synthetic schema test only",
+            "1",
+            "synthetic_fixture",
+            provenance,
+        )
+    )
+    a["interventions"] = [
+        asdict(Intervention(0, 1, "synthetic:operator", "schema test only", provenance))
+    ]
+    a["frame_annotations"] = [
+        asdict(
+            FrameAnnotation(
+                0,
+                provenance,
+                reward=0.0,
+                return_value=0.0,
+                advantage_score=-1.0,
+                advantage_label=False,
+            )
+        )
+    ]
+    a["outcome"] = asdict(Outcome("unscored", None, provenance))
+    path = tmp_path / "annotations.json"
+    path.write_text(json.dumps(doc))
+    ds = FR3OfflineDataset(fr3_openpi_dataset.root, annotations_path=path)
+    sample = ds[0]
+    assert sample["provenance"]["metadata"]["split"] == "train"
+    assert sample["provenance"]["metadata"]["frame_annotations"][0]["reward"] == 0
+    assert sample["prompt"] is None
+    assert ds[4]["provenance"]["metadata"]["split"] == "test"
+    assert ds.metadata_report["experimental_readiness"] == "UNQUALIFIED_SYNTHETIC_ONLY"
+
+
+def test_fr3_openpi_changed_timestamp_archive_is_rejected(fr3_openpi_export, tmp_path):
+    from rlinf.data.datasets.openpi.fr3 import FR3OfflineDataset
+    from rlinf.data.storage.fr3_synthetic import file_digest
+
+    copied = tmp_path / "changed-export"
+    shutil.copytree(fr3_openpi_export, copied)
+    native = copied / "native"
+    path = native / "episodes/episode_000000/steps.jsonl"
+    records = [json.loads(s) for s in path.read_text().splitlines()]
+    records[2]["logical_action_ns"] += 1
+    path.write_text("".join(json.dumps(r) + "\n" for r in records))
+    _fr3_rehash(native)
+    manifest = json.loads((copied / "export.json").read_text())
+    manifest["source_manifest_sha256"] = file_digest(native / "manifest.json")
+    manifest["files"] = {
+        str(p.relative_to(copied)): file_digest(p)
+        for p in copied.rglob("*")
+        if p.is_file() and p != copied / "export.json"
+    }
+    (copied / "export.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="provenance archive"):
+        FR3OfflineDataset(copied)
+
+
+def test_fr3_openpi_cli_is_hardware_and_model_worker_inaccessible(
+    fr3_openpi_export, tmp_path
+):
+    import os
+    import subprocess
+    import sys
+
+    program = r"""
+import builtins, subprocess, psutil, ray
+original = builtins.__import__
+original_popen = subprocess.Popen
+def guarded(name, globals=None, locals=None, fromlist=(), level=0):
+    if level == 0 and name.split('.')[0] in {'rclpy','rospy','franky','pyrealsense2','hid','hidapi','spnav','pyspacemouse','pymodbus'}:
+        raise AssertionError('hardware SDK import: '+name)
+    return original(name, globals, locals, fromlist, level)
+def forbidden(*args, **kwargs):
+    raise AssertionError('worker/process discovery or launch forbidden')
+def checked_popen(args, *pos, **kwargs):
+    if (args == 'lscpu' or args == ['uname', '-p']) and not kwargs.get('shell', False):
+        return original_popen(args, *pos, **kwargs)
+    return forbidden(args, *pos, **kwargs)
+builtins.__import__=guarded
+import numpy.testing
+from rlinf.envs.real.fr3 import config as offline_schema
+subprocess.Popen=checked_popen
+psutil.process_iter=forbidden
+ray.init=forbidden
+from toolkits.realworld_check.qualify_fr3_openpi import main
+raise SystemExit(main())
+"""
+    original = _fr3_dataset_hashes(fr3_openpi_export)
+    dest = tmp_path / "qualification"
+    command = [
+        sys.executable,
+        "-c",
+        program,
+        "--export",
+        str(fr3_openpi_export),
+        "--output",
+        str(dest),
+        "--horizon",
+        "20",
+        "--check-normalization-fixture",
+    ]
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={
+            **os.environ,
+            "JAX_PLATFORMS": "cpu",
+            "HF_HUB_OFFLINE": "1",
+            "HF_DATASETS_CACHE": str(tmp_path / "hf-cache"),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((dest / "qualification.json").read_text())
+    assert report["structural_validation_complete"]
+    assert report["transitions"] == 8 and report["windows"]["padded_windows"] == 8
+    assert report["decisions"]["checkpoint_compatibility"] == "CHECKPOINT_UNVERIFIED"
+    assert report["normalization_fixture"]["scope"] == "synthetic_math_only"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+    assert original == _fr3_dataset_hashes(fr3_openpi_export)
+
+
+def test_fr3_openpi_unknown_package_version_fails(monkeypatch):
+    import importlib.metadata
+
+    from rlinf.data.datasets.openpi.fr3_contract import (
+        load_fr3_contract,
+        verify_openpi_installation,
+    )
+
+    original = importlib.metadata.version
+    monkeypatch.setattr(
+        importlib.metadata,
+        "version",
+        lambda name: "unknown" if name == "rlinf-openpi" else original(name),
+    )
+    with pytest.raises(ValueError, match="distribution version"):
+        verify_openpi_installation(load_fr3_contract())
+
+
+def test_fr3_openpi_modified_source_fails_pin(
+    fr3_openpi_dataset, monkeypatch, tmp_path
+):
+    import importlib.util
+    from pathlib import Path
+
+    from rlinf.data.datasets.openpi.fr3_contract import (
+        load_fr3_contract,
+        verify_openpi_installation,
+    )
+
+    contract = load_fr3_contract()
+    original = importlib.util.find_spec
+    source = Path(original("openpi").origin).parent
+    root = tmp_path / "openpi"
+    for relative in contract["openpi"]["python_files_sha256"]:
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / relative, target)
+    with (root / "transforms.py").open("a") as stream:
+        stream.write("\n# modified external source fixture\n")
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: (
+            SimpleNamespace(origin=str(root / "__init__.py"))
+            if name == "openpi"
+            else original(name)
+        ),
+    )
+    with pytest.raises(ValueError, match="qualified source pin"):
+        verify_openpi_installation(contract)
+
+
+def test_fr3_recap_original_instruction_cannot_be_invented(
+    fr3_openpi_dataset, tmp_path
+):
+    from dataclasses import asdict
+
+    from rlinf.data.datasets.openpi.fr3 import FR3OfflineDataset
+    from rlinf.data.datasets.recap.fr3_metadata import (
+        AnnotationProvenance,
+        TaskIdentity,
+    )
+
+    provenance = AnnotationProvenance(
+        "test:posthoc",
+        "posthoc_claim",
+        "1",
+        1,
+        "test:annotation-clock",
+        "human_annotation",
+    )
+    doc = fr3_openpi_dataset.metadata_document()
+    doc["episodes"][0]["task"] = asdict(
+        TaskIdentity(
+            "claimed_task",
+            "not recorded in original dataset",
+            "1",
+            "recorded_original",
+            provenance,
+        )
+    )
+    path = tmp_path / "unverified-original-task.json"
+    path.write_text(json.dumps(doc))
+    with pytest.raises(ValueError, match="Original task instruction is missing"):
+        FR3OfflineDataset(fr3_openpi_dataset.root, annotations_path=path)
+
+
+def test_fr3_recap_unknown_schema_fails(fr3_openpi_dataset, tmp_path):
+    from rlinf.data.datasets.openpi.fr3 import FR3OfflineDataset
+
+    doc = fr3_openpi_dataset.metadata_document()
+    doc["schema"] = "unverified_recap_metadata_v2"
+    path = tmp_path / "unknown-schema.json"
+    path.write_text(json.dumps(doc))
+    with pytest.raises(ValueError, match="metadata schema"):
+        FR3OfflineDataset(fr3_openpi_dataset.root, annotations_path=path)
+
+
+def test_fr3_recap_explicit_split_selection_has_no_leakage(
+    fr3_openpi_dataset, tmp_path
+):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig, FR3OfflineDataset
+
+    doc = fr3_openpi_dataset.metadata_document()
+    doc["episodes"][0]["split"], doc["episodes"][1]["split"] = "train", "test"
+    path = tmp_path / "split-annotations.json"
+    path.write_text(json.dumps(doc))
+    for split, episode_index in (("train", 0), ("test", 1)):
+        ds = FR3OfflineDataset(
+            fr3_openpi_dataset.root,
+            config=FR3DatasetConfig(split=split),
+            annotations_path=path,
+        )
+        assert len(ds) == 4
+        assert all(
+            ds[i]["provenance"]["episode_index"] == episode_index
+            for i in range(len(ds))
+        )
+        assert all(
+            ds[i]["provenance"]["metadata"]["split"] == split for i in range(len(ds))
+        )
+    with pytest.raises(ValueError, match="No episodes assigned"):
+        FR3OfflineDataset(
+            fr3_openpi_dataset.root,
+            config=FR3DatasetConfig(split="validation"),
+            annotations_path=path,
+        )
+    with pytest.raises(ValueError, match="No episodes assigned"):
+        FR3OfflineDataset(
+            fr3_openpi_dataset.root, config=FR3DatasetConfig(split="train")
+        )

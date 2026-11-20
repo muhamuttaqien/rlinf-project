@@ -1,0 +1,315 @@
+{
+  "camera_images_verified": 16,
+  "camera_slots": {
+    "missing_slot": "zeros_with_false_image_mask",
+    "native_slots": {
+      "d405": "extra_view_image",
+      "d435i": "image"
+    },
+    "observation_pixel_scaling": "openpi.models.model.Observation.from_dict_uint8_to_minus1_plus1",
+    "physical_roles": {
+      "d405": null,
+      "d435i": null
+    },
+    "probe_slots_are_physical_roles": false,
+    "raw_layout": "RGB_uint8_HWC",
+    "resize": "openpi.transforms.ResizeImages(224,224)",
+    "structural_probe_slots": {
+      "base_0_rgb": "d435i",
+      "left_wrist_0_rgb": "d405",
+      "right_wrist_0_rgb": null
+    }
+  },
+  "checkpoint": {
+    "configuration": null,
+    "execution_allowed": false,
+    "identity": null,
+    "missing_evidence": [
+      "FR3_checkpoint_identity_and_configuration",
+      "checkpoint_state_and_action_semantics",
+      "camera_roles_and_preprocessing",
+      "original_instruction_and_tokenizer_assets",
+      "normalization_assets_and_schema",
+      "model_horizon_and_loss_mask_policy",
+      "physical_calibration_and_authorization"
+    ],
+    "status": "CHECKPOINT_UNVERIFIED",
+    "training_target": null
+  },
+  "contract_id": "fr3_openpi_structural_v1",
+  "contract_sha256": "e731df69aee38bed82e832f8108f43787a53670e6d621031fbc5ec3565de614c",
+  "dataset_id": "dataset:d8b4aa98f42f4c74b45bff36df0013d8",
+  "decisions": {
+    "camera_compatibility": "PASS_SYNTHETIC_PROBE_PHYSICAL_ROLES_UNQUALIFIED",
+    "checkpoint_compatibility": "CHECKPOINT_UNVERIFIED",
+    "dataset_validity": "PASS",
+    "normalization_qualification": "UNQUALIFIED_NO_CHECKPOINT_ASSETS",
+    "physical_execution_authorization": "NO_GO / NOT_GRANTED",
+    "recap_metadata_readiness": "PASS_SCHEMA_EXPERIMENTS_UNQUALIFIED",
+    "semantic_action_compatibility": "UNQUALIFIED_MODEL_TARGET",
+    "semantic_state_compatibility": "UNQUALIFIED_CHECKPOINT",
+    "structural_openpi_compatibility": "PASS_OBSERVATION_CONTAINER_ONLY"
+  },
+  "diagnostics": [],
+  "dimensions": {
+    "checkpoint_state": null,
+    "model_training_target": null,
+    "native_state": 42,
+    "probe_images": [
+      224,
+      224,
+      3
+    ],
+    "recorded_action_window": [
+      4,
+      7
+    ],
+    "structural_state": 42
+  },
+  "eligible_real_demonstration": false,
+  "environment": {
+    "checkpoint_environment_qualification": "UNQUALIFIED; overlapping transformers distributions require separate model-runtime verification",
+    "distributions": {
+      "datasets": "3.6.0",
+      "jax": "0.5.3",
+      "jaxlib": "0.5.3",
+      "lerobot": "0.3.3",
+      "numpy": "1.26.4",
+      "pyarrow": "18.1.0",
+      "rlinf-openpi": "0.1.1",
+      "rlinf-transformer-openpi": "4.53.2",
+      "torch": "2.11.0+cu130",
+      "transformers": "4.57.6"
+    },
+    "python": "3.11.15"
+  },
+  "episodes": 2,
+  "horizon_validation": [
+    {
+      "cross_episode_samples": 0,
+      "episodes": 2,
+      "horizon": 1,
+      "padded_elements": 0,
+      "padded_windows": 0,
+      "policy": "lerobot_repeat_last_with_mask_v1",
+      "structural_status": "PASS_OBSERVATION_CONTAINER_ONLY",
+      "transitions": 8
+    },
+    {
+      "cross_episode_samples": 0,
+      "episodes": 2,
+      "horizon": 4,
+      "padded_elements": 12,
+      "padded_windows": 6,
+      "policy": "lerobot_repeat_last_with_mask_v1",
+      "structural_status": "PASS_OBSERVATION_CONTAINER_ONLY",
+      "transitions": 8
+    },
+    {
+      "cross_episode_samples": 0,
+      "episodes": 2,
+      "horizon": 20,
+      "padded_elements": 140,
+      "padded_windows": 8,
+      "policy": "lerobot_repeat_last_with_mask_v1",
+      "structural_status": "PASS_OBSERVATION_CONTAINER_ONLY",
+      "transitions": 8
+    },
+    {
+      "cross_episode_samples": 0,
+      "episodes": 2,
+      "horizon": 50,
+      "padded_elements": 380,
+      "padded_windows": 8,
+      "policy": "lerobot_repeat_last_with_mask_v1",
+      "structural_status": "PASS_OBSERVATION_CONTAINER_ONLY",
+      "transitions": 8
+    }
+  ],
+  "implementation_sha256": {
+    "pyproject.toml": "2f8f0413322580ba9bf585f56592ea5bf9a3cbbe1a1a84c76d5fdd1b42c331c9",
+    "rlinf/data/datasets/openpi/fr3.py": "39d46379797a2d8f159d50f698a94f11cf5533734a7bc473d284455ef61977ca",
+    "rlinf/data/datasets/openpi/fr3_contract.py": "8bda5ae1f08f2c02f3c0f22c1232e21678890224bf4e0048ef524a2aafb206f3",
+    "rlinf/data/datasets/recap/fr3_metadata.py": "66be7b34923991dba0ad78caaaa11805cb9bb61733a03587092c581c31606a4d",
+    "rlinf/models/embodiment/openpi/policies/fr3_policy.py": "d894fa14227994e32d373c195bdc8f01f8a8f34d4afaf533e7a773e62e958823",
+    "toolkits/realworld_check/qualify_fr3_openpi.py": "1a3a4e498c546955ef06cdf2ee72b4aa672eee891a22acfd0fa22f440f0580ce"
+  },
+  "metadata": {
+    "episodes": [
+      {
+        "controller_acceptance": "UNAVAILABLE",
+        "dataset_id": "dataset:d8b4aa98f42f4c74b45bff36df0013d8",
+        "episode_id": "synthetic:episode:000000",
+        "frame_annotations": [],
+        "interventions": [],
+        "iteration": null,
+        "native_provenance_path": "episodes/episode_000000/steps.jsonl",
+        "outcome": null,
+        "physical_execution": false,
+        "policy": null,
+        "rollout_id": null,
+        "source_manifest_sha256": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220",
+        "source_type": "synthetic_demonstration",
+        "split": "unassigned",
+        "task": null
+      },
+      {
+        "controller_acceptance": "UNAVAILABLE",
+        "dataset_id": "dataset:d8b4aa98f42f4c74b45bff36df0013d8",
+        "episode_id": "synthetic:episode:000001",
+        "frame_annotations": [],
+        "interventions": [],
+        "iteration": null,
+        "native_provenance_path": "episodes/episode_000001/steps.jsonl",
+        "outcome": null,
+        "physical_execution": false,
+        "policy": null,
+        "rollout_id": null,
+        "source_manifest_sha256": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220",
+        "source_type": "synthetic_demonstration",
+        "split": "unassigned",
+        "task": null
+      }
+    ],
+    "schema": "fr3_recap_metadata_v1"
+  },
+  "model_execution_rejection": "CHECKPOINT_UNVERIFIED: no qualified model state/action target, camera roles, instruction, normalization or checkpoint assets",
+  "normalization_fixture": {
+    "checkpoint_qualification": "UNQUALIFIED",
+    "method": "zscore",
+    "scope": "synthetic_math_only",
+    "status": "PASS_SYNTHETIC_MATH_ONLY"
+  },
+  "official_reference": {
+    "blob_shas": {
+      "src/openpi/models/pi0_config.py": "584d83f199e092203b59861a861c64768a4e0300",
+      "src/openpi/training/config.py": "4ca47e1286534c4ee7a919ccc38462f8f38bdd60",
+      "src/openpi/training/data_loader.py": "e2ee7dd06b6008757f834405c9222d493f450eb7",
+      "src/openpi/transforms.py": "272375ea95a5e43a42a6c0ff14cf89d34da76a45"
+    },
+    "commit": "215abfb217dbac7d5f1273282331b9b1866c0479",
+    "installed_equivalence_claimed": false,
+    "repository": "Physical-Intelligence/openpi"
+  },
+  "physical_command_authorization": "NOT_GRANTED",
+  "physical_execution": false,
+  "physical_safety_qualification": "NOT_QUALIFIED",
+  "qualification_6a_commit": "c6d70330eb26f5820cf76113d09e017d62efa245",
+  "qualification_gate": "NO_GO",
+  "recap": {
+    "episodes": 2,
+    "experimental_readiness": "UNQUALIFIED_SYNTHETIC_ONLY",
+    "missing": {
+      "interventions": 2,
+      "outcome": 2,
+      "policy_rollout": 2,
+      "reward_return_advantage": 2,
+      "split": 2,
+      "task_instruction": 2
+    },
+    "schema": "fr3_recap_metadata_v1",
+    "status": "PASS_STRUCTURAL_ONLY"
+  },
+  "reference_configurations": {
+    "pi05_franka_state": {
+      "asset_dir_template": "checkpoints/torch/pi05_franka_pretrained/assets",
+      "checkpoint_path_template": "checkpoints/torch/pi05_base",
+      "data_factory": "LeRobotFrankaEEDataConfig",
+      "model": {
+        "action_dim": 32,
+        "action_expert_variant": "gemma_300m",
+        "action_horizon": 20,
+        "discrete_state_input": true,
+        "dtype": "bfloat16",
+        "max_token_len": 200,
+        "paligemma_variant": "gemma_2b",
+        "pi05": true
+      },
+      "norm_mode_quantiles": true
+    },
+    "pi0_realworld": {
+      "asset_dir_template": "checkpoints/torch/pi0_base/assets",
+      "checkpoint_path_template": "checkpoints/torch/pi0_base",
+      "data_factory": "LeRobotRealworldDataConfig",
+      "model": {
+        "action_dim": 32,
+        "action_expert_variant": "gemma_300m",
+        "action_horizon": 10,
+        "discrete_state_input": false,
+        "dtype": "bfloat16",
+        "max_token_len": 48,
+        "paligemma_variant": "gemma_2b",
+        "pi05": false
+      },
+      "norm_mode_quantiles": false
+    }
+  },
+  "runtime": {
+    "distribution": "rlinf-openpi",
+    "installed_git_revision": null,
+    "python_files_verified": 54,
+    "source_tree_sha256": "2cb921836f35f511ab7fb59c868c56bdfe3f44049c0ada86be0516e69965b647",
+    "version": "0.1.1"
+  },
+  "schema": "fr3_openpi_recap_qualification_v1",
+  "source_episodes": 2,
+  "source_manifest_sha256": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220",
+  "source_transitions": 8,
+  "split_selection": null,
+  "structural_validation_complete": true,
+  "synthetic": true,
+  "transitions": 8,
+  "verification": {
+    "data": {
+      "known_vlm_deselected": 1,
+      "new_cases": 58,
+      "passed": 280,
+      "warnings": 116
+    },
+    "documentation": {
+      "en_sphinx_warnings": 0,
+      "scoped_markup": "PASS",
+      "scoped_symbols": "PASS",
+      "zh_sphinx_warnings": 0
+    },
+    "environment": {
+      "passed": 280,
+      "placement_deselected": 18,
+      "warnings": 1
+    },
+    "known_vlm_recheck": {
+      "reason": "VideoMetadata.__init__ rejects frames_indices",
+      "status": "FAILED_UNCHANGED"
+    },
+    "model_helpers": {
+      "passed": 14,
+      "skip_reason": "existing test imports nonexistent transformers.Gemma3ForCausalLM module",
+      "skipped": 1,
+      "unselected": 46
+    },
+    "model_training_run": false,
+    "model_weights_downloaded": false,
+    "new_tests_use_cpu": true,
+    "packaging": {
+      "dependencies_installed": false,
+      "file_bytes_match_checkout": true,
+      "frozen_contract_json_included": true,
+      "independent_unpacked_import_and_contract_load": "PASS",
+      "new_python_runtime_modules_verified": 4,
+      "status": "PASS_OFFLINE_WHEEL",
+      "wheel_sha256": "5bad94481c2cbd7668abca2695b264c985c8b50f45787ea8921d6d7136badb29"
+    },
+    "recap_experiments_run": false,
+    "robotics": {
+      "passed": 495,
+      "placement_deselected": 8
+    }
+  },
+  "windows": {
+    "cross_episode_samples": 0,
+    "horizon": 4,
+    "padded_elements": 12,
+    "padded_windows": 6,
+    "policy": "lerobot_repeat_last_with_mask_v1"
+  }
+}

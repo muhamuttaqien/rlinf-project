@@ -275,3 +275,45 @@ camera roles and horizon handling still require verification. RECAP also needs
 qualified outcomes, rollout/checkpoint identities, interventions and split
 metadata. See ``docs/fr3_fresh/milestone_5_dataset_validation.md`` for the audited
 schema and results. Physical execution remains ``NO_GO / NOT_GRANTED``.
+
+Inspect Structural OpenPI Samples
+---------------------------------
+
+Load a verified Milestone 5 export through the FR3 structural adapter to inspect
+state, camera probes, action windows and RECAP annotation bindings. The versioned
+contract pins ``rlinf-openpi==0.1.1`` and its exact source files. Run preprocessing
+on CPU and choose a new report directory:
+
+.. code-block:: bash
+
+   JAX_PLATFORMS=cpu PYTHONPATH="$PWD" HF_HUB_OFFLINE=1 \
+     HF_DATASETS_CACHE=/tmp/fr3-milestone6-hf-cache \
+     python -m toolkits.realworld_check.qualify_fr3_openpi \
+     --export /tmp/fr3-milestone5-final/export \
+     --output /tmp/fr3-milestone6-final --horizon 4 \
+     --check-normalization-fixture
+
+This writes ``qualification.json`` after checking the native archive, all eight
+transitions, synthetic image preprocessing and episode-bounded windows. The
+normalization option checks native OpenPI mathematics using explicit synthetic
+statistics; it does not create checkpoint assets. ``--horizon`` changes the
+structural inspection window. Padding repeats the last in-episode action with an
+explicit mask, source indices and timestamps; ``--padding-policy
+require_full_window_v1`` rejects missing future actions instead.
+
+``FR3OfflineDataset`` preserves all 42 state values and seven recorded controller
+request channels. Its OpenPI observation probe uses 224×224 images and Boolean
+array masks. The two camera slots remain synthetic positional routing, with
+physical roles unqualified. Original task text and model targets stay unavailable;
+the exported validation label is not promoted to an instruction. The callable
+``FR3Outputs`` and ``require_model_ready`` always reject checkpoint execution.
+
+Optional ``--annotations`` accepts ``fr3_recap_metadata_v1`` episode annotations
+bound to the source manifest hash. ``--split train``, ``validation`` or ``test``
+selects only explicitly assigned whole episodes; unassigned data cannot silently
+become a training split. Missing instructions, labels and rollout identities
+remain visible in the report. The native recorder, validator and generic
+``RealworldInputs`` behavior are preserved. Read
+``docs/fr3_fresh/milestone_6a_openpi_recap_contract.md`` and
+``docs/fr3_fresh/milestone_6b_fr3_openpi_adapter.md`` for the qualified subset and
+remaining checkpoint gates. Physical execution remains ``NO_GO / NOT_GRANTED``.
