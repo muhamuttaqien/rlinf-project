@@ -149,16 +149,18 @@ samples are independently received and are not a synchronized robot snapshot.
 Each worker uses best-effort, volatile, keep-last-depth-5 subscriptions after
 checking the advertised publisher type. It retains one decoded sample per stream.
 A private Unix ``SOCK_SEQPACKET`` socket carries version-1 JSON requests and
-responses, limited to 64 KiB per packet. Only ``snapshot`` and ``shutdown`` requests
-are accepted; state is sent on demand. Parent stderr retention is bounded to
+responses, limited to 64 KiB per packet. Supported requests are ``snapshot``,
+``inspect_status`` and ``shutdown``. Status inspection uses a fixed read-only
+whitelist of graph, controller-listing and parameter queries; state is sent on demand. Parent stderr retention is bounded to
 16 KiB. Startup and IPC timeouts default to five seconds; failure closes the
 session and reports diagnostics. The worker also exits on parent EOF.
 
 The worker imports ROS packages only in its selected interpreter and never opens
-a hardware-control connection. Its only application ROS endpoints are state
-subscriptions. Standard rclpy infrastructure may advertise parameter events and
-local type-description services; the adapter creates no command publisher,
-action client, or service client. Mixed Humble/Jazzy communication was verified
+a hardware-control connection. It subscribes to state and can create temporary
+read-only diagnostic service clients when status inspection is requested.
+Standard rclpy infrastructure may advertise parameter events and local
+type-description services; the adapter creates no command publisher, action
+client or state-changing service request. Mixed Humble/Jazzy communication was verified
 for these standard streams in short checks; qualify timing under your intended
 workload before using observations for collection.
 
@@ -167,7 +169,7 @@ Validate the Offline Collection Configuration
 
 The dedicated ``fr3_offline`` environment reuses these observation parts with
 marked synthetic packets and the existing offline action mocks. Its Hydra config
-prepares native environment and camera/input fields for later recorder work.
+selects native environment and camera/input fields for synthetic recording.
 Physical camera roles, operating profiles, TCP/gripper calibration and SpaceMouse
 mapping remain unresolved.
 
@@ -191,6 +193,43 @@ payloads are six normalized FR3 pose-offset channels and one normalized Robotiq
 closure channel. Environment steps require typed request envelopes and explicit
 synthetic approval; generic TCP poses and numeric collector arrays are rejected.
 The existing ``collect_real_data.py`` still hardcodes the generic environment and
-numeric action recording. Recorder/provenance integration is future work; do not
-run ``collect_data.sh`` with this config. Full findings and offline test commands
-are in ``docs/fr3_fresh/milestone_3_rlinf_configuration.md`` in the repository.
+numeric action recording. Use the dedicated offline entry point below; do not run
+``collect_data.sh`` with this config. Configuration findings and offline lifecycle
+checks are in ``docs/fr3_fresh/milestone_3_rlinf_configuration.md`` in the repository.
+
+Record and Reload Synthetic Episodes
+------------------------------------
+
+The offline recorder uses ``TrajectoryStep``, ``TrajectoryAccumulator`` and
+``TrajectoryReplayBuffer`` to save native replay tensors. JSON sidecars preserve
+raw scripted input, typed requests, validation/admission events, mock submissions
+and results, and associated observations. The dense action tensor represents
+submitted mock payloads; ``physical_execution`` remains false.
+
+From the repository root, record two four-step episodes into a new directory,
+then validate their hashes, schemas, action provenance, timestamps and native
+buffer reload:
+
+.. code-block:: bash
+
+   PYTHONPATH="$PWD" python -m examples.embodiment.collect_fr3_offline \
+     --output /tmp/fr3-milestone4-synthetic \
+     runner.num_data_episodes=2 env.eval.max_episode_steps=4 env.eval.seed=7
+   PYTHONPATH="$PWD" python -m examples.embodiment.collect_fr3_offline \
+     --output /tmp/fr3-milestone4-synthetic --validate-only
+
+The native ``demos`` directory contains two trajectory files and replay indexes.
+Per-episode JSON/JSONL sidecars and ``manifest.json`` describe their synthetic
+origin. Existing output directories are rejected. Only a validated ``COMPLETE``
+manifest is accepted; interrupted or failed writes remain incomplete.
+
+Fixture source/arrival timestamps share an explicit synthetic clock. Actual local
+receipt, action and recorder timestamps retain a separate host clock identity.
+Latest-before-action alignment rejects missing, stale, delayed or skewed fixture
+samples and performs no frame substitution. Seeded payloads and logical times are
+repeatable; host receipt times and session identifiers vary between runs. Zero
+rewards mean unscored fixtures, and mock gripper completion asserts no physical
+grasp. Physical qualification and authorization remain ``NOT_QUALIFIED`` and
+``NOT_GRANTED`` with gate ``NO_GO``. See
+``docs/fr3_fresh/milestone_4_data_collection_integration.md`` for schemas,
+failure handling and validation results.

@@ -1,4 +1,4 @@
-# Offline configuration validation only. The physical collection entry point is incompatible.
+# Offline synthetic validation/recording only. The physical collector is incompatible.
 defaults:
   - env/fr3_offline@env.eval
   - override hydra/job_logging: stdout
@@ -26,3 +26,10 @@ runner:
 
 env:
   group_name: EnvGroup
+
+# Dedicated synthetic recorder only; native physical collection stays disabled.
+offline_collection:
+  schema_version: 1
+  step_period_ns: 100000000
+  max_sample_age_ns: 50000000
+  max_sample_skew_ns: 20000000

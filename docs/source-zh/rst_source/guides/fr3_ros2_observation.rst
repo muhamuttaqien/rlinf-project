@@ -94,14 +94,14 @@ Wrench 是 broadcaster 输出的外力估计，其 header 决定坐标系。实�
 
 在 ``ros2.streams[stream]["sample"]`` 中，``header`` 保留 ROS 的 ``sec``、``nanosec`` 和 ``frame_id``，``received_monotonic_ns`` 单独记录本地 callback 接收时间。``age_s`` 使用该单调时钟，衡量接收新鲜度，不表示采集年龄或时钟同步。源 timestamp 重复以及持续发布均不能证明每次都获得了新的串口测量。这些最新样本独立接收，不是同步的机器人快照。
 
-worker 检查 publisher 宣告的类型后，使用 best-effort、volatile、keep-last-depth-5 订阅。每个 stream 只保留一个解码样本。私有 Unix ``SOCK_SEQPACKET`` socket 传输 version-1 JSON 请求和响应，每个 packet 上限为 64 KiB。仅接受 ``snapshot`` 和 ``shutdown`` 请求，按需返回状态。父进程最多保留 16 KiB 的 stderr。启动和 IPC 默认超时为五秒，失败时关闭会话并报告诊断；父进程 EOF 也会触发 worker 退出。
+worker 检查 publisher 宣告的类型后，使用 best-effort、volatile、keep-last-depth-5 订阅。每个 stream 只保留一个解码样本。私有 Unix ``SOCK_SEQPACKET`` socket 传输 version-1 JSON 请求和响应，每个 packet 上限为 64 KiB。支持 ``snapshot``、``inspect_status`` 和 ``shutdown`` 请求。状态检查使用固定的只读白名单查询 ROS graph、控制器列表和参数；状态数据按需返回。父进程最多保留 16 KiB 的 stderr。启动和 IPC 默认超时为五秒，失败时关闭会话并报告诊断；父进程 EOF 也会触发 worker 退出。
 
-worker 仅在所选解释器中导入 ROS 包，不建立硬件控制连接。其应用 ROS endpoint 仅包含状态订阅。标准 rclpy 基础设施可能发布 parameter events 或提供本地 type-description service；adapter 不创建 command publisher、action client 或 service client。短时检查验证了这些标准 stream 的 Humble/Jazzy 通信，采集前仍需在目标负载下验证时序。
+worker 仅在所选解释器中导入 ROS 包，不建立硬件控制连接。它订阅状态数据，并可在请求状态检查时创建临时只读诊断 service client。标准 rclpy 基础设施可能发布 parameter events 或提供本地 type-description service；adapter 不创建 command publisher、action client，也不发送改变状态的 service request。短时检查验证了这些标准 stream 的 Humble/Jazzy 通信，采集前仍需在目标负载下验证时序。
 
 验证离线采集配置
 ----------------
 
-专用的 ``fr3_offline`` 环境使用带合成标记的数据包和现有离线动作模拟器，复用上述观测部件。Hydra 配置为后续记录器集成准备原生环境、相机和输入设备字段。物理相机角色、运行参数、TCP/夹爪标定及 SpaceMouse 映射仍待确认。
+专用的 ``fr3_offline`` 环境使用带合成标记的数据包和现有离线动作模拟器，复用上述观测部件。Hydra 配置为合成数据记录选择原生环境、相机和输入设备字段。物理相机角色、运行参数、TCP/夹爪标定及 SpaceMouse 映射仍待确认。
 
 在仓库根目录执行以下命令，可以验证配置，而无需构造环境、启动 worker 或打开设备：
 
@@ -113,4 +113,23 @@ worker 仅在所选解释器中导入 ROS 包，不建立硬件控制连接。�
 
 JSON 结果包含 ``offline_synthetic``、固定的 ``fr3_offline`` 注册项及 ``resources_opened: false``。不受支持的执行模式或设备映射会被拒绝。物理资格状态保持为 ``NOT_QUALIFIED``，命令授权为 ``NOT_GRANTED``，资格门禁为 ``NO_GO``。
 
-主配置文件为 ``examples/embodiment/config/realworld_fr3_collect_data.yaml``。数值载荷包含六个 FR3 归一化位姿偏移通道和一个 Robotiq 归一化闭合通道。环境 step 要求带类型的请求封装及显式合成授权，拒绝通用 TCP 位姿和采集脚本的数值数组。现有 ``collect_real_data.py`` 仍固定使用通用环境和数值动作记录方式；记录器和来源信息的集成属于后续工作，请勿用此配置运行 ``collect_data.sh``。完整结论与离线测试命令见仓库中的 ``docs/fr3_fresh/milestone_3_rlinf_configuration.md``。
+主配置文件为 ``examples/embodiment/config/realworld_fr3_collect_data.yaml``。数值载荷包含六个 FR3 归一化位姿偏移通道和一个 Robotiq 归一化闭合通道。环境 step 要求带类型的请求封装及显式合成授权，拒绝通用 TCP 位姿和采集脚本的数值数组。现有 ``collect_real_data.py`` 仍固定使用通用环境和数值动作记录方式；请使用下述专用离线入口，请勿用此配置运行 ``collect_data.sh``。配置结论与离线生命周期测试命令见仓库中的 ``docs/fr3_fresh/milestone_3_rlinf_configuration.md``。
+
+记录并重新加载合成 Episode
+----------------------------------------
+
+离线记录器使用 ``TrajectoryStep``、``TrajectoryAccumulator`` 和 ``TrajectoryReplayBuffer`` 保存原生 replay 张量。JSON 附属文件分别保留脚本生成的原始输入、带类型的请求、验证与准入事件、模拟提交与结果，以及关联观测。稠密动作张量表示已提交的模拟载荷，``physical_execution`` 始终为 false。
+
+在仓库根目录执行以下命令，将两个各四步的 episode 写入新目录，再验证哈希、schema、动作来源、时间戳及原生 buffer 重新加载结果：
+
+.. code-block:: bash
+
+   PYTHONPATH="$PWD" python -m examples.embodiment.collect_fr3_offline \
+     --output /tmp/fr3-milestone4-synthetic \
+     runner.num_data_episodes=2 env.eval.max_episode_steps=4 env.eval.seed=7
+   PYTHONPATH="$PWD" python -m examples.embodiment.collect_fr3_offline \
+     --output /tmp/fr3-milestone4-synthetic --validate-only
+
+原生 ``demos`` 目录包含两个轨迹文件及 replay 索引。每个 episode 的 JSON/JSONL 附属文件与 ``manifest.json`` 记录其合成来源。输出目录已存在时会拒绝写入；只有经过验证且状态为 ``COMPLETE`` 的 manifest 才会被接受，中断或写入失败会保留未完成状态。
+
+Fixture 的源时间与到达时间使用显式合成时钟，实际本地接收、动作和记录器时间戳保留独立的主机时钟标识。动作前最近采样策略会拒绝缺失、过期、延迟或时间偏差超限的 fixture，且不使用旧帧替代。固定 seed 可复现数值载荷及逻辑时间，主机接收时间和 session 标识会随运行变化。零奖励表示未评分 fixture，模拟夹爪完成也不代表实际抓取成功。物理资格仍为 ``NOT_QUALIFIED``，授权仍为 ``NOT_GRANTED``，资格门禁保持 ``NO_GO``。Schema、失败处理及验证结果见 ``docs/fr3_fresh/milestone_4_data_collection_integration.md``。

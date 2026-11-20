@@ -18,6 +18,9 @@ import time
 from types import SimpleNamespace as NS
 from typing import Any
 
+from rlinf.robotics.parts.fr3_fixtures import SYNTHETIC_EPOCH_NS, SyntheticFrame
+from rlinf.robotics.parts.transports.ros2.action_contract import LOCAL_CLOCK_DOMAIN
+
 from .observation import ROS2ObservationTransport
 from .protocol import FR3_JOINTS, PROFILES, decode_message
 
@@ -31,6 +34,7 @@ class SyntheticROS2ObservationTransport(ROS2ObservationTransport):
             raise ValueError("Expected synthetic FR3 domain 70 or Robotiq domain 71")
         self._synthetic_alive = False
         self._sequence = 0
+        self.frame: SyntheticFrame | None = None
 
     @property
     def is_alive(self) -> bool:
@@ -54,7 +58,17 @@ class SyntheticROS2ObservationTransport(ROS2ObservationTransport):
         if not self.is_alive:
             raise ConnectionError("Expected a connected synthetic observation fixture")
         self._sequence += 1
-        sec, nano = divmod(time.time_ns(), 10**9)
+        fixture = self.frame
+        stream_name = "arm" if self.profile == "fr3" else "gripper"
+        timing = None if fixture is None else fixture.timing(stream_name)
+        if timing and timing["missing"]:
+            raise ConnectionError(f"missing_sample:{stream_name}")
+        source_ns = (
+            time.time_ns()
+            if timing is None
+            else SYNTHETIC_EPOCH_NS + timing["source_ns"]
+        )
+        sec, nano = divmod(source_ns, 10**9)
         streams = {}
         for key, (topic, kind, joints) in PROFILES[self.profile].items():
             header = NS(stamp=NS(sec=sec, nanosec=nano), frame_id="synthetic/base_link")
@@ -64,7 +78,9 @@ class SyntheticROS2ObservationTransport(ROS2ObservationTransport):
                     msg = NS(
                         header=header,
                         name=names,
-                        position=[0.0] * 7,
+                        position=[0.0] * 7
+                        if fixture is None
+                        else list(reversed(fixture.joint_positions())),
                         velocity=[0.0] * 7,
                         effort=[0.0] * 7,
                     )
@@ -72,7 +88,15 @@ class SyntheticROS2ObservationTransport(ROS2ObservationTransport):
                     msg = NS(
                         header=header,
                         name=list(joints),
-                        position=[0.1 if key == "knuckle" else 0.25],
+                        position=[
+                            (0.1 if key == "knuckle" else 0.25)
+                            if fixture is None
+                            else (
+                                0.1 + 0.01 * fixture.index
+                                if key == "knuckle"
+                                else fixture.closure()
+                            )
+                        ],
                         velocity=[],
                         effort=[],
                     )
@@ -81,7 +105,11 @@ class SyntheticROS2ObservationTransport(ROS2ObservationTransport):
                 msg = NS(
                     header=header,
                     pose=NS(
-                        position=NS(x=0.0, y=0.0, z=0.0),
+                        position=NS(
+                            x=0.0 if fixture is None else 0.001 * fixture.index,
+                            y=0.0,
+                            z=0.0,
+                        ),
                         orientation=NS(x=0.0, y=0.0, z=0.0, w=1.0),
                     ),
                 )
@@ -101,6 +129,11 @@ class SyntheticROS2ObservationTransport(ROS2ObservationTransport):
                 synthetic=True,
                 source="offline_synthetic_fixture",
             )
+            if timing is not None:
+                sample["fixture_timing"] = timing
+                sample["receipt_clock_domain"] = LOCAL_CLOCK_DOMAIN
+                sample["source_clock_domain"] = "synthetic-wall:" + fixture.clock_domain
+                sample["source_epoch_offset_ns"] = SYNTHETIC_EPOCH_NS
             streams[key] = {
                 "topic": topic,
                 "type": kind,

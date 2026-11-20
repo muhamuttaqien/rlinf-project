@@ -3047,3 +3047,504 @@ def test_vlm_collate_still_rejects_unknown_mm_keys():
 
     with pytest.raises(ValueError, match="Unsupported multi_modal_input key"):
         collate_fn([sample])
+
+
+@pytest.fixture
+def fr3_recorder_config():
+    from toolkits.realworld_check.validate_fr3_config import load_config
+
+    return load_config(["runner.num_data_episodes=2", "env.eval.max_episode_steps=3"])
+
+
+@pytest.fixture
+def fr3_dataset(tmp_path, fr3_recorder_config):
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+
+    directory = tmp_path / "synthetic"
+    report = collect_synthetic_dataset(fr3_recorder_config, directory)
+    return directory, report
+
+
+def test_fr3_native_recorder_round_trip(fr3_dataset):
+    from rlinf.data.storage.fr3_synthetic import read_json, validate_synthetic_dataset
+
+    root, report = fr3_dataset
+    assert report["episodes"] == 2 and report["steps"] == 6
+    assert report["native_reload"] and not report["physical_execution"]
+    assert validate_synthetic_dataset(root) == report
+    manifest = read_json(root / "manifest.json")
+    assert manifest["status"] == "COMPLETE"
+    assert manifest["camera_roles"] == {"d405": None, "d435i": None}
+    assert manifest["physical_command_authorization"] == "NOT_GRANTED"
+    assert not (root / ".buffer").exists()
+    assert len(list((root / "demos").glob("trajectory_*.pt"))) == 2
+    episodes = [read_json(root / e["metadata_path"]) for e in manifest["episodes"]]
+    assert all(
+        e["status"] == "COMPLETE" and e["termination_reason"] == "synthetic_horizon"
+        for e in episodes
+    )
+    assert (
+        episodes[0]["environment_episode_id"] != episodes[1]["environment_episode_id"]
+    )
+    assert episodes[0]["sessions"]["arm"] != episodes[1]["sessions"]["arm"]
+    for file in (root / "demos").glob("trajectory_*.pt"):
+        trajectory = torch.load(file, weights_only=True)
+        assert trajectory["actions"].shape == (3, 1, 7)
+        assert trajectory["curr_obs"]["states"].shape == (3, 1, 42)
+        assert trajectory["curr_obs"]["main_images"].shape == (3, 1, 24, 32, 3)
+        assert trajectory["curr_obs"]["extra_view_images"].shape == (3, 1, 1, 24, 32, 3)
+        assert trajectory["curr_obs"]["main_images"].dtype == torch.uint8
+        assert not trajectory["terminations"].any()
+        assert trajectory["truncations"][-1].all()
+        assert not trajectory["intervene_flags"].any()
+        assert torch.count_nonzero(trajectory["rewards"]) == 0
+        assert not torch.equal(
+            trajectory["curr_obs"]["states"][0], trajectory["next_obs"]["states"][0]
+        )
+    records = [
+        json.loads(line)
+        for line in (root / manifest["episodes"][0]["provenance_path"])
+        .read_text()
+        .splitlines()
+    ]
+    requested, outcome = records[:2]
+    assert requested["operator_request"]["physical_mapping_verified"] is False
+    assert len(requested["operator_request"]["raw_input"]["axes"]) == 6
+    assert (
+        requested["operator_request"]["input_timing"]["clock_domain"]
+        == manifest["synthetic_clock_domain"]
+    )
+    assert outcome["physical_grasp_success"] is None
+    assert outcome["physical_controller_acceptance"] == "UNAVAILABLE"
+    arm = requested["typed_requests"]["arm"]
+    gripper = requested["typed_requests"]["end_effector"]
+    assert arm["kind"] == "fr3_normalized_pose_offset_v1"
+    assert gripper["kind"] == "robotiq_normalized_closure_v1"
+    assert len(gripper["values"]) == 1 and 0 <= gripper["values"][0] <= 1
+    assert arm["clock_domain"] == requested["recorder_clock_domain"]
+    assert arm["clock_domain"] != requested["synthetic_clock_domain"]
+    arm_states = [e["state"] for e in outcome["action_events"]["arm"]]
+    assert arm_states[:5] == [
+        "created",
+        "validated",
+        "admitted",
+        "submitted",
+        "acceptance_unknown",
+    ]
+    assert "mock_canceled" in arm_states
+    assert "mock_completed" in [
+        e["state"] for e in outcome["action_events"]["end_effector"]
+    ]
+    assert not any(str(root) in p.read_text() for p in root.rglob("*.json"))
+    assert not any(str(root) in p.read_text() for p in root.rglob("*.jsonl"))
+
+
+def test_fr3_recorder_reproducible_payloads(tmp_path, fr3_recorder_config):
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+
+    for name in ("first", "second"):
+        collect_synthetic_dataset(fr3_recorder_config, tmp_path / name)
+    for first in sorted((tmp_path / "first/demos").glob("trajectory_*.pt")):
+        a = torch.load(first, weights_only=True)
+        b = torch.load(tmp_path / "second/demos" / first.name, weights_only=True)
+        for key in ("actions", "rewards", "dones", "intervene_flags"):
+            assert torch.equal(a[key], b[key])
+        for section in ("curr_obs", "next_obs"):
+            assert all(
+                torch.equal(value, b[section][key]) for key, value in a[section].items()
+            )
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "invalid_action",
+        "expired_action",
+        "no_authorization",
+        "mock_fail",
+        "mock_reject",
+        "ack_timeout",
+        "worker_crash",
+        "ipc_failure",
+        "missing_camera",
+        "delayed_camera",
+        "stale_observation",
+        "sample_skew",
+        "interrupted",
+    ],
+)
+def test_fr3_recorder_failures_are_incomplete(tmp_path, fr3_recorder_config, scenario):
+    from rlinf.data.collectors.fr3_offline import (
+        SyntheticScenario,
+        collect_synthetic_dataset,
+    )
+    from rlinf.data.storage.fr3_synthetic import read_json, validate_synthetic_dataset
+
+    if scenario == "ack_timeout":
+        fr3_recorder_config.env.eval.override_cfg.synthetic_profile.acknowledgement_timeout_ns = 1
+    root = tmp_path / "failed"
+    exception = (
+        KeyboardInterrupt
+        if scenario == "interrupted"
+        else (ValueError, ConnectionError)
+    )
+    with pytest.raises(exception):
+        collect_synthetic_dataset(
+            fr3_recorder_config, root, scenario=SyntheticScenario(scenario)
+        )
+    manifest = read_json(root / "manifest.json")
+    assert manifest["status"] == "INCOMPLETE" and manifest["errors"]
+    assert manifest["physical_execution"] is False
+    episode = read_json(root / "episodes/episode_000000/episode.json")
+    assert episode["status"] == "INCOMPLETE"
+    records = [
+        json.loads(line)
+        for line in (root / "episodes/episode_000000/steps.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert records[-1]["event"] == "step_outcome" and records[-1]["valid"] is False
+    if scenario == "ack_timeout":
+        assert any(
+            e["reason"] == "mock_ack_timeout"
+            for e in records[-1]["action_events"]["end_effector"]
+        )
+    with pytest.raises(ValueError, match="not finalized"):
+        validate_synthetic_dataset(root)
+
+
+def test_fr3_recorder_rejects_native_stale_observation(tmp_path, fr3_recorder_config):
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+
+    fr3_recorder_config.env.eval.override_cfg.synthetic_profile.max_observation_age_ns = 1
+    with pytest.raises(ValueError, match="observation"):
+        collect_synthetic_dataset(fr3_recorder_config, tmp_path / "stale")
+    assert (
+        json.loads((tmp_path / "stale/manifest.json").read_text())["status"]
+        == "INCOMPLETE"
+    )
+
+
+@pytest.mark.parametrize(
+    "setting",
+    [
+        "env.eval.env_type=real",
+        "env.eval.override_cfg.execution_mode=live",
+        "env.eval.override_cfg.action_transport=ros2",
+        "env.eval.data_collection.enabled=true",
+        "runner.num_data_episodes=0",
+        "offline_collection.schema_version=2",
+    ],
+)
+def test_fr3_recorder_config_fails_before_resources(tmp_path, setting):
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+    from toolkits.realworld_check.validate_fr3_config import load_config
+
+    root = tmp_path / "invalid"
+    with pytest.raises(ValueError):
+        collect_synthetic_dataset(load_config([setting]), root)
+    assert not root.exists()
+
+
+def test_fr3_recorder_never_overwrites(fr3_dataset, fr3_recorder_config):
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+
+    root, _ = fr3_dataset
+    original = (root / "manifest.json").read_bytes()
+    with pytest.raises(FileExistsError):
+        collect_synthetic_dataset(fr3_recorder_config, root)
+    assert (root / "manifest.json").read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "error",
+    [OSError("synthetic disk full"), TypeError("synthetic serialization failure")],
+)
+def test_fr3_native_save_failure_cannot_finalize(
+    tmp_path, fr3_recorder_config, monkeypatch, error
+):
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+    from rlinf.data.storage.fr3_synthetic import validate_synthetic_dataset
+
+    def fail_save(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(torch, "save", fail_save)
+    root = tmp_path / "failed-write"
+    with pytest.raises(type(error)):
+        collect_synthetic_dataset(fr3_recorder_config, root)
+    assert json.loads((root / "manifest.json").read_text())["status"] == "INCOMPLETE"
+    with pytest.raises(ValueError):
+        validate_synthetic_dataset(root)
+
+
+def test_fr3_status_write_failure_is_not_finalized(
+    tmp_path, fr3_recorder_config, monkeypatch
+):
+    import os
+
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+
+    original = os.replace
+
+    def fail_episode(source, target):
+        if str(target).endswith("episode.json"):
+            raise OSError("synthetic status write failure")
+        return original(source, target)
+
+    monkeypatch.setattr(os, "replace", fail_episode)
+    root = tmp_path / "failed-status"
+    with pytest.raises(OSError):
+        collect_synthetic_dataset(fr3_recorder_config, root)
+    assert json.loads((root / "manifest.json").read_text())["status"] == "INCOMPLETE"
+
+
+def test_fr3_cleanup_failure_blocks_complete_marker(
+    tmp_path, fr3_recorder_config, monkeypatch
+):
+    import subprocess
+
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+
+    fr3_recorder_config.runner.num_data_episodes = 1
+    original = subprocess.Popen.wait
+    affected = []
+
+    def fail_first_wait(process, *args, **kwargs):
+        result = original(process, *args, **kwargs)
+        if not affected:
+            affected.append(process)
+            raise OSError("synthetic reaping failure")
+        return result
+
+    monkeypatch.setattr(subprocess.Popen, "wait", fail_first_wait)
+    root = tmp_path / "failed-cleanup"
+    with pytest.raises(Exception, match="synthetic reaping failure"):
+        collect_synthetic_dataset(fr3_recorder_config, root)
+    assert affected and all(p.poll() is not None for p in affected)
+    assert json.loads((root / "manifest.json").read_text())["status"] == "INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "schema",
+        "physical_claim",
+        "truncated_log",
+        "file_bytes",
+        "missing_file",
+        "action_values",
+        "frame_time",
+        "logical_time",
+        "operator_input",
+        "dense_state",
+    ],
+)
+def test_fr3_reload_detects_schema_and_corruption(fr3_dataset, corruption):
+    from rlinf.data.storage.fr3_synthetic import file_digest, validate_synthetic_dataset
+
+    root, _ = fr3_dataset
+    manifest = json.loads((root / "manifest.json").read_text())
+    if corruption == "schema":
+        manifest["schema"] = "unknown"
+    elif corruption == "physical_claim":
+        manifest["physical_execution"] = True
+    else:
+        provenance = root / manifest["episodes"][0]["provenance_path"]
+        if corruption == "truncated_log":
+            provenance.write_bytes(provenance.read_bytes()[:-12])
+        elif corruption in (
+            "action_values",
+            "frame_time",
+            "logical_time",
+            "operator_input",
+        ):
+            lines = [json.loads(line) for line in provenance.read_text().splitlines()]
+            if corruption == "action_values":
+                lines[0]["typed_requests"]["arm"]["values"][0] += 0.1
+            elif corruption == "frame_time":
+                lines[0]["observation_before"]["cameras"]["d405"]["metadata"][
+                    "fixture_timing"
+                ]["clock_domain"] = "other-host"
+            elif corruption == "logical_time":
+                lines[0]["logical_action_ns"] += 1
+            else:
+                lines[0]["operator_request"]["raw_input"]["axes"][0] += 0.1
+            provenance.write_text("".join(json.dumps(line) + "\n" for line in lines))
+            manifest["files"][str(provenance.relative_to(root))] = file_digest(
+                provenance
+            )
+        else:
+            native = next((root / "demos").glob("trajectory_*.pt"))
+            if corruption == "missing_file":
+                native.unlink()
+            elif corruption == "dense_state":
+                payload = torch.load(native, weights_only=True)
+                payload["curr_obs"]["states"][0, 0, 0] = float("nan")
+                torch.save(payload, native)
+                manifest["files"][str(native.relative_to(root))] = file_digest(native)
+            else:
+                native.write_bytes(native.read_bytes()[:-10] + b"corruption")
+    (root / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        validate_synthetic_dataset(root)
+
+
+def test_fr3_async_alignment_and_no_substitution():
+    import dataclasses
+
+    from rlinf.robotics.parts.fr3_fixtures import (
+        STREAMS,
+        SyntheticFrame,
+        validate_alignment,
+    )
+
+    frame = SyntheticFrame(0, 1_000_000_000, "synthetic:test")
+    times = {s: frame.timing(s) for s in STREAMS}
+    assert len({v["arrival_ns"] for v in times.values()}) > 1
+    validate_alignment(times, 50_000_000, 20_000_000)
+    for broken in (
+        dataclasses.replace(frame, missing=("d435i",)),
+        dataclasses.replace(
+            frame, arrival_offsets_ns={**frame.arrival_offsets_ns, "d405": 1}
+        ),
+    ):
+        with pytest.raises(ValueError):
+            validate_alignment(
+                {s: broken.timing(s) for s in STREAMS}, 50_000_000, 20_000_000
+            )
+
+
+def test_fr3_recorder_subprocess_is_hardware_inaccessible(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    program = r"""
+import builtins
+import numpy.testing
+import os
+import subprocess
+import sys
+import psutil
+import ray
+original_import = builtins.__import__
+def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if level == 0 and name.split('.')[0] in {'rclpy','rospy','franky','pyrealsense2','hid','hidapi','spnav','pyspacemouse','pymodbus'}:
+        raise AssertionError('hardware SDK import: '+name)
+    return original_import(name, globals, locals, fromlist, level)
+builtins.__import__ = guarded_import
+psutil.process_iter = lambda *a, **k: (_ for _ in ()).throw(AssertionError('hardware/process discovery'))
+ray.init = lambda *a, **k: (_ for _ in ()).throw(AssertionError('Ray initialization'))
+original_popen = subprocess.Popen
+workers = []
+class GuardedPopen(original_popen):
+    def __init__(self, args, *pos, **kwargs):
+        assert any(str(a).endswith('/mock_action_worker.py') for a in args), args
+        assert not any(k.startswith(('ROS_', 'RMW_', 'FASTRTPS_', 'FASTDDS_', 'CYCLONEDDS_')) for k in kwargs['env'])
+        super().__init__(args, *pos, **kwargs)
+        workers.append(self)
+subprocess.Popen = GuardedPopen
+from toolkits.realworld_check.validate_fr3_config import load_config
+from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+from rlinf.data.storage.fr3_synthetic import validate_synthetic_dataset
+cfg=load_config(['runner.num_data_episodes=2','env.eval.max_episode_steps=2'])
+report=collect_synthetic_dataset(cfg, sys.argv[1])
+assert validate_synthetic_dataset(sys.argv[1]) == report
+assert report['episodes']==2 and report['steps']==4 and not report['physical_execution']
+assert 'rlinf.envs.real.franka' not in sys.modules
+assert all(worker.poll() is not None for worker in workers)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(tmp_path / "guarded")],
+        cwd=Path(__file__).resolve().parents[2],
+        env={**os.environ, "ROS_DOMAIN_ID": "70"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_fr3_offline_collection_cli(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = tmp_path / "cli"
+    command = [
+        sys.executable,
+        "-m",
+        "examples.embodiment.collect_fr3_offline",
+        "--output",
+        str(root),
+    ]
+    result = subprocess.run(
+        command + ["runner.num_data_episodes=2", "env.eval.max_episode_steps=2"],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout.splitlines()[-1])
+    assert report["episodes"] == 2 and report["steps"] == 4
+    result = subprocess.run(
+        command + ["--validate-only"],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.splitlines()[-1]) == report
+
+
+def test_fr3_offline_cli_live_override_opens_no_dataset(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = tmp_path / "forbidden"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "examples.embodiment.collect_fr3_offline",
+            "--output",
+            str(root),
+            "env.eval.env_type=real",
+        ],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode != 0
+    assert not root.exists()
+
+
+@pytest.mark.parametrize(
+    ("missing", "reason"),
+    [("arm", "complete synthetic"), ("d405", "missing_or_malformed_camera")],
+)
+def test_fr3_missing_initial_observation_rolls_back_owned_resources(
+    fr3_recorder_config, missing, reason
+):
+    from rlinf.envs import get_env_cls
+    from rlinf.robotics.parts.fr3_fixtures import SyntheticFrame
+
+    env = get_env_cls("fr3_offline")(fr3_recorder_config.env.eval)
+    try:
+        env.offline_task.set_synthetic_frame(
+            SyntheticFrame(0, 1_000_000_000, "synthetic:missing", missing=(missing,))
+        )
+        with pytest.raises(ValueError, match=reason):
+            env.reset()
+        assert not env.offline_task.robot.is_connected
+        assert not any(
+            part.is_connected for part in env.offline_task.robot.children.values()
+        )
+    finally:
+        env.close()

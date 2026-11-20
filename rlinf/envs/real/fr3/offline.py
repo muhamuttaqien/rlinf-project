@@ -14,6 +14,7 @@
 
 """Native FR3 environment integration with fixed synthetic resources only."""
 
+import copy
 import json
 import uuid
 from collections.abc import Mapping, Sequence
@@ -25,6 +26,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from rlinf.envs.real.env import RealWorldEnv, StepResult
 from rlinf.envs.utils import to_tensor
+from rlinf.robotics.parts.fr3_fixtures import SyntheticFrame
 from rlinf.robotics.parts.fr3_synthetic import (
     SyntheticCamera,
     SyntheticFR3Observation,
@@ -143,9 +145,53 @@ class FR3OfflineTask(gym.Env):
         self._needs_reset = True
         self._steps = 0
 
+    def set_synthetic_frame(self, frame: SyntheticFrame) -> None:
+        """Stage one shared fixture boundary for the next observation read."""
+        if type(frame) is not SyntheticFrame:
+            raise TypeError(
+                "Expected a SyntheticFrame; physical inputs are unsupported"
+            )
+        for name in ("arm_observation", "gripper_observation"):
+            self.robot.children[name]._transport.frame = frame
+        for name in (*self.config.cameras, "spacemouse"):
+            self.robot.children[name].frame = frame
+
+    def synthetic_observation(self) -> dict[str, Any]:
+        """Copy the last fixture snapshot without reading a device or polling mocks."""
+        if self._last is None:
+            raise RuntimeError("Expected a retained synthetic observation after reset")
+        return copy.deepcopy(
+            {
+                name: self._last[name]
+                for name in (
+                    "arm_observation",
+                    "gripper_observation",
+                    "spacemouse",
+                    *self.config.cameras,
+                )
+            }
+        )
+
     def _observe(self) -> tuple[dict[str, Any], dict[str, Any]]:
         raw = self.robot.get_observation()
         self._last = raw
+        for name in ("arm_observation", "gripper_observation"):
+            if not raw[name]["ros2"]["complete"]:
+                raise ValueError(f"Expected complete synthetic {name} observations")
+        for name in self.config.cameras:
+            image = raw[name]["image"]
+            camera = self.config.cameras[name]
+            expected_shape = (
+                camera.fixture_resolution[1],
+                camera.fixture_resolution[0],
+                3,
+            )
+            if (
+                not isinstance(image, np.ndarray)
+                or image.shape != expected_shape
+                or image.dtype != np.uint8
+            ):
+                raise ValueError(f"missing_or_malformed_camera:{name}")
         combined = {
             **raw["arm_observation"]["state"],
             **raw["gripper_observation"]["state"],

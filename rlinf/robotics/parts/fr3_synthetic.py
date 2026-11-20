@@ -21,6 +21,7 @@ import numpy as np
 
 from .base import Features, Observation
 from .cameras.base import Camera
+from .fr3_fixtures import SyntheticFrame
 from .ros2_observation import FR3ROS2Observation, RobotiqROS2Observation
 from .teleop.base import TeleopPart
 from .transports.ros2.action_contract import LOCAL_CLOCK_DOMAIN
@@ -48,6 +49,7 @@ class SyntheticCamera(Camera):
 
     def __init__(self, width: int, height: int, sensor: str) -> None:
         self.width, self.height, self.sensor = width, height, sensor
+        self.frame: SyntheticFrame | None = None
 
     def _open(self) -> object:
         return object()
@@ -67,8 +69,10 @@ class SyntheticCamera(Camera):
         """Read a fixture frame, independent of any physical camera."""
         if not self.is_connected:
             raise ConnectionError("Expected a connected synthetic camera")
-        return {
-            "image": np.zeros((self.height, self.width, 3), dtype=np.uint8),
+        observation = {
+            "image": np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            if self.frame is None
+            else self.frame.image(self.sensor, self.width, self.height),
             "metadata": {
                 "synthetic": True,
                 "source": "fixture:" + self.sensor,
@@ -79,10 +83,15 @@ class SyntheticCamera(Camera):
                 "layout": "HWC",
             },
         }
+        if self.frame is not None:
+            observation["metadata"]["fixture_timing"] = self.frame.timing(self.sensor)
+        return observation
 
 
 class SyntheticSpaceMouse(TeleopPart):
     """Expose raw fixture input only; no operator-to-controller action mapping."""
+
+    frame: SyntheticFrame | None = None
 
     def _open(self) -> object:
         return object()
@@ -99,8 +108,10 @@ class SyntheticSpaceMouse(TeleopPart):
         """Read a synthetic neutral input; it is never converted to an action."""
         if not self.is_connected:
             raise ConnectionError("Expected a connected synthetic SpaceMouse")
-        return {
-            "axes": np.zeros(6, dtype=np.float32),
+        observation = {
+            "axes": np.zeros(6, dtype=np.float32)
+            if self.frame is None
+            else np.asarray(self.frame.axes(), dtype=np.float32),
             "buttons": np.zeros(2, dtype=bool),
             "metadata": {
                 "synthetic": True,
@@ -111,3 +122,6 @@ class SyntheticSpaceMouse(TeleopPart):
                 "action_mapping": None,
             },
         }
+        if self.frame is not None:
+            observation["metadata"]["fixture_timing"] = self.frame.timing("spacemouse")
+        return observation
