@@ -4427,3 +4427,485 @@ def test_robotwin_eval_success_seed_order_is_controlled_by_base_seed():
 
     assert selected_seed_0 == selected_seed_0_again
     assert selected_seed_0 != selected_seed_1
+
+
+@pytest.fixture
+def fr3_config():
+    """Compose the synthetic primary configuration without environment resources."""
+    from toolkits.realworld_check.validate_fr3_config import load_config
+
+    return load_config()
+
+
+@pytest.fixture
+def fr3_offline_env(fr3_config):
+    from rlinf.envs import get_env_cls
+
+    env = get_env_cls(fr3_config.env.eval.env_type)(fr3_config.env.eval)
+    try:
+        yield env
+    finally:
+        env.close()
+
+
+def test_fr3_config_composition_and_registration(fr3_config):
+    from rlinf.envs import SupportedEnvType, get_env_cls
+    from rlinf.envs.real.env import RealWorldEnv
+    from rlinf.envs.real.fr3 import FR3OfflineRealWorldEnv
+    from toolkits.realworld_check.validate_fr3_config import (
+        load_config,
+        validate_config,
+    )
+
+    assert SupportedEnvType.FR3_OFFLINE.value == "fr3_offline"
+    assert get_env_cls("fr3_offline") is FR3OfflineRealWorldEnv
+    assert issubclass(FR3OfflineRealWorldEnv, RealWorldEnv)
+    report = validate_config(fr3_config)
+    assert report["valid"] and report["synthetic"]
+    assert report["resources_opened"] is False
+    assert report["observation_domains"] == {"arm": 70, "gripper": 71}
+    assert report["action_ros_domains"] is None
+    assert report["qualification_gate"] == "NO_GO"
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+    assert report["physical_safety_qualification"] == "NOT_QUALIFIED"
+    assert not report["native_collection_compatible"]
+    cfg = load_config(
+        [
+            "env.eval.seed=19",
+            "runner.num_data_episodes=3",
+            "env.eval.max_episode_steps=2",
+            "env.eval.data_collection.export_format=lerobot",
+        ]
+    )
+    assert validate_config(cfg)["valid"]
+    assert cfg.env.eval.seed == 19 and cfg.runner.num_data_episodes == 3
+    assert cfg.env.eval.data_collection.enabled is False
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("env_type", "real"),
+        ("init_params.id", "Franka-v0"),
+        ("teleop", "spacemouse"),
+        ("auto_reset", True),
+        ("video_cfg.save_video", True),
+        ("data_collection.enabled", True),
+        ("data_collection.export_format", "unknown"),
+        ("main_image_key", "wrist"),
+        ("max_episode_steps", 0),
+        ("seed", -1),
+        ("override_cfg.execution_mode", "live"),
+        ("override_cfg.is_dummy", False),
+        ("override_cfg.action_transport", "ros2"),
+        ("override_cfg.observation_transport", "ros2"),
+        ("override_cfg.arm_domain_id", 71),
+        ("override_cfg.gripper_domain_id", 70),
+        ("override_cfg.arm_action_kind", "tcp_pose"),
+        ("override_cfg.arm_action_dimension", 7),
+        ("override_cfg.gripper_action_kind", "gripper_width"),
+        ("override_cfg.source_id", "policy:physical"),
+        ("override_cfg.synthetic_profile", None),
+        ("override_cfg.synthetic_profile.scope", "physical"),
+        ("override_cfg.synthetic_profile.approval_id", "operator:approved"),
+        ("override_cfg.synthetic_profile.arm_lower", [-2.0] * 6),
+        ("override_cfg.synthetic_profile.max_lifetime_ns", 0),
+        ("override_cfg.cameras.d405.serial_number", "unknown"),
+        ("override_cfg.cameras.d435i.serial_number", ""),
+        ("override_cfg.cameras.d405.fixture_resolution", [0, 24]),
+        ("override_cfg.cameras.d405.fixture_resolution", [32, 24, 3]),
+        ("override_cfg.cameras.d405.fixture_resolution", [64, 48]),
+        ("override_cfg.cameras.d405.physical_role", "wrist"),
+        ("override_cfg.cameras.d405.calibration", "unverified"),
+        ("override_cfg.spacemouse.controller_mapping", "native_delta"),
+        ("override_cfg.spacemouse.device_index", 0),
+        ("override_cfg.physical_calibration", "unverified"),
+        ("override_cfg.live_transport", True),
+    ],
+)
+def test_fr3_config_rejects_unsupported_settings(fr3_config, key, value):
+    from rlinf.envs.real.fr3 import FR3OfflineRealWorldEnv
+
+    OmegaConf.update(fr3_config.env.eval, key, value, merge=False, force_add=True)
+    with pytest.raises((ValueError, TypeError)):
+        FR3OfflineRealWorldEnv(fr3_config.env.eval)
+
+
+def test_fr3_config_requires_explicit_dependencies(fr3_config):
+    from rlinf.envs.real.fr3.config import validate_environment_config
+
+    del fr3_config.env.eval.override_cfg.cameras.d405
+    with pytest.raises(ValueError, match="both d405 and d435i"):
+        validate_environment_config(fr3_config.env.eval)
+
+
+def test_fr3_config_requires_explicit_synthetic_approval(fr3_config):
+    from rlinf.envs.real.fr3.config import validate_environment_config
+
+    del fr3_config.env.eval.override_cfg.synthetic_profile.approval_id
+    with pytest.raises(ValueError, match="explicit synthetic_profile.approval_id"):
+        validate_environment_config(fr3_config.env.eval)
+
+
+def test_fr3_native_composition_and_observation(fr3_offline_env):
+    from rlinf.robotics.parts.ros2_observation import (
+        FR3ROS2Observation,
+        RobotiqROS2Observation,
+    )
+    from rlinf.robotics.parts.ros2_offline_action import (
+        FR3OfflineAction,
+        RobotiqOfflineAction,
+    )
+    from rlinf.robotics.robots.franka import FrankaRobot
+
+    env = fr3_offline_env
+    task = env.offline_task
+    assert isinstance(task.robot, FrankaRobot)
+    assert isinstance(task.robot.children["arm_observation"], FR3ROS2Observation)
+    assert isinstance(
+        task.robot.children["gripper_observation"], RobotiqROS2Observation
+    )
+    assert isinstance(task.robot.children["arm"], FR3OfflineAction)
+    assert isinstance(task.robot.children["end_effector"], RobotiqOfflineAction)
+    assert not task.robot.is_connected
+    assert all(not p.is_connected for p in task.robot.children.values())
+    observation, infos = env.reset()
+    assert observation["states"].shape == (1, 42)
+    assert observation["main_images"].shape == (1, 24, 32, 3)
+    assert observation["extra_view_images"].shape == (1, 1, 24, 32, 3)
+    assert observation["main_images"].dtype == torch.uint8
+    assert task.observation_space.contains(
+        {
+            "state": {
+                k: np.asarray(v, dtype=np.float32).reshape(-1)
+                for k, v in {
+                    **task._last["arm_observation"]["state"],
+                    **task._last["gripper_observation"]["state"],
+                }.items()
+            },
+            "frames": {name: task._last[name]["image"] for name in ("d405", "d435i")},
+        }
+    )
+    assert infos["synthetic"].tolist() == [True]
+    assert infos["eligible_real_demonstration"].tolist() == [False]
+
+    def unbatch(value):
+        if isinstance(value, dict):
+            return {k: unbatch(v) for k, v in value.items() if not k.startswith("_")}
+        return value[0]
+
+    for name, domain in (("arm", 70), ("gripper", 71)):
+        ros2 = unbatch(infos["ros2"])[name]
+        assert ros2["domain_id"] == domain
+        assert ros2["complete"]
+        for stream in ros2["streams"].values():
+            sample = stream["sample"]
+            assert sample["synthetic"]
+            assert sample["source"] == "offline_synthetic_fixture"
+            assert sample["received_monotonic_ns"] > 0
+            assert sample["header"]["frame_id"].startswith("synthetic/")
+    state = task._last["arm_observation"]["state"]
+    assert state["tcp_pose"][-4:] == [0.0, 0.0, 0.0, 1.0]
+    assert "tcp_vel" not in state and "arm_jacobian" not in state
+    gripper = task._last["gripper_observation"]
+    assert "opening_width_m" in gripper["ros2"]["unavailable_fields"]
+    assert (
+        gripper["state"]["knuckle_position_rad"]
+        != gripper["state"]["normalized_closure"]
+    )
+    assert unbatch(infos["spacemouse_raw"])["axes"].shape == (6,)
+    assert unbatch(infos["spacemouse_raw"])["metadata"]["action_mapping"] is None
+    for metadata in unbatch(infos["camera_metadata"]).values():
+        assert metadata["synthetic"]
+        assert metadata["layout"] == "HWC" and metadata["encoding"] == "RGB"
+        assert metadata["source_timestamp"] is None
+
+
+def test_fr3_typed_step_and_provenance(fr3_offline_env):
+    env = fr3_offline_env
+    observation, _ = env.reset()
+    task = env.offline_task
+    assert not any(part.armed for part in task.actions.values())
+    task.authorize_synthetic()
+    request = task.create_normalized_action(
+        (0.1, -0.1, 0.0, 0.0, 0.0, 0.0), 0.25, sequence=1
+    )
+    next_obs, reward, terminated, truncated, infos = env.step([request])
+    assert reward.tolist() == [0.0] and terminated.tolist() == [False]
+    assert truncated.tolist() == [False]
+    assert torch.equal(observation["states"], next_obs["states"])
+    assert infos["reward_evaluated"].tolist() == [False]
+    assert infos["success_evaluated"].tolist() == [False]
+    assert infos["physical_command_authorization"].tolist() == ["NOT_GRANTED"]
+    for name, part in task.actions.items():
+        events = part.events()
+        states = [e["state"] for e in events]
+        assert states[:4] == ["created", "validated", "admitted", "submitted"]
+        assert all(e["offline"] and not e["physical_execution"] for e in events)
+        assert events[0]["request"]["sequence"] == 1
+        assert events[0]["request"]["kind"] == request[name].kind
+        assert part.get_state()["mock_action"]["ros_domain_id"] is None
+        assert part.get_state()["mock_action"]["last_admitted_sequence"] == 1
+    assert "mock_acknowledged" in [
+        e["state"] for e in task.actions["end_effector"].events()
+    ]
+    # Only check native tensor retention; no trajectory is exported or labelled real.
+    from rlinf.data.schema.embodied_types import TrajectoryStep
+
+    step = TrajectoryStep(
+        curr_obs={k: v for k, v in observation.items() if isinstance(v, torch.Tensor)}
+    )
+    assert step.curr_obs["states"].device.type == "cpu"
+    assert step.actions is None
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "unapproved",
+        "arm_dimension",
+        "gripper_range",
+        "nan",
+        "tcp_pose",
+        "wrong_type",
+        "wrong_session",
+        "expired",
+        "clock",
+        "malformed_provenance",
+        "foreign_observation",
+        "mismatched_sequence",
+    ],
+)
+def test_fr3_action_failures_submit_nothing(fr3_offline_env, failure):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    env = fr3_offline_env
+    env.reset()
+    task = env.offline_task
+    if failure != "unapproved":
+        task.authorize_synthetic()
+    request = task.create_normalized_action((0.0,) * 6, 0.25, sequence=1)
+    arm = request["arm"]
+    if failure == "arm_dimension":
+        request["arm"] = dataclasses.replace(arm, values=(0.0,) * 7)
+    elif failure == "gripper_range":
+        request["end_effector"] = dataclasses.replace(
+            request["end_effector"], values=(1.1,)
+        )
+    elif failure == "nan":
+        request["arm"] = dataclasses.replace(arm, values=(float("nan"),) * 6)
+    elif failure == "tcp_pose":
+        request["arm"] = dataclasses.replace(arm, kind="tcp_pose")
+    elif failure == "wrong_type":
+        request["arm"] = {"tcp_pose": [0.0] * 7}
+    elif failure == "wrong_session":
+        request["arm"] = dataclasses.replace(arm, session_id="other")
+    elif failure == "expired":
+        request["arm"] = dataclasses.replace(arm, deadline_ns=arm.generated_ns - 1)
+    elif failure == "clock":
+        request["arm"] = dataclasses.replace(arm, clock_domain="other-host")
+    elif failure == "malformed_provenance":
+        request["arm"] = dataclasses.replace(arm, observation=None)
+    elif failure == "foreign_observation":
+        request["arm"] = dataclasses.replace(
+            arm, observation=dataclasses.replace(arm.observation, snapshot_json="{}")
+        )
+    elif failure == "mismatched_sequence":
+        request["end_effector"] = dataclasses.replace(
+            request["end_effector"], sequence=2
+        )
+    with pytest.raises(ActionRejected):
+        env.step([request])
+    assert not any(p.armed for p in task.actions.values())
+    assert not any(
+        e["state"] == "submitted" for p in task.actions.values() for e in p.events()
+    )
+    with pytest.raises(RuntimeError, match="Reset"):
+        task.create_normalized_action((0.0,) * 6, 0.25, sequence=2)
+
+
+@pytest.mark.parametrize(
+    "action", [np.zeros((1, 7)), [{"tcp_pose": [0.0] * 7}], [np.zeros(7)]]
+)
+def test_fr3_generic_actions_cannot_enter_mock(fr3_offline_env, action):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    fr3_offline_env.reset()
+    fr3_offline_env.offline_task.authorize_synthetic()
+    with pytest.raises(ActionRejected):
+        fr3_offline_env.step(action)
+    assert not any(p.armed for p in fr3_offline_env.offline_task.actions.values())
+
+
+def test_fr3_replay_reset_reconnect_and_cleanup(fr3_offline_env):
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    env = fr3_offline_env
+    _, first_info = env.reset()
+    task = env.offline_task
+    first_sessions = [p.session_id for p in task.actions.values()]
+    task.authorize_synthetic()
+    request = task.create_normalized_action((0.0,) * 6, 0.25, sequence=1)
+    env.step([request])
+    task.authorize_synthetic()
+    # Fresh provenance with an already consumed sequence is still rejected.
+    with pytest.raises(ActionRejected):
+        env.step([task.create_normalized_action((0.0,) * 6, 0.25, sequence=1)])
+    workers = [p._transport._process for p in task.actions.values()]
+    env.close()
+    assert not task.robot.is_connected
+    assert all(p.poll() is not None for p in workers)
+    _, second_info = env.reset()
+    assert not any(p.armed for p in task.actions.values())
+    assert [p.session_id for p in task.actions.values()] != first_sessions
+    assert first_info["episode_id"][0] != second_info["episode_id"][0]
+    assert all(
+        p.get_state()["mock_action"]["pending_sequence"] is None
+        for p in task.actions.values()
+    )
+    workers = [p._transport._process for p in task.actions.values()]
+    env.close()
+    env.close()
+    assert all(p.poll() is not None for p in workers)
+    assert not any(p.is_connected for p in task.robot.children.values())
+
+
+def test_fr3_horizon_requires_reset(fr3_config):
+    from rlinf.envs import get_env_cls
+
+    fr3_config.env.eval.max_episode_steps = 1
+    env = get_env_cls("fr3_offline")(fr3_config.env.eval)
+    try:
+        env.reset()
+        env.offline_task.authorize_synthetic()
+        request = env.offline_task.create_normalized_action(
+            (0.0,) * 6, 0.25, sequence=1
+        )
+        assert env.step([request])[3].tolist() == [True]
+        assert not any(p.armed for p in env.offline_task.actions.values())
+        with pytest.raises(RuntimeError, match="Reset"):
+            env.step([request])
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("ros_domain", ["70", "71"])
+def test_fr3_cli_and_lifecycle_do_not_enter_hardware_paths(ros_domain):
+    program = r"""
+import builtins
+import json
+import subprocess
+import sys
+original_import = builtins.__import__
+def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if level == 0 and name.split('.')[0] in {'rclpy', 'rospy', 'franky', 'pyrealsense2', 'hid', 'spnav', 'pymodbus'}:
+        raise AssertionError('Hardware import: ' + name)
+    return original_import(name, globals, locals, fromlist, level)
+builtins.__import__ = guarded_import
+import psutil
+psutil.process_iter = lambda *a, **k: (_ for _ in ()).throw(AssertionError('process discovery'))
+from toolkits.realworld_check.validate_fr3_config import load_config, validate_config
+from rlinf.envs import get_env_cls
+original_popen = subprocess.Popen
+import numpy.testing
+allow_mock_workers = False
+class GuardedPopen(original_popen):
+    def __init__(self, args, *pos, **kwargs):
+        assert allow_mock_workers, 'validation opened worker'
+        assert any(str(a).endswith('/mock_action_worker.py') for a in args), args
+        assert not any(k.startswith(('ROS_', 'RMW_', 'FASTRTPS_', 'FASTDDS_', 'CYCLONEDDS_')) for k in kwargs['env'])
+        super().__init__(args, *pos, **kwargs)
+subprocess.Popen = GuardedPopen
+cfg = load_config()
+report = validate_config(cfg)
+env = get_env_cls('fr3_offline')(cfg.env.eval)
+assert not env.offline_task.robot.is_connected
+assert 'rlinf.envs.real.franka' not in sys.modules
+import ray
+ray.init = lambda *a, **k: (_ for _ in ()).throw(AssertionError('Ray initialization'))
+allow_mock_workers = True
+try:
+    env.reset()
+    env.offline_task.authorize_synthetic()
+    env.step([env.offline_task.create_normalized_action((0.,)*6, .25, sequence=1)])
+finally:
+    env.close()
+assert not env.offline_task.robot.is_connected
+print(json.dumps(report))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={**os.environ, "ROS_DOMAIN_ID": ros_domain},
+    )
+    assert result.returncode == 0, result.stderr
+    assert '"valid": true' in result.stdout
+
+
+@pytest.mark.parametrize(
+    "override",
+    ["env.eval.override_cfg.execution_mode=live", "env.eval.unknown_backend=live"],
+)
+def test_fr3_cli_invalid_override_is_structured_json(override):
+    import json
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "toolkits.realworld_check.validate_fr3_config",
+            override,
+        ],
+        cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 1, result.stderr
+    report = json.loads(result.stdout)
+    assert report["valid"] is False
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+
+
+def test_fr3_stale_fixture_provenance_fails_closed(fr3_config):
+    from rlinf.envs import get_env_cls
+    from rlinf.robotics.parts.transports.ros2.action_contract import ActionRejected
+
+    # One nanosecond is deliberately impossible for this synthetic round trip.
+    fr3_config.env.eval.override_cfg.synthetic_profile.max_observation_age_ns = 1
+    env = get_env_cls("fr3_offline")(fr3_config.env.eval)
+    try:
+        env.reset()
+        env.offline_task.authorize_synthetic()
+        request = env.offline_task.create_normalized_action(
+            (0.0,) * 6, 0.25, sequence=1
+        )
+        with pytest.raises(ActionRejected, match="observation"):
+            env.step([request])
+        assert not any(part.armed for part in env.offline_task.actions.values())
+        assert not any(
+            e["state"] == "submitted"
+            for p in env.offline_task.actions.values()
+            for e in p.events()
+        )
+    finally:
+        env.close()
+
+
+def test_fr3_refuses_physical_allocation_and_automatic_reset(
+    fr3_config, fr3_offline_env
+):
+    from rlinf.envs.real.fr3 import FR3OfflineRealWorldEnv
+
+    with pytest.raises(ValueError, match="physical allocation"):
+        FR3OfflineRealWorldEnv(
+            fr3_config.env.eval, worker_info=SimpleNamespace(hardware_infos=[object()])
+        )
+    fr3_offline_env.reset()
+    fr3_offline_env.offline_task.authorize_synthetic()
+    with pytest.raises(ValueError, match="explicit reset"):
+        fr3_offline_env.step([], auto_reset=True)
+    assert not fr3_offline_env.offline_task.robot.is_connected

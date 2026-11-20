@@ -161,3 +161,36 @@ local type-description services; the adapter creates no command publisher,
 action client, or service client. Mixed Humble/Jazzy communication was verified
 for these standard streams in short checks; qualify timing under your intended
 workload before using observations for collection.
+
+Validate the Offline Collection Configuration
+---------------------------------------------
+
+The dedicated ``fr3_offline`` environment reuses these observation parts with
+marked synthetic packets and the existing offline action mocks. Its Hydra config
+prepares native environment and camera/input fields for later recorder work.
+Physical camera roles, operating profiles, TCP/gripper calibration and SpaceMouse
+mapping remain unresolved.
+
+From the repository root, validate the config without constructing an environment,
+starting a worker or opening a device:
+
+.. code-block:: bash
+
+   PYTHONPATH="$PWD" python -m toolkits.realworld_check.validate_fr3_config
+   PYTHONPATH="$PWD" python -m toolkits.realworld_check.validate_fr3_config \
+     env.eval.seed=19 env.eval.max_episode_steps=2
+
+The JSON result reports ``offline_synthetic``, the fixed ``fr3_offline`` registry
+entry and ``resources_opened: false``. Unsupported modes or device mappings fail
+closed. Physical qualification remains ``NOT_QUALIFIED``, command authorization
+``NOT_GRANTED`` and the gate ``NO_GO``.
+
+The primary config is
+``examples/embodiment/config/realworld_fr3_collect_data.yaml``. Its numerical
+payloads are six normalized FR3 pose-offset channels and one normalized Robotiq
+closure channel. Environment steps require typed request envelopes and explicit
+synthetic approval; generic TCP poses and numeric collector arrays are rejected.
+The existing ``collect_real_data.py`` still hardcodes the generic environment and
+numeric action recording. Recorder/provenance integration is future work; do not
+run ``collect_data.sh`` with this config. Full findings and offline test commands
+are in ``docs/fr3_fresh/milestone_3_rlinf_configuration.md`` in the repository.

@@ -1,0 +1,94 @@
+env_type: fr3_offline
+total_num_envs: 1
+auto_reset: false
+ignore_terminations: false
+reward_mode: raw
+wrap_obs_mode: simple
+seed: 0
+group_size: 1
+use_fixed_reset_state_ids: false
+max_steps_per_rollout_epoch: 100
+max_episode_steps: 10
+teleop: none
+main_image_key: d435i
+
+video_cfg:
+  save_video: false
+  info_on_video: false
+  video_base_dir: ${runner.logger.log_path}/synthetic_video
+
+init_params:
+  id: FR3OfflineCollect-v0
+  num_envs: null
+
+override_cfg:
+  execution_mode: offline_synthetic
+  is_dummy: true
+  robot_model: FR3
+  gripper_model: Robotiq 2F-85
+  joint_names: [fr3_joint1, fr3_joint2, fr3_joint3, fr3_joint4, fr3_joint5, fr3_joint6, fr3_joint7]
+  observation_transport: synthetic_ros2
+  arm_observation_adapter: FR3ROS2Observation
+  gripper_observation_adapter: RobotiqROS2Observation
+  arm_domain_id: 70
+  gripper_domain_id: 71
+  action_transport: mock_ros2
+  arm_action_adapter: FR3OfflineAction
+  gripper_action_adapter: RobotiqOfflineAction
+  arm_action_kind: fr3_normalized_pose_offset_v1
+  gripper_action_kind: robotiq_normalized_closure_v1
+  arm_action_dimension: 6
+  gripper_action_dimension: 1
+  observation_fields: [arm_joint_effort, arm_joint_position, arm_joint_velocity, base_force, base_torque, knuckle_position_rad, normalized_closure, tcp_force, tcp_pose, tcp_torque]
+  source_id: synthetic:fr3-config-validation
+  task_description: synthetic FR3 configuration validation (unscored)
+  reward_semantics: unscored_fixture
+  # Verified identities only. Physical base/wrist roles and stream profiles remain unresolved.
+  cameras:
+    d405:
+      model: D405
+      serial_number: "323743071035"
+      fixture_resolution: [32, 24]  # Synthetic width, height; not a physical operating profile.
+      physical_role: null
+      physical_resolution: null
+      calibration: null
+    d435i:
+      model: D435i
+      serial_number: "327743060094"
+      fixture_resolution: [32, 24]
+      physical_role: null
+      physical_resolution: null
+      calibration: null
+  spacemouse:
+    device: SpaceMouse Wireless BT
+    usb_vendor_id: "256f"
+    usb_product_id: c63a
+    serial_number: null
+    device_index: null
+    controller_mapping: null
+  physical_calibration: null
+  synthetic_profile:
+    profile_id: synthetic:fr3-config-v1
+    approval_id: synthetic:fixture-only
+    calibration_id: synthetic:not-physical-calibration
+    scope: offline_synthetic
+    arm_lower: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+    arm_upper: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    gripper_lower: [0.0]
+    gripper_upper: [1.0]
+    # Synthetic timing/limit values never qualify hardware.
+    max_action_age_ns: 1000000000
+    max_lifetime_ns: 1000000000
+    max_observation_age_ns: 1000000000
+    max_observation_skew_ns: 100000000
+    max_timing_uncertainty_ns: 1000000
+    acknowledgement_timeout_ns: 1000000000
+    result_timeout_ns: 1000000000
+
+data_collection:
+  enabled: false
+  save_dir: ${runner.logger.log_path}/synthetic_preview
+  export_format: pickle  # Native optional future format: lerobot; writing remains disabled.
+  only_success: false
+  robot_type: fr3
+  fps: 10  # Fixture/metadata setting, not a qualified camera or controller rate.

@@ -34,6 +34,7 @@ class SupportedEnvType(Enum):
     ROBOCASA = "robocasa"
     ROBOCASA365 = "robocasa365"
     REAL = "real"
+    FR3_OFFLINE = "fr3_offline"
     FRANKASIM = "frankasim"
     HABITAT = "habitat"
     WORLD_MODEL = "world_model"
@@ -145,6 +146,10 @@ def get_env_cls(env_type: str, env_cfg=None):
         from rlinf.envs.sim.robocasa365.robocasa365_env import Robocasa365Env
 
         return Robocasa365Env
+    elif env_type == SupportedEnvType.FR3_OFFLINE:
+        from rlinf.envs.real.fr3 import FR3OfflineRealWorldEnv
+
+        return FR3OfflineRealWorldEnv
     elif env_type == SupportedEnvType.REAL:
         from rlinf.envs.real import RealWorldEnv
 
