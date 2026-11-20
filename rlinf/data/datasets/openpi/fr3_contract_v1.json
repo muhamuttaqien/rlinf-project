@@ -1,0 +1,352 @@
+{
+  "actions": {
+    "arm_range": [
+      -1,
+      1
+    ],
+    "closure_range": [
+      0,
+      1
+    ],
+    "dimension": 7,
+    "kinds": [
+      "fr3_normalized_pose_offset_v1",
+      "robotiq_normalized_closure_v1"
+    ],
+    "output_transform": "reject_predictions_v1",
+    "reference": "measured_fk",
+    "rotation_composition": "right_multiplied_rpy",
+    "rotation_frame": "measured_fr3_link8",
+    "rotation_scale_rad": 0.03,
+    "semantics": "recorded_normalized_controller_request_not_model_target",
+    "target_transform": null,
+    "translation_frame": "inverse_mount_into_base",
+    "translation_scale_m": 0.007
+  },
+  "baseline_rlinf_commit": "f4d61ad4f0f99fe75a19297cfd5c5e8a546e2873",
+  "cameras": {
+    "missing_slot": "zeros_with_false_image_mask",
+    "native_slots": {
+      "d405": "extra_view_image",
+      "d435i": "image"
+    },
+    "observation_pixel_scaling": "openpi.models.model.Observation.from_dict_uint8_to_minus1_plus1",
+    "physical_roles": {
+      "d405": null,
+      "d435i": null
+    },
+    "probe_slots_are_physical_roles": false,
+    "raw_layout": "RGB_uint8_HWC",
+    "resize": "openpi.transforms.ResizeImages(224,224)",
+    "structural_probe_slots": {
+      "base_0_rgb": "d435i",
+      "left_wrist_0_rgb": "d405",
+      "right_wrist_0_rgb": null
+    }
+  },
+  "checkpoint": {
+    "configuration": null,
+    "execution_allowed": false,
+    "identity": null,
+    "missing_evidence": [
+      "FR3_checkpoint_identity_and_configuration",
+      "checkpoint_state_and_action_semantics",
+      "camera_roles_and_preprocessing",
+      "original_instruction_and_tokenizer_assets",
+      "normalization_assets_and_schema",
+      "model_horizon_and_loss_mask_policy",
+      "physical_calibration_and_authorization"
+    ],
+    "status": "CHECKPOINT_UNVERIFIED",
+    "training_target": null
+  },
+  "contract_id": "fr3_openpi_structural_v1",
+  "dependencies": {
+    "dataset_format": "v2.1",
+    "jax": "0.5.3",
+    "jaxlib": "0.5.3",
+    "lerobot": "0.3.3",
+    "numpy": "1.26.4"
+  },
+  "language": {
+    "derived_export_label_is_instruction": false,
+    "native_original_instruction": null,
+    "required_future_fields": [
+      "task_id",
+      "instruction",
+      "version",
+      "origin",
+      "provenance"
+    ],
+    "tokenization": "UNQUALIFIED_TOKENIZER_ASSETS"
+  },
+  "normalization": {
+    "controller_normalization": "representation_only_not_dataset_statistics",
+    "infer_statistics_from_fixture": false,
+    "mechanisms": [
+      "openpi.transforms.Normalize",
+      "openpi.transforms.Unnormalize"
+    ],
+    "permitted_fixture_scope": "synthetic_math_only",
+    "qualification": "UNQUALIFIED",
+    "state_or_action_assets": null
+  },
+  "official_reference": {
+    "blob_shas": {
+      "src/openpi/models/pi0_config.py": "584d83f199e092203b59861a861c64768a4e0300",
+      "src/openpi/training/config.py": "4ca47e1286534c4ee7a919ccc38462f8f38bdd60",
+      "src/openpi/training/data_loader.py": "e2ee7dd06b6008757f834405c9222d493f450eb7",
+      "src/openpi/transforms.py": "272375ea95a5e43a42a6c0ff14cf89d34da76a45"
+    },
+    "commit": "215abfb217dbac7d5f1273282331b9b1866c0479",
+    "installed_equivalence_claimed": false,
+    "repository": "Physical-Intelligence/openpi"
+  },
+  "openpi": {
+    "configs": {
+      "pi05_franka_state": {
+        "asset_dir_template": "checkpoints/torch/pi05_franka_pretrained/assets",
+        "checkpoint_path_template": "checkpoints/torch/pi05_base",
+        "data_factory": "LeRobotFrankaEEDataConfig",
+        "model": {
+          "action_dim": 32,
+          "action_expert_variant": "gemma_300m",
+          "action_horizon": 20,
+          "discrete_state_input": true,
+          "dtype": "bfloat16",
+          "max_token_len": 200,
+          "paligemma_variant": "gemma_2b",
+          "pi05": true
+        },
+        "norm_mode_quantiles": true
+      },
+      "pi0_realworld": {
+        "asset_dir_template": "checkpoints/torch/pi0_base/assets",
+        "checkpoint_path_template": "checkpoints/torch/pi0_base",
+        "data_factory": "LeRobotRealworldDataConfig",
+        "model": {
+          "action_dim": 32,
+          "action_expert_variant": "gemma_300m",
+          "action_horizon": 10,
+          "discrete_state_input": false,
+          "dtype": "bfloat16",
+          "max_token_len": 48,
+          "paligemma_variant": "gemma_2b",
+          "pi05": false
+        },
+        "norm_mode_quantiles": false
+      }
+    },
+    "distribution": "rlinf-openpi",
+    "git_revision": null,
+    "git_revision_status": "NOT_EMBEDDED_IN_WHEEL",
+    "python_files_sha256": {
+      "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "conftest.py": "626672e385fb276396c119e2220421065c58f8ec602401e8bf2ae509f9fffaf3",
+      "models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "models/gemma.py": "7e42ada4ae7e9995f0ef3e33a0c224758323c2015e2d9d72ec15726a8a001d2a",
+      "models/gemma_fast.py": "563c6e1ffd8afa31c406bcb8894a605e87df88f6c075d398d97a57af6bc3aefa",
+      "models/lora.py": "ced28716950c34d84a1a6d0b03b1d9550000732721df884818080b6e78cb3289",
+      "models/lora_test.py": "a0f10525de7773310402b3ffa636e88ffff7035f3179b140aacc6809c122f085",
+      "models/model.py": "0d74bc1d8f4623ac3d8e543710b8bf75f9b95e588a3ebf6127c659e001385cff",
+      "models/model_test.py": "f8e71f195045d4e3ef1ddfafb2337fa52e5aa2f89bce1fde62f5cbfb67121f21",
+      "models/pi0.py": "24b32d7c6ed5e409459afa8ca5af96a4dae09c2dcdf48e828907e411f4f12342",
+      "models/pi0_config.py": "e15d71586f1a561b35c5651227607613fb16d2df411f3708b1c9d36b02544285",
+      "models/pi0_fast.py": "627332a555046f2744ef144c45f8bd3361a9820cf68854a4528d0fdbba7e9aa3",
+      "models/pi0_test.py": "5082873014a7fc45fb8414f517909e1c24cdafea980a1fb612e0aea6058ed0fe",
+      "models/siglip.py": "14b4df0be280d5769fb0dc31a40cde27525dbb1980cc998c28475d62fa3cad32",
+      "models/tokenizer.py": "965be8b3c393a6811875bbc32da9e01a5d01cc2f87802de801cf7293e049748c",
+      "models/tokenizer_test.py": "5abd179ce883420e39d4d18b33d0123290af752da243003aa48a3bc06dbb9517",
+      "models/utils/fsq_tokenizer.py": "88866638ee4775f46a222561a957bd35e20600fe38c5888b587016ad77b1065f",
+      "models/vit.py": "d285d057636c3cba2d1fd3b37693b18075ad4b9c3b47bbde807c34c6c376ac93",
+      "models_pytorch/gemma_pytorch.py": "08fd8d750519f0fb44fc5173311e50a30f4c8f32c02e51244b4f8e47b32cd52f",
+      "models_pytorch/pi0_pytorch.py": "0c7b9f1de02ed886da49035e3fa1b38efea46eb6209489cb4f594f777f97b70c",
+      "models_pytorch/preprocessing_pytorch.py": "6a44e91be2d7a724c6140d2cc98ed0a631b8d38bbb29f63b380a0a19f903bbf6",
+      "models_pytorch/transformers_replace/models/gemma/configuration_gemma.py": "26fd0d0f52730ab32b6f337eb73ae9a26cb71ae0915bc49eced1d0e2ed8d0ec6",
+      "models_pytorch/transformers_replace/models/gemma/modeling_gemma.py": "17eeb54e277939e58cd6f8a92719a275e36baf0c9f463b2754227d42f87aedde",
+      "models_pytorch/transformers_replace/models/paligemma/modeling_paligemma.py": "c945d330b829264f927f3ee5339f977238631772de07a28e855e265bb85fd53c",
+      "models_pytorch/transformers_replace/models/siglip/check.py": "466e8eb7887ac5ccc98118a3169298d6ab65a284d834bae74751e3854dbc4245",
+      "models_pytorch/transformers_replace/models/siglip/modeling_siglip.py": "ef2e99500f263fdd78db9d4d9a255e29d844eb92f53c25ad640f8056700ef84b",
+      "policies/aloha_policy.py": "50d7ad972d80142ecb0f03b0780dacfd3af212946f4c9aac31a204b02db4543d",
+      "policies/droid_policy.py": "7d0893555964d485e231f70084125084a99495705ddd74b29461229d524fff26",
+      "policies/libero_policy.py": "ad01e5be74516d9ec9aeb1f76294d5c9f7f7179a60f1f7fbbb35e7646534f81a",
+      "policies/policy.py": "a2ac5236e23b11d0f5a840d4a8fef148d89dba921d5452ec5dfcd5a6ffa46f20",
+      "policies/policy_config.py": "aaf42ab04a33b6c91d2447926211646c33ebd8ebfa427f026d7b6c4f7c45ec52",
+      "policies/policy_test.py": "9dbb20963600367a7e7abfc97d1e326916777c57a87b39b1bc4070ba64676683",
+      "serving/websocket_policy_server.py": "1370d345e6c3c5b8f15573050e485e60a5b423d1df33e24b237805e6b442b026",
+      "shared/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "shared/array_typing.py": "6524945566eab3eb97b75a6280ba4724617b4d028c55f05172b283c3de68a026",
+      "shared/download.py": "8711d466cdaec488633e5509a000af6a7411b2d56f7ce6161f718f2389aa7786",
+      "shared/download_test.py": "234ee70ab2501a1421f6c44cbd83c1e16747597023319ae1446bed9d44f17072",
+      "shared/image_tools.py": "0f8fcb355288119e56acb56d550c1cc1f3a9edddceb0dc5b319f955943ef7767",
+      "shared/image_tools_test.py": "842374579dc9f4c2907da5e8bb555efe5a3f4902b659720c8e90115863dd59fe",
+      "shared/nnx_utils.py": "4da7111ba3011c4d1c381c9ed17257771df6a50ed89182647c3fb6f79208005e",
+      "shared/normalize.py": "6c2cea4946fb07e51801530400d2b2fd94730e195cd290d6b6960114eca9739d",
+      "shared/normalize_test.py": "fda27a21cf37f337b12bcab71229407c2a349c5965c33f278bdc468ed03f58af",
+      "training/checkpoints.py": "3cc32682ec3609e9075dabd991488edb9d7f6c045443f58963d733f99c468dbd",
+      "training/config.py": "b54b77a123537bcb304ffe4ad3ed191ee065890f8d7d6a0973d13a0231b93cec",
+      "training/data_loader.py": "af6f1c1b097dc435ceceb646827826f956e8f719290c1d31fdf6b68477b1fd8b",
+      "training/data_loader_test.py": "a0cf1bc293e8b0eb9bc5516bc05d30d9940da06c94fcfa1addca7267f8358815",
+      "training/droid_rlds_dataset.py": "9480e75ab2dbcc16d9219ed0f0982b057e5ba555b1b2b5abc692956568bdc722",
+      "training/misc/roboarena_config.py": "914acdd74ccf90e6779c13a5093140595c7e4f687e9e0b167439446a81d74c01",
+      "training/optimizer.py": "cfb5d6f6aec61fbe961287b4015c652260628a0ed4682a0dbdc271b8e65431fa",
+      "training/sharding.py": "2384acbb4c33b1796294efdb088c6cd1a1f6100f505e636434e3c0c894f7def6",
+      "training/utils.py": "b684e674343f86ef5e976f279a586d3fe2f885e901f396ac899ed136abc7eca6",
+      "training/weight_loaders.py": "a54ac3222f81f8c6233241bc16b6f369c9416cdaa83f7058f96f7ddcfde1a3b4",
+      "transforms.py": "a1b94e9e72849a18834778f229c6bb389a495eb7fbe0aa800edea728b9424ff4",
+      "transforms_test.py": "d76f3ee8c5d7dc1c6fb6cb3b36b45ef30dd1de1ab5bc054bcb03deb79dcc06a8"
+    },
+    "record_mismatches": [],
+    "source_tree_sha256": "2cb921836f35f511ab7fb59c868c56bdfe3f44049c0ada86be0516e69965b647",
+    "version": "0.1.1"
+  },
+  "physical_command_authorization": "NOT_GRANTED",
+  "physical_execution": false,
+  "qualification_gate": "NO_GO",
+  "recap": {
+    "missing_labels": "null_or_empty_annotations_never_evaluated_zero",
+    "required_episode_fields": [
+      "dataset_id",
+      "source_manifest_sha256",
+      "episode_id",
+      "source_type",
+      "split",
+      "native_provenance_path",
+      "task",
+      "policy",
+      "rollout_id",
+      "iteration",
+      "interventions",
+      "frame_annotations",
+      "outcome",
+      "physical_execution",
+      "controller_acceptance"
+    ],
+    "schema": "fr3_recap_metadata_v1",
+    "source_types": [
+      "synthetic_demonstration",
+      "human_demonstration",
+      "policy_rollout",
+      "correction",
+      "offline_replay"
+    ],
+    "splits": [
+      "unassigned",
+      "train",
+      "validation",
+      "test"
+    ],
+    "training_ready": false
+  },
+  "schema": "fr3_openpi_contract_v1",
+  "scope": "offline_synthetic_structure_only",
+  "state": {
+    "checkpoint_dimension": null,
+    "fields": [
+      {
+        "frame": "joint_space",
+        "name": "arm_joint_effort",
+        "start": 0,
+        "stop": 7,
+        "units": "N m"
+      },
+      {
+        "frame": "joint_space",
+        "name": "arm_joint_position",
+        "start": 7,
+        "stop": 14,
+        "units": "rad"
+      },
+      {
+        "frame": "joint_space",
+        "name": "arm_joint_velocity",
+        "start": 14,
+        "stop": 21,
+        "units": "rad/s"
+      },
+      {
+        "frame": "synthetic/base",
+        "name": "base_force",
+        "start": 21,
+        "stop": 24,
+        "units": "N"
+      },
+      {
+        "frame": "synthetic/base",
+        "name": "base_torque",
+        "start": 24,
+        "stop": 27,
+        "units": "N m"
+      },
+      {
+        "frame": "robotiq_85_left_knuckle_joint",
+        "name": "knuckle_position_rad",
+        "start": 27,
+        "stop": 28,
+        "units": "rad"
+      },
+      {
+        "frame": "robotiq_normalized_joint",
+        "name": "normalized_closure",
+        "start": 28,
+        "stop": 29,
+        "units": "dimensionless [0,1]"
+      },
+      {
+        "frame": "synthetic/fr3_link2",
+        "name": "tcp_force",
+        "start": 29,
+        "stop": 32,
+        "units": "N"
+      },
+      {
+        "frame": "synthetic/base",
+        "name": "tcp_pose",
+        "start": 32,
+        "stop": 39,
+        "units": "xyz m; quaternion xyzw"
+      },
+      {
+        "frame": "synthetic/fr3_link2",
+        "name": "tcp_torque",
+        "start": 39,
+        "stop": 42,
+        "units": "N m"
+      }
+    ],
+    "joint_names": [
+      "fr3_joint1",
+      "fr3_joint2",
+      "fr3_joint3",
+      "fr3_joint4",
+      "fr3_joint5",
+      "fr3_joint6",
+      "fr3_joint7"
+    ],
+    "native_dimension": 42,
+    "omitted_fields": [],
+    "quaternion": "xyzw_unit",
+    "quaternion_norm_atol": 1e-05,
+    "structural_dimension": 42,
+    "transform": "lossless_float32_identity_v1",
+    "unavailable": [
+      "tcp_vel",
+      "arm_jacobian",
+      "opening_width_m",
+      "grip_force"
+    ]
+  },
+  "temporal": {
+    "action_key": "actions",
+    "default_structural_horizon": 4,
+    "episode_crossing": false,
+    "horizon_range": [
+      1,
+      1000
+    ],
+    "model_horizon": null,
+    "padding_policy": "lerobot_repeat_last_with_mask_v1",
+    "source": "lerobot_0.3.3_delta_timestamps",
+    "strict_policy": "require_full_window_v1"
+  }
+}
