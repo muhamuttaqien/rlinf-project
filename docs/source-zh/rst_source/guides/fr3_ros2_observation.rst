@@ -176,3 +176,20 @@ LeRobot 重新加载成功只确认导出子集及其归档的兼容性。OpenPI
 ``FR3OfflineDataset`` 完整保留 42 个 state 值及七个已记录的控制器请求通道。OpenPI observation probe 使用 224×224 图像和 Boolean array mask。两个相机 slot 仅表示合成样本的位置路由，物理角色仍未获得资格确认。原始任务文本与模型 target 保持不可用；导出时的验证标签不会被当成任务指令。``FR3Outputs`` 与 ``require_model_ready`` 始终拒绝 checkpoint 执行。
 
 可选 ``--annotations`` 接收 ``fr3_recap_metadata_v1`` episode 注释，并要求与源 manifest 哈希关联。``--split train``、``validation`` 或 ``test`` 只选择显式分配的完整 episode；未分配数据不会自动成为训练集。缺失的指令、标签和 rollout 标识仍会出现在报告中。原生记录器、验证器及通用 ``RealworldInputs`` 行为保持不变。资格确认范围及剩余 checkpoint 门禁见 ``docs/fr3_fresh/milestone_6a_openpi_recap_contract.md`` 和 ``docs/fr3_fresh/milestone_6b_fr3_openpi_adapter.md``。物理执行仍为 ``NO_GO / NOT_GRANTED``。
+
+检查 Checkpoint 训练资产
+------------------------
+
+在考虑训练配置前，使用本地 tokenizer 和少量 metadata 资产检查已固定的 ``pi05_base`` 候选。检查流程保留现有结构适配器，并继续拒绝训练及模型执行。按 ``docs/fr3_fresh/milestone_7_checkpoint_asset_qualification.md`` 中的说明准备指定 generation 的文件，再运行：
+
+.. code-block:: bash
+
+   OPENPI_DATA_HOME=/tmp/fr3-milestone7-assets JAX_PLATFORMS=cpu HF_HUB_OFFLINE=1 \
+     HF_DATASETS_CACHE=/tmp/fr3-milestone7-hf-cache PYTHONPATH="$PWD" \
+     python -m toolkits.realworld_check.qualify_fr3_checkpoint \
+     --export /tmp/fr3-milestone5-final/export \
+     --assets /tmp/fr3-milestone7-assets --output /tmp/fr3-milestone7-final
+
+命令验证完整 generation 集合标识、原生归档、小型资产、真实 tokenizer fixture、请求 target 提案及 batch 容器。流程不下载权重，也不构建模型。返回零表示离线检查完成；checkpoint、训练数据及 RECAP 就绪状态仍分别标为未获得资格确认。实际 Franka/DROID 统计量均为 8D，不能用于 42D state 或七个已记录的请求通道。
+
+提案保留请求值，显式填充动作通道，并在提议的 loss mask 中将重复的未来 endpoint 标为 false。原生 SFT 不消费逐样本 mask，因此这些填充窗口仍不能用于训练。真实指令、采集 session 标识、物理相机配置、split 来源、FR3 归一化资产及经过验证的转换后 checkpoint 仍待补齐。物理授权保持 ``NO_GO / NOT_GRANTED``。

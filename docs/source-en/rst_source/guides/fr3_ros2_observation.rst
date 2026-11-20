@@ -317,3 +317,35 @@ remain visible in the report. The native recorder, validator and generic
 ``docs/fr3_fresh/milestone_6a_openpi_recap_contract.md`` and
 ``docs/fr3_fresh/milestone_6b_fr3_openpi_adapter.md`` for the qualified subset and
 remaining checkpoint gates. Physical execution remains ``NO_GO / NOT_GRANTED``.
+
+Inspect Checkpoint Training Assets
+----------------------------------
+
+Qualify the pinned ``pi05_base`` candidate with its small local tokenizer and
+metadata assets before considering a training configuration. The inspection
+preserves the existing structural adapter and rejects training/model execution.
+Populate the generation-pinned files as documented in
+``docs/fr3_fresh/milestone_7_checkpoint_asset_qualification.md``, then run:
+
+.. code-block:: bash
+
+   OPENPI_DATA_HOME=/tmp/fr3-milestone7-assets JAX_PLATFORMS=cpu HF_HUB_OFFLINE=1 \
+     HF_DATASETS_CACHE=/tmp/fr3-milestone7-hf-cache PYTHONPATH="$PWD" \
+     python -m toolkits.realworld_check.qualify_fr3_checkpoint \
+     --export /tmp/fr3-milestone5-final/export \
+     --assets /tmp/fr3-milestone7-assets --output /tmp/fr3-milestone7-final
+
+The command checks the complete generation-set identity, native archive, small
+assets, real tokenizer fixture, request-target proposal and batch containers.
+It downloads no weights and constructs no model. A zero return code means the
+offline inspection completed; checkpoint, training-data and RECAP readiness
+remain separate unqualified decisions. The actual Franka/DROID statistics are
+8D and cannot normalize the 42D state or seven recorded request channels.
+
+The proposal preserves request values, pads action channels explicitly and
+marks repeated future endpoints false in its proposed loss mask. Native SFT
+does not consume this per-sample mask, so these padded windows remain blocked
+for training. Authentic instructions, collection-session identity, physical
+camera configuration, split provenance, FR3 normalization assets and a verified
+converted checkpoint are still required. Physical authorization remains
+``NO_GO / NOT_GRANTED``.

@@ -1358,3 +1358,16 @@ def test_cosmos3_sglang_response_keeps_every_env_in_input_order():
     assert actions.shape == (2, 16, 7)
     assert torch.all(actions[0, :, 6] == -0.5)
     assert torch.all(actions[1, :, 6] == 0.5)
+
+
+def test_openpi_fr3_padding_requires_per_sample_loss_mask_support():
+    from rlinf.models.embodiment.openpi.pi0 import Pi0
+
+    config = SimpleNamespace(action_chunk=20, action_env_dim=7)
+    per_element = torch.full((1, 20, 32), 100.0)
+    per_element[:, :4, :7] = 1.0
+    explicit_mask = torch.zeros_like(per_element, dtype=torch.bool)
+    explicit_mask[:, :4, :7] = True
+    assert per_element[explicit_mask].mean().item() == 1
+    assert Pi0._reduce_sft_loss(config, per_element, False).item() > 90
+    assert Pi0._reduce_sft_loss(config, per_element, True).item() > 80

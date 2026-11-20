@@ -1,0 +1,363 @@
+{
+  "architecture": {
+    "action_dim": 32,
+    "action_expert_variant": "gemma_300m",
+    "checkpoint_execution_verified": false,
+    "discrete_state_input": true,
+    "dtype": "bfloat16",
+    "max_token_len": 200,
+    "paligemma_variant": "gemma_2b",
+    "pi05": true,
+    "tensor_metadata_arrays": 51,
+    "weight_format": "Orbax_OCDBT_JAX"
+  },
+  "baseline_rlinf_commit": "0dafbec562660b6e8f665eedd83d0899762f2888",
+  "candidate_id": "pi05_base_gcs_generation_set:a8116db1d3a556f5c0b77f3c50950d38a22c7b3fac06ad8a0782f19b4948c633",
+  "configuration": {
+    "checkpoint_embedded_training_config": null,
+    "horizon_is_weight_encoded": false,
+    "inspection_horizon": 20,
+    "inspection_reference": "pi05_franka_state",
+    "pretraining_horizon": null,
+    "rlinf_requires": "converted_safetensors_or_RLinf_full_checkpoint",
+    "weight_conversion_verified": false
+  },
+  "licensing": {
+    "additional_terms_file": "LICENSE_GEMMA.txt",
+    "anonymous_small_asset_access_verified": true,
+    "code": "Apache-2.0",
+    "future_model_use_review": "UNRESOLVED",
+    "weight_specific_license_statement": "NOT_EMBEDDED_IN_GCS_OBJECT_SET"
+  },
+  "local_source_sha256": {
+    "rlinf/data/datasets/openpi/official_sft_data_loader.py": "c3b051730e7dcccab4abdd230fdd9fc7b0c48b5de6c3c197f4171f0275bc41ef",
+    "rlinf/models/embodiment/openpi/dataconfig/__init__.py": "92e72b786e89753419b81cb69bcd5e91ab3c82d5767a3a09b6930917a56e9843",
+    "rlinf/models/embodiment/openpi/pi0.py": "ad69c5fd5f5e65e5cc947d6be384e1354c8aa33f1d4db187d6f5da279f46523b",
+    "rlinf/models/embodiment/openpi/pi0_config.py": "3f848a22de2bb5a458b25714880fd565d23bb30fc6831ceef1e336480b1321e1"
+  },
+  "normalization": {
+    "asset_action_dimension": 8,
+    "asset_state_dimension": 8,
+    "compatibility": "INCOMPATIBLE_DIMENSIONS_AND_SEMANTICS",
+    "fr3_action_dimension": 7,
+    "fr3_state_dimension": 42,
+    "fr3_statistics": null,
+    "inspected_asset_ids": [
+      "franka",
+      "droid"
+    ],
+    "mode": "quantile_PI05_factory",
+    "old_document_scope": "norm_stats.md explicitly describes pi0_base/pi0_fast_base; pi05 correspondence is not fully specified"
+  },
+  "object_identity_sha256": "a8116db1d3a556f5c0b77f3c50950d38a22c7b3fac06ad8a0782f19b4948c633",
+  "objects": [
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "6nyXHA==",
+      "generation": "1757354310096104",
+      "md5Hash": "Qy/oPSHJD94BHxRaLllgsg==",
+      "name": "checkpoints/pi05_base/assets/arx/norm_stats.json",
+      "size": 3476
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "3XZHoA==",
+      "generation": "1757354310086315",
+      "md5Hash": "Cs4bLtdB+15zZI0ObagbEQ==",
+      "name": "checkpoints/pi05_base/assets/arx_mobile/norm_stats.json",
+      "size": 3677
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "sr4eWw==",
+      "downloaded_for_inspection": true,
+      "generation": "1757354310090122",
+      "md5Hash": "HQC4cGUtEo+86jMc1vBR7w==",
+      "name": "checkpoints/pi05_base/assets/droid/norm_stats.json",
+      "sha256": "508e75bb8f28f86ad8998a2254d2076fdd42caf26d8a89baecd5de0f628e2280",
+      "size": 2062
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "Fh5IlA==",
+      "generation": "1757354310088094",
+      "md5Hash": "w0SZXV8c/ogHVtS7Ckh++Q==",
+      "name": "checkpoints/pi05_base/assets/fibocom_mobile/norm_stats.json",
+      "size": 3951
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "LDm8qg==",
+      "downloaded_for_inspection": true,
+      "generation": "1757354310090331",
+      "md5Hash": "LC6+FS5cfmXjBJKG9hderA==",
+      "name": "checkpoints/pi05_base/assets/franka/norm_stats.json",
+      "sha256": "ddb8b0dcb9d869b7a152310ded9848c27857471d2999f70fd145ce7017b8d84f",
+      "size": 2081
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "ej6a+A==",
+      "generation": "1757354310095901",
+      "md5Hash": "OfbauPUY0C6yjwF1jFjdsg==",
+      "name": "checkpoints/pi05_base/assets/trossen/norm_stats.json",
+      "size": 3394
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "l2F3EA==",
+      "generation": "1757354310090749",
+      "md5Hash": "PEW+oUP3c2vo1fwB0Qtp+A==",
+      "name": "checkpoints/pi05_base/assets/trossen_mobile/norm_stats.json",
+      "size": 3699
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "o9bKwg==",
+      "generation": "1757354310089361",
+      "md5Hash": "ljxT2aK0MQVTC87Sw+ZeQw==",
+      "name": "checkpoints/pi05_base/assets/ur5e/norm_stats.json",
+      "size": 1851
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "X5QwQA==",
+      "generation": "1757354310089903",
+      "md5Hash": "YxVr2ClglFN0p/7g43ycPw==",
+      "name": "checkpoints/pi05_base/assets/ur5e_dual/norm_stats.json",
+      "size": 3459
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "3q5lUQ==",
+      "downloaded_for_inspection": true,
+      "generation": "1757354310086279",
+      "md5Hash": "uDrD0GJ9/soyYRTjoi8CTw==",
+      "name": "checkpoints/pi05_base/params/_CHECKPOINT_METADATA",
+      "sha256": "7674d497b452e8336840e6d21eaa85725d68c53fc011a648121f2b29b1ce5a8a",
+      "size": 258
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "frXw2w==",
+      "downloaded_for_inspection": true,
+      "generation": "1757354310086139",
+      "md5Hash": "2KbT3SeW+TztM+bI4gRvTQ==",
+      "name": "checkpoints/pi05_base/params/_METADATA",
+      "sha256": "250d0ad0f6540a5e4bdd70442d6864cef729724f2d23e2dd2cc669563a668d70",
+      "size": 21402
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "4PKBJg==",
+      "generation": "1757354310089508",
+      "md5Hash": "fWlnNNk1SS+IQh+CEMIX6g==",
+      "name": "checkpoints/pi05_base/params/_sharding",
+      "size": 11420
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "CS/yRg==",
+      "downloaded_for_inspection": true,
+      "generation": "1757354310090622",
+      "md5Hash": "/YmvRR2S0+o29qZiGEPt0w==",
+      "name": "checkpoints/pi05_base/params/array_metadatas/process_0",
+      "sha256": "e040d148bdfcb5f8060b212ee63993eaf01fed05088dd89cf491f456fade0ceb",
+      "size": 8856
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "AAAAAA==",
+      "generation": "1757354310089792",
+      "md5Hash": "1B2M2Y8AsgTpgAmY7PhCfg==",
+      "name": "checkpoints/pi05_base/params/commit_success.txt",
+      "size": 0
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "SGdLxw==",
+      "generation": "1757354310119002",
+      "md5Hash": "M9VQtg9mmNpNxUk3PFqKaA==",
+      "name": "checkpoints/pi05_base/params/d/1c4302d2d2000b5f3eb4fa1350fdef9a",
+      "size": 2132
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "SGdLxw==",
+      "generation": "1757354310086335",
+      "md5Hash": "JHMt8vA2+4zTj7e08rGstQ==",
+      "name": "checkpoints/pi05_base/params/manifest.ocdbt",
+      "size": 117
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "4YAIHA==",
+      "generation": "1757354310220587",
+      "md5Hash": null,
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/0832cad6c37f82d4eedd897dcbb8da9d",
+      "size": 2240590484
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "ceM1dg==",
+      "generation": "1757354310092980",
+      "md5Hash": "OXwd3VCCtNmDWnq+Av+/8w==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/247d4b7c814d8b1a23fa8a20f36a88f7",
+      "size": 34945019
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "Iq8YUA==",
+      "generation": "1757354310090576",
+      "md5Hash": "H9E9107OxwddcrM7+5WzAw==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/35a545f74995e511808d4f94dfbef3b6",
+      "size": 70041571
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "2IEHcA==",
+      "generation": "1757354310087457",
+      "md5Hash": "HVlWzNlQc0i4zG5dA3jWrA==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/73bbae8a4deba6498bf07d96b215a574",
+      "size": 2935855
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "R6AiOQ==",
+      "generation": "1757354310232242",
+      "md5Hash": null,
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/7bc9d3296d23a6fb83a6b3778ac6e964",
+      "size": 2240315383
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "3ljcDg==",
+      "generation": "1757354310097613",
+      "md5Hash": "qA3aTOnuJOm8TSyveL+ScA==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/7d78f38c5d8be1eea31406644dde9bd6",
+      "size": 133821
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "SGdLxw==",
+      "generation": "1757354310090811",
+      "md5Hash": "l5njiIkDe+WMHZv9hjz9yQ==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/828bee85475e37c61e1cc19e32d1c5ef",
+      "size": 929
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "gQSvJQ==",
+      "generation": "1757354310234847",
+      "md5Hash": null,
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/8c5d7070ea57bdce2f0a19f95b8a21b4",
+      "size": 3077149148
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "FlwBrA==",
+      "generation": "1757354310188883",
+      "md5Hash": null,
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/b4349aaadb7dfa45c3a53fc67c04b8f6",
+      "size": 1120156687
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "Yosa6g==",
+      "generation": "1757354310098105",
+      "md5Hash": "eKeUW1e7wkNVuJ7OtsXgXQ==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/caf01a82962cbd4651563d2ac1063e0b",
+      "size": 27445152
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "JyiHIA==",
+      "generation": "1757354310196805",
+      "md5Hash": null,
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/deefd3c43390a50472cbcd317b0fff58",
+      "size": 2393670849
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "TP2sFA==",
+      "generation": "1757354310192419",
+      "md5Hash": null,
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/d/ec484cf8f02dcf59e1892180f0862e40",
+      "size": 1234292390
+    },
+    {
+      "bucket": "openpi-assets",
+      "crc32c": "SGdLxw==",
+      "generation": "1757354310097331",
+      "md5Hash": "76clmla5BpNyk9xZmuw44g==",
+      "name": "checkpoints/pi05_base/params/ocdbt.process_0/manifest.ocdbt",
+      "size": 458
+    }
+  ],
+  "official_source": {
+    "commit": "215abfb217dbac7d5f1273282331b9b1866c0479",
+    "file_sha256": {
+      "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "LICENSE_GEMMA.txt": "dd084c7d92a3c1c14cc09ae77153b903fd2024b64a100a0cc8ec9316063d2dbc",
+      "README.md": "a6b87965c23c1c83218309c30c5cb6d28dc95e097c08ffd6577b2252855aba62",
+      "docs/norm_stats.md": "90a817dc5ea06a1f2408d1891113bb2b7cd9c9c336709f20af8c31f2ada0d412",
+      "src/openpi/models/pi0.py": "f73e9f8469bd59fdb4639d2b8bc2571e8f995ae5693ca7ac7bd1cdc789fcd950",
+      "src/openpi/models/tokenizer.py": "82cc6b1e007e4aeb327d27ee4b921c44e1424bc8c8ba0e1d49bb2ec3a1be8194",
+      "src/openpi/models_pytorch/pi0_pytorch.py": "c2619f76fd163d633fa59af236a6fa9675d0f42cc5195a16cc48fc2cd7aaed7e",
+      "src/openpi/training/config.py": "98e0e1283112e7713e55d51e8906ba228fd800d52e2d379d362dc6c905f3a358",
+      "src/openpi/training/data_loader.py": "d6ce899c23861833dfa9b56a1d64990765a74b88a7961c559c7de15f9a5b5d45"
+    },
+    "repository": "Physical-Intelligence/openpi"
+  },
+  "physical_command_authorization": "NOT_GRANTED",
+  "physical_execution": false,
+  "qualification_gate": "NO_GO",
+  "schema": "fr3_pi05_candidate_v1",
+  "structural_contract_id": "fr3_openpi_structural_v1",
+  "tokenizer": {
+    "bucket": "big_vision",
+    "crc32c": "cKDEzw==",
+    "generation": "1711547605575873",
+    "md5Hash": "FCCtyYVnIKVZ6KhyhLGV4g==",
+    "name": "paligemma_tokenizer.model",
+    "sentencepiece_version": "0.2.2",
+    "sha256": "8986bb4f423f07f8c7f70d0dbe3526fb2316056c17bae71b1ea975e77a168fc6",
+    "size": 4264023
+  },
+  "training_authorized": false,
+  "training_metadata": {
+    "binding": [
+      "dataset_id",
+      "source_manifest_sha256",
+      "episode_id"
+    ],
+    "required": [
+      "original_instruction",
+      "task_id_version",
+      "collection_session",
+      "camera_configuration",
+      "observation_schema",
+      "action_schema",
+      "resolved_configuration",
+      "episode_split",
+      "normalization_provenance",
+      "checkpoint_candidate"
+    ],
+    "retain_recap_schema": "fr3_recap_metadata_v1",
+    "schema": "fr3_training_requirements_v1"
+  },
+  "training_proposal": {
+    "controller_transport": null,
+    "execution_allowed": false,
+    "native_per_sample_padding_loss_mask_support": false,
+    "normalization_applied": false,
+    "padded_action_dimension": 32,
+    "request_dimension": 7,
+    "schema": "fr3_request_imitation_proposal_v1",
+    "scope": "synthetic_schema_only_not_checkpoint_target",
+    "state": "lossless_float32_identity_v1",
+    "state_dimension": 42,
+    "target": "identity_of_validated_recorded_normalized_requests_v1"
+  },
+  "uri": "gs://openpi-assets/checkpoints/pi05_base"
+}

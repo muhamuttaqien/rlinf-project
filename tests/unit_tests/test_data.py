@@ -4713,3 +4713,390 @@ def test_fr3_recap_explicit_split_selection_has_no_leakage(
         FR3OfflineDataset(
             fr3_openpi_dataset.root, config=FR3DatasetConfig(split="train")
         )
+
+
+@pytest.fixture(scope="module")
+def fr3_checkpoint_assets():
+    import os
+    from pathlib import Path
+
+    raw = os.environ.get("FR3_PI05_ASSET_ROOT")
+    if raw is None:
+        pytest.skip(
+            "Pinned small checkpoint assets require FR3_PI05_ASSET_ROOT; no test downloads assets"
+        )
+    return Path(raw).resolve()
+
+
+def test_fr3_checkpoint_candidate_pins_complete_generation_set():
+    import hashlib
+
+    from rlinf.data.datasets.openpi.fr3_training import load_checkpoint_candidate
+
+    candidate = load_checkpoint_candidate()
+    objects = candidate["objects"]
+    digest = hashlib.sha256(
+        json.dumps(objects, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    assert candidate["candidate_id"] == "pi05_base_gcs_generation_set:" + digest
+    assert len(objects) == len({o["name"] for o in objects}) == 29
+    assert all(o["generation"].isdigit() and o["crc32c"] for o in objects)
+    assert sum(o["size"] for o in objects) == 12_441_749_581
+    assert candidate["configuration"]["pretraining_horizon"] is None
+    assert candidate["training_proposal"]["execution_allowed"] is False
+
+
+@pytest.mark.parametrize(
+    "field", ["uri", "objects", "tokenizer", "architecture", "physical_execution"]
+)
+def test_fr3_checkpoint_changed_identity_or_assets_fail(tmp_path, field):
+    from rlinf.data.datasets.openpi.fr3_training import (
+        CANDIDATE_PATH,
+        load_checkpoint_candidate,
+    )
+
+    candidate = json.loads(CANDIDATE_PATH.read_text())
+    candidate[field] = "unreviewed"
+    path = tmp_path / "candidate.json"
+    path.write_text(json.dumps(candidate))
+    with pytest.raises(ValueError, match="fingerprint"):
+        load_checkpoint_candidate(path)
+
+
+def test_fr3_checkpoint_asset_shapes_do_not_qualify_fr3_statistics(
+    fr3_checkpoint_assets,
+):
+    from rlinf.data.datasets.openpi.fr3_training import inspect_checkpoint_assets
+
+    report = inspect_checkpoint_assets(fr3_checkpoint_assets)
+    assert report["files_verified"] == 6
+    assert report["downloaded_asset_bytes"] == 4_298_682
+    assert report["normalization_dimensions"] == {
+        "franka": {"state": 8, "actions": 8},
+        "droid": {"state": 8, "actions": 8},
+    }
+    assert report["fr3_normalization_compatibility"].startswith("INCOMPATIBLE")
+    assert report["action_in_projection"] == [32, 1024]
+    assert report["action_out_projection"] == [1024, 32]
+    assert report["state_projection_present"] is False
+    assert report["weights_restored"] is False
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing_tokenizer",
+        "corrupt_tokenizer",
+        "norm_stats",
+        "tensor_metadata",
+        "symlink",
+    ],
+)
+def test_fr3_checkpoint_asset_failure_injection(
+    fr3_checkpoint_assets, tmp_path, failure
+):
+    from rlinf.data.datasets.openpi.fr3_training import inspect_checkpoint_assets
+
+    root = tmp_path / "assets"
+    shutil.copytree(
+        fr3_checkpoint_assets, root, ignore=shutil.ignore_patterns("source")
+    )
+    tokenizer = root / "big_vision/paligemma_tokenizer.model"
+    if failure == "missing_tokenizer":
+        tokenizer.unlink()
+    elif failure == "corrupt_tokenizer":
+        data = bytearray(tokenizer.read_bytes())
+        data[-1] ^= 1
+        tokenizer.write_bytes(data)
+    elif failure == "norm_stats":
+        (
+            root / "openpi-assets/checkpoints/pi05_base/assets/franka/norm_stats.json"
+        ).write_text("{}")
+    elif failure == "tensor_metadata":
+        (
+            root
+            / "openpi-assets/checkpoints/pi05_base/params/array_metadatas/process_0"
+        ).write_text("{}")
+    else:
+        tokenizer.unlink()
+        tokenizer.symlink_to(
+            fr3_checkpoint_assets / "big_vision/paligemma_tokenizer.model"
+        )
+    with pytest.raises((ValueError, OSError), match="[Aa]sset|[Ss]ymlink|[Mm]issing"):
+        inspect_checkpoint_assets(root)
+
+
+def test_fr3_checkpoint_native_tokenizer_fixture_has_no_truncation(
+    fr3_checkpoint_assets, fr3_openpi_dataset, monkeypatch
+):
+    from rlinf.data.datasets.openpi.fr3_training import tokenize_fr3_fixture
+
+    monkeypatch.setenv("OPENPI_DATA_HOME", str(fr3_checkpoint_assets))
+    state = np.zeros(42, dtype=np.float32)
+    original = state.copy()
+    probe = tokenize_fr3_fixture(
+        fr3_checkpoint_assets,
+        state,
+        "synthetic tokenizer schema probe only",
+        scope="synthetic_math_only",
+    )
+    assert probe["token_count"] == 184
+    assert probe["vocabulary_size"] == 257152
+    assert probe["tokens"].shape == probe["mask"].shape == (200,)
+    assert probe["tokens"].dtype == np.int32 and probe["mask"].dtype == np.bool_
+    assert not probe["truncated"] and not probe["checkpoint_semantics_qualified"]
+    assert np.array_equal(original, state)
+    assert (probe["tokens"][~probe["mask"]] == 0).all()
+    assert fr3_openpi_dataset[0]["prompt"] is None
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "scope",
+        "dimension19",
+        "dimension32",
+        "dtype",
+        "nonfinite",
+        "range",
+        "instruction",
+        "truncation",
+        "cache",
+    ],
+)
+def test_fr3_checkpoint_tokenizer_rejects_unqualified_inputs(
+    fr3_checkpoint_assets, fr3_openpi_dataset, monkeypatch, failure
+):
+    from rlinf.data.datasets.openpi.fr3_training import tokenize_fr3_fixture
+
+    monkeypatch.setenv("OPENPI_DATA_HOME", str(fr3_checkpoint_assets))
+    state, prompt, scope = (
+        np.zeros(42, dtype=np.float32),
+        "synthetic probe",
+        "synthetic_math_only",
+    )
+    if failure == "scope":
+        scope = "qualified_training"
+    elif failure.startswith("dimension"):
+        state = np.zeros(int(failure[-2:]), dtype=np.float32)
+    elif failure == "dtype":
+        state = state.astype(np.float64)
+    elif failure == "nonfinite":
+        state[0] = np.nan
+    elif failure == "range":
+        state[0] = 2
+    elif failure == "instruction":
+        prompt = ""
+    elif failure == "truncation":
+        prompt = "long synthetic instruction " * 300
+    else:
+        monkeypatch.setenv("OPENPI_DATA_HOME", "/tmp/unqualified-fr3-cache")
+    with pytest.raises(ValueError):
+        tokenize_fr3_fixture(fr3_checkpoint_assets, state, prompt, scope=scope)
+
+
+@pytest.mark.parametrize("horizon", [1, 4, 20, 50])
+def test_fr3_checkpoint_request_target_proposal_preserves_values_and_masks(
+    fr3_openpi_export, horizon
+):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig, FR3OfflineDataset
+    from rlinf.data.datasets.openpi.fr3_training import (
+        build_fr3_request_target_proposal,
+    )
+
+    ds = FR3OfflineDataset(
+        fr3_openpi_export, config=FR3DatasetConfig(action_horizon=horizon)
+    )
+    before = _fr3_dataset_hashes(ds.root)
+    for index in range(len(ds)):
+        proposal = build_fr3_request_target_proposal(ds, index)
+        native = ds[index]
+        np.testing.assert_array_equal(proposal["native_state"], native["state"])
+        assert proposal["native_state"].shape == (42,)
+        assert proposal["proposed_actions"].shape == (horizon, 32)
+        np.testing.assert_array_equal(
+            proposal["proposed_actions"][:, :7], native["recorded_controller_requests"]
+        )
+        assert (proposal["proposed_actions"][:, 7:] == 0).all()
+        mask = proposal["proposed_loss_mask"]
+        assert mask.dtype == np.bool_
+        np.testing.assert_array_equal(
+            mask[:, :7], np.repeat((~native["actions_is_pad"])[:, None], 7, axis=1)
+        )
+        assert not mask[:, 7:].any()
+        assert mask.sum() == 7 * min(horizon, 4 - index % 4)
+        assert proposal["model_training_target"] is None
+        assert proposal["normalization_applied"] is False
+        assert proposal["native_sft_mask_supported"] is False
+        assert proposal["physical_execution"] is False
+        proposal["proposed_actions"][0, 0] = 123
+        assert ds[index]["recorded_controller_requests"][0, 0] != 123
+    assert _fr3_dataset_hashes(ds.root) == before
+
+
+def test_fr3_checkpoint_full_window_policy_and_execution_guard(fr3_openpi_dataset):
+    from rlinf.data.datasets.openpi.fr3_training import (
+        build_fr3_request_target_proposal,
+        require_fr3_training_ready,
+    )
+
+    assert build_fr3_request_target_proposal(
+        fr3_openpi_dataset, 0, require_full_window=True
+    )["proposed_loss_mask"][:, :7].all()
+    with pytest.raises(ValueError, match="Missing future actions"):
+        build_fr3_request_target_proposal(
+            fr3_openpi_dataset, 1, require_full_window=True
+        )
+    with pytest.raises(ValueError, match="audited FR3OfflineDataset"):
+        build_fr3_request_target_proposal({}, 0)
+    with pytest.raises(ValueError, match="CHECKPOINT_UNVERIFIED"):
+        require_fr3_training_ready()
+
+
+def test_fr3_checkpoint_future_collection_requirements_remain_missing(
+    fr3_openpi_dataset,
+):
+    from rlinf.data.datasets.openpi.fr3_training import assess_fr3_training_requirements
+
+    before = fr3_openpi_dataset.metadata_document()
+    report = assess_fr3_training_requirements(fr3_openpi_dataset)
+    missing = report["missing_episode_counts"]
+    for field in (
+        "original_instruction",
+        "task_id_version",
+        "episode_split",
+        "normalization_provenance",
+        "camera_configuration",
+        "collection_session",
+    ):
+        assert missing[field] == 2
+    assert report["action_schema_version"] == report["observation_schema_version"] == 1
+    assert len(report["action_authority_sessions"]) == 2
+    assert report["training_readiness"] == "UNQUALIFIED_SYNTHETIC_ONLY"
+    assert fr3_openpi_dataset.metadata_document() == before
+
+
+def test_fr3_checkpoint_cli_rejects_overlapping_output(fr3_openpi_export, monkeypatch):
+    import sys
+
+    from toolkits.realworld_check.qualify_fr3_checkpoint import main
+
+    before = _fr3_dataset_hashes(fr3_openpi_export)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qualify",
+            "--export",
+            str(fr3_openpi_export),
+            "--assets",
+            "/tmp/assets",
+            "--output",
+            str(fr3_openpi_export / "nested"),
+        ],
+    )
+    assert main() == 1
+    assert _fr3_dataset_hashes(fr3_openpi_export) == before
+
+
+def test_fr3_checkpoint_missing_assets_produce_diagnostic(tmp_path):
+    from toolkits.realworld_check.qualify_fr3_checkpoint import qualify_fr3_checkpoint
+
+    pytest.importorskip("openpi")
+    report = qualify_fr3_checkpoint(tmp_path / "dataset", tmp_path / "assets")
+    assert not report["offline_inspection_complete"]
+    assert report["diagnostics"] and report["diagnostics"][0]["message"]
+    assert report["decisions"]["checkpoint_compatibility"] == "CHECKPOINT_UNVERIFIED"
+    assert report["physical_execution"] is False
+
+
+def test_fr3_checkpoint_end_to_end_offline_container_probe(
+    fr3_checkpoint_assets, fr3_openpi_export, monkeypatch
+):
+    from toolkits.realworld_check.qualify_fr3_checkpoint import qualify_fr3_checkpoint
+
+    monkeypatch.setenv("OPENPI_DATA_HOME", str(fr3_checkpoint_assets))
+    before = _fr3_dataset_hashes(fr3_openpi_export)
+    report = qualify_fr3_checkpoint(fr3_openpi_export, fr3_checkpoint_assets)
+    assert report["offline_inspection_complete"], report["diagnostics"]
+    assert report["dataset"]["episodes"] == 2 and report["dataset"]["transitions"] == 8
+    assert report["temporal"]["full_windows"] == 0
+    assert report["temporal"]["padded_future_steps"] == 140
+    assert report["temporal"]["proposed_valid_loss_elements"] == 140
+    assert not report["temporal"]["native_sft_consumes_padding_mask"]
+    assert report["batch_structure"]["native_state_shape"] == [1, 42]
+    assert not report["batch_structure"]["state_matches_default_spec"]
+    assert report["decisions"]["training_data_readiness"].startswith("UNQUALIFIED")
+    assert report["decisions"]["recap_readiness"].startswith("UNQUALIFIED")
+    assert not report["training_run"] and not report["model_constructed"]
+    assert _fr3_dataset_hashes(fr3_openpi_export) == before
+
+
+def test_fr3_checkpoint_cli_forbids_network_models_and_hardware(
+    fr3_checkpoint_assets, fr3_openpi_export, tmp_path
+):
+    import os
+    import subprocess
+    import sys
+
+    program = r"""
+import builtins, subprocess, socket, psutil, ray
+original_import = builtins.__import__
+original_popen = subprocess.Popen
+def forbidden(*args, **kwargs):
+    raise AssertionError('network, model construction or hardware launch forbidden')
+def guarded(name, globals=None, locals=None, fromlist=(), level=0):
+    if level == 0 and name.split('.')[0] in {'rclpy','rospy','franky','pyrealsense2','hid','hidapi','spnav','pyspacemouse','pymodbus'}:
+        raise AssertionError('hardware SDK import: '+name)
+    return original_import(name, globals, locals, fromlist, level)
+def checked_popen(args, *pos, **kwargs):
+    if (args == 'lscpu' or args == ['uname', '-p']) and not kwargs.get('shell', False):
+        return original_popen(args, *pos, **kwargs)
+    return forbidden(args, *pos, **kwargs)
+builtins.__import__ = guarded
+import numpy.testing
+from rlinf.envs.real.fr3 import config as offline_schema
+subprocess.Popen = checked_popen
+psutil.process_iter = forbidden
+socket.socket.connect = forbidden
+ray.init = forbidden
+from openpi.models.pi0_config import Pi0Config
+from rlinf.models.embodiment.openpi.pi0 import Pi0
+import openpi.shared.download as download
+Pi0Config.create = forbidden
+Pi0.__init__ = forbidden
+download._download_fsspec = forbidden
+from toolkits.realworld_check.qualify_fr3_checkpoint import main
+raise SystemExit(main())
+"""
+    output = tmp_path / "checkpoint-report"
+    before = _fr3_dataset_hashes(fr3_openpi_export)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            program,
+            "--export",
+            str(fr3_openpi_export),
+            "--assets",
+            str(fr3_checkpoint_assets),
+            "--output",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={
+            **os.environ,
+            "OPENPI_DATA_HOME": str(fr3_checkpoint_assets),
+            "JAX_PLATFORMS": "cpu",
+            "HF_HUB_OFFLINE": "1",
+            "HF_DATASETS_CACHE": str(tmp_path / "hf-cache"),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((output / "qualification.json").read_text())
+    assert report["offline_inspection_complete"]
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+    assert report["model_constructed"] is False
+    assert _fr3_dataset_hashes(fr3_openpi_export) == before

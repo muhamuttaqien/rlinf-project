@@ -132,7 +132,7 @@ include = ["rlinf*"]
 exclude = ["tests*", "docs*", "examples*", "docker*", "toolkits*"]
 
 [tool.setuptools.package-data]
-rlinf = ["**/*.yaml", "**/*.yml", "data/datasets/openpi/fr3_contract_v1.json"]
+rlinf = ["**/*.yaml", "**/*.yml", "data/datasets/openpi/fr3_contract_v1.json", "data/datasets/openpi/fr3_pi05_candidate_v1.json"]
 
 [tool.ruff]
 line-length = 88
