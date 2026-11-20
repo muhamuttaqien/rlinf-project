@@ -8,7 +8,7 @@ reports unconfigured hardware and continues publishing state whose device time
 is frozen. Read this report for the source-supported explanation, interface and
 ownership findings, implementation contract, and remaining operator decisions.
 
-**November 20 follow-up:** [Passive recovery revalidation](milestone_2d_revalidation_2026-11-20.md)
+**November 20 follow-up:** [Passive recovery revalidation](milestone_2d_recovery_revalidation.md)
 records a later controller session with advancing device time. The historical
 findings below remain unchanged; physical qualification and command authorization
 remain ungranted.
