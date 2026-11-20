@@ -52,8 +52,22 @@ def verify_checkpoint_sources(candidate: dict) -> dict:
     runtime = verify_openpi_installation(load_fr3_contract())
     root = Path(__file__).resolve().parents[4]
     for relative, expected in candidate["local_source_sha256"].items():
+        actual = hashlib.sha256((root / relative).read_bytes()).hexdigest()
+        if actual != expected:
+            from rlinf.data.datasets.openpi.fr3_checkpoint_audit import (
+                verify_training_sources,
+            )
+
+            profile = verify_training_sources()
+            require(
+                profile["predecessor_source_sha256"].get(relative) == expected
+                and profile["native_source_sha256"].get(relative) == actual,
+                f"Unqualified RLinf checkpoint integration source: {relative}",
+            )
+            runtime["native_rlinf_source_profile"] = profile["schema"]
+            continue
         require(
-            hashlib.sha256((root / relative).read_bytes()).hexdigest() == expected,
+            actual == expected,
             f"Unqualified RLinf checkpoint integration source: {relative}",
         )
     return runtime

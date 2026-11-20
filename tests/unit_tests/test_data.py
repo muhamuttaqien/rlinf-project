@@ -5100,3 +5100,453 @@ raise SystemExit(main())
     assert report["physical_command_authorization"] == "NOT_GRANTED"
     assert report["model_constructed"] is False
     assert _fr3_dataset_hashes(fr3_openpi_export) == before
+
+
+@pytest.fixture
+def fr3_training_components(fr3_openpi_dataset, fr3_checkpoint_assets, monkeypatch):
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        synthetic_normalization_assets,
+        synthetic_training_fixture,
+    )
+
+    monkeypatch.setenv("OPENPI_DATA_HOME", str(fr3_checkpoint_assets))
+    fixture = synthetic_training_fixture(fr3_openpi_dataset)
+    normalization = synthetic_normalization_assets(fr3_openpi_dataset, fixture)
+    return fr3_openpi_dataset, fr3_checkpoint_assets, fixture, normalization
+
+
+def test_fr3_training_native_loader_masks_tokens_and_provenance(
+    fr3_training_components,
+):
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        FR3TrainingConfig,
+        FR3TrainingDataset,
+        build_fr3_training_dataloader,
+    )
+
+    native, assets, fixture, normalization = fr3_training_components
+    before = _fr3_dataset_hashes(native.root)
+    ds = FR3TrainingDataset(
+        native,
+        config=FR3TrainingConfig(assets),
+        fixture=fixture,
+        normalization=normalization,
+    )
+    loader = build_fr3_training_dataloader(ds)
+    batch = next(iter(loader))
+    assert loader.uses_action_loss_masks
+    assert batch["observation"].state.shape == batch["native_state"].shape == (2, 42)
+    assert batch["actions"].shape == batch["action_loss_mask"].shape == (2, 4, 32)
+    assert batch["valid_action_channels"].shape == (2, 32)
+    assert batch["valid_future_steps"].shape == (2, 4)
+    assert batch["observation"].tokenized_prompt.shape == (2, 200)
+    assert batch["observation"].tokenized_prompt_mask.dtype == torch.bool
+    assert all(p["episode_index"] == 0 for p in batch["provenance"])
+    assert all(t["origin"] == "synthetic_fixture" for t in batch["task_fixture"])
+    assert (
+        batch["physical_execution"] is False and batch["offline_schema_probe"] is True
+    )
+    assert not batch["action_loss_mask"][:, :, 7:].any()
+    for i in range(2):
+        np.testing.assert_array_equal(
+            batch["native_state"][i].numpy(), native[i]["native_state"]
+        )
+    assert _fr3_dataset_hashes(native.root) == before
+    assert native.metadata_document()["episodes"][0]["task"] is None
+    with pytest.raises(ValueError, match="CHECKPOINT_UNVERIFIED"):
+        ds.require_training_ready()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "state_shape",
+        "order",
+        "action_semantics",
+        "padding",
+        "missing_mask",
+        "mask_shape",
+        "mask_dtype",
+        "future",
+        "source_frames",
+        "physical",
+        "instruction",
+        "token_dtype",
+        "truncation",
+    ],
+)
+def test_fr3_training_collation_failure_injection(fr3_training_components, failure):
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        FR3TrainingConfig,
+        FR3TrainingDataset,
+        collate_fr3_training_items,
+    )
+
+    native, assets, fixture, normalization = fr3_training_components
+    item = FR3TrainingDataset(
+        native,
+        config=FR3TrainingConfig(assets),
+        fixture=fixture,
+        normalization=normalization,
+    )[1]
+    if failure == "state_shape":
+        item["state"] = item["state"][:19]
+    elif failure == "order":
+        item["provenance"]["state_fields"].reverse()
+    elif failure == "action_semantics":
+        item["target_semantics"] = "absolute_xyz_rpy"
+    elif failure == "padding":
+        item["actions"][:, 7] = 1
+    elif failure == "missing_mask":
+        del item["action_loss_mask"]
+    elif failure == "mask_shape":
+        item["action_loss_mask"] = item["action_loss_mask"][:-1]
+    elif failure == "mask_dtype":
+        item["action_loss_mask"] = item["action_loss_mask"].astype(np.float32)
+    elif failure == "future":
+        item["valid_future_steps"][:] = True
+    elif failure == "source_frames":
+        item["provenance"]["source_frame_indices"][-1] = 999
+    elif failure == "physical":
+        item["physical_execution"] = True
+    elif failure == "instruction":
+        item["task"]["origin"] = "recorded_original"
+    elif failure == "token_dtype":
+        item["tokenized_prompt"] = item["tokenized_prompt"].astype(np.float32)
+    else:
+        item["token_truncated"] = True
+    with pytest.raises(ValueError):
+        collate_fr3_training_items([item])
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "dataset",
+        "manifest",
+        "train_split",
+        "leakage",
+        "count",
+        "state_order",
+        "action_order",
+        "transform",
+        "checkpoint",
+        "provenance",
+        "method",
+        "dimension",
+        "nonfinite",
+        "scale",
+        "scope",
+    ],
+)
+def test_fr3_training_normalization_identity_and_leakage(fr3_openpi_dataset, failure):
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        synthetic_normalization_assets,
+        synthetic_training_fixture,
+        validate_training_normalization,
+    )
+
+    native = fr3_openpi_dataset
+    fixture = synthetic_training_fixture(native)
+    assets = synthetic_normalization_assets(native, fixture)
+    if failure == "dataset":
+        assets["dataset_id"] = "other"
+    elif failure == "manifest":
+        assets["source_manifest_sha256"] = "0" * 64
+    elif failure == "train_split":
+        assets["training_split_sha256"] = "0" * 64
+    elif failure == "leakage":
+        assets["training_episode_ids"].append(
+            native.metadata_document()["episodes"][1]["episode_id"]
+        )
+    elif failure == "count":
+        assets["sample_count"] += 1
+    elif failure == "state_order":
+        assets["state_feature_order"] = list(reversed(assets["state_feature_order"]))
+    elif failure == "action_order":
+        assets["action_feature_order"].reverse()
+    elif failure == "transform":
+        assets["transform_version"] = "absolute_pose"
+    elif failure == "checkpoint":
+        assets["checkpoint_candidate_id"] = "unknown"
+    elif failure == "provenance":
+        assets["statistics_provenance"] = {}
+    elif failure == "method":
+        assets["method"] = "none"
+    elif failure == "dimension":
+        assets["statistics"]["state"]["mean"] = [0.0] * 8
+    elif failure == "nonfinite":
+        assets["statistics"]["actions"]["std"][0] = float("nan")
+    elif failure == "scale":
+        assets["statistics"]["actions"]["std"][0] = 0
+    else:
+        assets["scope"] = "production_training"
+    with pytest.raises(ValueError):
+        validate_training_normalization(assets, native, fixture)
+
+
+@pytest.mark.parametrize("method", ["zscore", "quantile"])
+def test_fr3_training_literal_statistics_normalize_before_padding(
+    fr3_training_components, method
+):
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        FR3TrainingConfig,
+        FR3TrainingDataset,
+        synthetic_normalization_assets,
+    )
+
+    native, root, fixture, _ = fr3_training_components
+    statistics = synthetic_normalization_assets(native, fixture, method)
+    ds = FR3TrainingDataset(
+        native,
+        config=FR3TrainingConfig(root),
+        fixture=fixture,
+        normalization=statistics,
+    )
+    item = ds[0]
+    source = native[0]
+    expected = (
+        (source["state"] / (100 + 1e-6))
+        if method == "zscore"
+        else (source["state"] + 100) / (200 + 1e-6) * 2 - 1
+    )
+    np.testing.assert_allclose(item["state"], expected, atol=1e-6)
+    assert not item["actions"][:, 7:].any()
+    assert statistics["sample_count"] == 4
+    assert statistics["scope"] == "synthetic_math_only"
+
+
+@pytest.fixture(scope="module")
+def fr3_long_training_export(tmp_path_factory, fr3_checkpoint_assets):
+    import datasets.config
+
+    from rlinf.data.collectors.fr3_offline import collect_synthetic_dataset
+    from rlinf.data.storage.lerobot.fr3_export import export_synthetic_dataset
+    from toolkits.realworld_check.validate_fr3_config import load_config
+
+    root = tmp_path_factory.mktemp("fr3-long-training")
+    with pytest.MonkeyPatch.context() as p:
+        p.setattr(datasets.config, "HF_DATASETS_CACHE", root / "cache")
+        cfg = load_config(
+            [
+                "runner.num_data_episodes=2",
+                "env.eval.max_episode_steps=52",
+                "env.eval.seed=7",
+            ]
+        )
+        collect_synthetic_dataset(cfg, root / "native")
+        export_synthetic_dataset(root / "native", root / "export")
+    return root / "export"
+
+
+@pytest.mark.parametrize("horizon", [1, 4, 20, 50])
+def test_fr3_training_complete_windows_have_audited_selection(
+    fr3_long_training_export, fr3_checkpoint_assets, monkeypatch, horizon
+):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig, FR3OfflineDataset
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        FR3TrainingConfig,
+        FR3TrainingDataset,
+        collate_fr3_training_items,
+        synthetic_normalization_assets,
+        synthetic_training_fixture,
+    )
+
+    monkeypatch.setenv("OPENPI_DATA_HOME", str(fr3_checkpoint_assets))
+    native = FR3OfflineDataset(
+        fr3_long_training_export, config=FR3DatasetConfig(action_horizon=horizon)
+    )
+    fixture = synthetic_training_fixture(native)
+    ds = FR3TrainingDataset(
+        native,
+        config=FR3TrainingConfig(
+            fr3_checkpoint_assets, window_policy="require_full_window"
+        ),
+        fixture=fixture,
+        normalization=synthetic_normalization_assets(native, fixture),
+    )
+    assert len(ds) == 53 - horizon
+    assert len(ds.excluded_full_window_indices) == horizon - 1
+    sample = ds[len(ds) - 1]
+    assert sample["valid_future_steps"].all()
+    assert sample["provenance"]["episode_index"] == 0
+    assert sample["provenance"]["source_frame_indices"] == list(range(52 - horizon, 52))
+    batch = collate_fr3_training_items([sample])
+    assert batch["action_loss_mask"].sum() == horizon * 7
+    assert not batch["action_loss_mask"][:, :, 7:].any()
+
+
+def test_fr3_training_full_window_rejects_short_horizon20(
+    fr3_openpi_export, fr3_checkpoint_assets
+):
+    from rlinf.data.datasets.openpi.fr3 import FR3DatasetConfig, FR3OfflineDataset
+    from rlinf.data.datasets.openpi.fr3_pipeline import (
+        FR3TrainingConfig,
+        FR3TrainingDataset,
+        synthetic_normalization_assets,
+        synthetic_training_fixture,
+    )
+
+    native = FR3OfflineDataset(
+        fr3_openpi_export, config=FR3DatasetConfig(action_horizon=20)
+    )
+    f = synthetic_training_fixture(native)
+    with pytest.raises(ValueError, match="No eligible"):
+        FR3TrainingDataset(
+            native,
+            config=FR3TrainingConfig(fr3_checkpoint_assets, "require_full_window"),
+            fixture=f,
+            normalization=synthetic_normalization_assets(native, f),
+        )
+
+
+def test_fr3_training_recipe_runtime_and_synthetic_conversion(tmp_path):
+    pytest.importorskip("openpi")
+    from rlinf.data.datasets.openpi.fr3_checkpoint_audit import (
+        audit_conversion_fixture,
+        load_training_contract,
+        runtime_compatibility_report,
+    )
+
+    profile = load_training_contract()
+    assert len(profile["conversion"]["expected_arrays"]) == 51
+    assert profile["conversion"]["status"] == "WEIGHT_CONVERSION_NOT_EXECUTED"
+    result = audit_conversion_fixture(tmp_path / "conversion")
+    assert result["independent_native_reload"] and not result["eligible_checkpoint"]
+    runtime = runtime_compatibility_report()
+    assert runtime["status"] == "UNQUALIFIED"
+    assert runtime["constraints"]["torch"] == "==2.7.1"
+
+
+@pytest.mark.parametrize("failure", ["scope", "shape", "dtype", "nonfinite"])
+def test_fr3_training_conversion_fixture_validation(failure):
+    from rlinf.data.datasets.openpi.fr3_checkpoint_audit import (
+        convert_projection_fixture,
+    )
+
+    kernel, bias, scope = (
+        np.zeros((3, 4), dtype=np.float32),
+        np.zeros(4, dtype=np.float32),
+        "synthetic_math_only",
+    )
+    if failure == "scope":
+        scope = "real_checkpoint"
+    elif failure == "shape":
+        bias = bias[:-1]
+    elif failure == "dtype":
+        kernel = kernel.astype(np.float64)
+    else:
+        kernel[0, 0] = np.nan
+    with pytest.raises(ValueError):
+        convert_projection_fixture(kernel, bias, scope=scope)
+
+
+def test_fr3_training_profile_cannot_enable_execution(tmp_path):
+    from rlinf.data.datasets.openpi.fr3_checkpoint_audit import (
+        TRAINING_CONTRACT_PATH,
+        load_training_contract,
+    )
+
+    p = json.loads(TRAINING_CONTRACT_PATH.read_text())
+    p["training_execution_allowed"] = True
+    changed = tmp_path / "changed.json"
+    changed.write_text(json.dumps(p))
+    with pytest.raises(ValueError, match="fingerprint"):
+        load_training_contract(changed)
+
+
+def test_fr3_training_offline_cli_forbids_hardware_weights_and_optimizers(
+    fr3_checkpoint_assets, fr3_openpi_export, tmp_path
+):
+    import os
+    import subprocess
+    import sys
+
+    program = r"""
+import builtins, subprocess, socket, psutil, ray, torch
+original_import, original_popen = builtins.__import__, subprocess.Popen
+def forbidden(*args, **kwargs):
+    raise AssertionError('physical device, network, full model, optimizer or worker forbidden')
+def guarded(name, globals=None, locals=None, fromlist=(), level=0):
+    if level == 0 and name.split('.')[0] in {'rclpy','rospy','franky','pyrealsense2','hid','hidapi','spnav','pyspacemouse','pymodbus'}:
+        return forbidden(name)
+    return original_import(name, globals, locals, fromlist, level)
+def checked_popen(args, *pos, **kwargs):
+    if (args == 'lscpu' or args == ['uname', '-p']) and not kwargs.get('shell', False):
+        return original_popen(args, *pos, **kwargs)
+    return forbidden(args, *pos, **kwargs)
+builtins.__import__ = guarded
+import numpy.testing
+from rlinf.envs.real.fr3 import config as offline_schema
+subprocess.Popen = checked_popen
+socket.socket.connect = forbidden
+psutil.process_iter = forbidden
+ray.init = forbidden
+torch.optim.Optimizer.__init__ = forbidden
+from rlinf.models.embodiment.openpi.pi0 import Pi0
+from openpi.models.pi0_config import Pi0Config
+import openpi.shared.download as download
+Pi0.__init__ = forbidden
+Pi0Config.create = forbidden
+download._download_fsspec = forbidden
+from toolkits.realworld_check.validate_fr3_training import main
+raise SystemExit(main())
+"""
+    source_before = _fr3_dataset_hashes(fr3_openpi_export)
+    assets_before = _fr3_dataset_hashes(fr3_checkpoint_assets)
+    dest = tmp_path / "training-readiness"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            program,
+            "--export",
+            str(fr3_openpi_export),
+            "--assets",
+            str(fr3_checkpoint_assets),
+            "--output",
+            str(dest),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        env={
+            **os.environ,
+            "OPENPI_DATA_HOME": str(fr3_checkpoint_assets),
+            "JAX_PLATFORMS": "cpu",
+            "HF_HUB_OFFLINE": "1",
+            "HF_DATASETS_CACHE": str(tmp_path / "hf-cache"),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((dest / "readiness.json").read_text())
+    assert report["offline_smoke_complete"] and not report["training_enabled"]
+    assert report["decisions"]["checkpoint_execution"]["status"] == "UNQUALIFIED"
+    assert report["decisions"]["loss_mask_integration"]["status"] == "PASS"
+    assert [w["horizon"] for w in report["windows"]] == [1, 4, 20, 50]
+    assert report["physical_command_authorization"] == "NOT_GRANTED"
+    assert _fr3_dataset_hashes(fr3_openpi_export) == source_before
+    assert _fr3_dataset_hashes(fr3_checkpoint_assets) == assets_before
+
+
+def test_fr3_training_cli_output_overlap_is_rejected(fr3_openpi_export, monkeypatch):
+    import sys
+
+    from toolkits.realworld_check.validate_fr3_training import main
+
+    before = _fr3_dataset_hashes(fr3_openpi_export)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "smoke",
+            "--export",
+            str(fr3_openpi_export),
+            "--assets",
+            "/tmp/missing-assets",
+            "--output",
+            str(fr3_openpi_export / "nested"),
+        ],
+    )
+    assert main() == 1
+    assert _fr3_dataset_hashes(fr3_openpi_export) == before

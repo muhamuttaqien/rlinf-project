@@ -1371,3 +1371,231 @@ def test_openpi_fr3_padding_requires_per_sample_loss_mask_support():
     assert per_element[explicit_mask].mean().item() == 1
     assert Pi0._reduce_sft_loss(config, per_element, False).item() > 90
     assert Pi0._reduce_sft_loss(config, per_element, True).item() > 80
+
+
+def _openpi_masked_probe_batch(steps=3, valid=2):
+    from rlinf.models.embodiment.openpi.modules.model import Observation
+
+    actions = torch.arange(steps * 32, dtype=torch.float32).reshape(1, steps, 32) / 100
+    mask = torch.zeros_like(actions, dtype=torch.bool)
+    mask[:, :valid, :7] = True
+    return {
+        "observation": Observation(images={}, image_masks={}, state=torch.zeros(1, 42)),
+        "actions": actions,
+        "action_loss_mask": mask,
+        "action_loss_mask_required": True,
+        "offline_schema_probe": True,
+    }
+
+
+def test_openpi_masked_native_sft_padding_and_target_gradients():
+    from toolkits.realworld_check.validate_fr3_training import SyntheticLossProbe
+
+    batch = _openpi_masked_probe_batch()
+    batch["actions"].requires_grad_()
+    model = SyntheticLossProbe()
+    loss = model.sft_forward(batch)
+    mask = batch["action_loss_mask"]
+    expected = batch["actions"].square()[mask].mean()
+    torch.testing.assert_close(loss, expected)
+    loss.backward()
+    assert (batch["actions"].grad[~mask] == 0).all()
+    assert (batch["actions"].grad[mask][1:] != 0).all()
+    assert (model.probe.grad[7:] == 0).all()
+    for value in (1e6, float("nan")):
+        changed = {
+            **batch,
+            "actions": torch.where(
+                mask,
+                batch["actions"].detach(),
+                torch.full_like(batch["actions"], value),
+            ),
+        }
+        torch.testing.assert_close(model.sft_forward(changed), loss.detach())
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "shape",
+        "dtype",
+        "empty",
+        "missing",
+        "normalizer_zero",
+        "normalizer_nan",
+        "normalizer_grad",
+    ],
+)
+def test_openpi_masked_native_sft_rejects_invalid_masks(failure):
+    from toolkits.realworld_check.validate_fr3_training import SyntheticLossProbe
+
+    batch = _openpi_masked_probe_batch()
+    if failure == "shape":
+        batch["action_loss_mask"] = batch["action_loss_mask"][:, :-1]
+    elif failure == "dtype":
+        batch["action_loss_mask"] = batch["action_loss_mask"].float()
+    elif failure == "empty":
+        batch["action_loss_mask"][:] = False
+    elif failure == "missing":
+        del batch["action_loss_mask"]
+    else:
+        batch["action_loss_normalizer"] = {
+            "normalizer_zero": 0.0,
+            "normalizer_nan": float("nan"),
+            "normalizer_grad": torch.tensor(2.0, requires_grad=True),
+        }[failure]
+    with pytest.raises(ValueError):
+        SyntheticLossProbe().sft_forward(batch)
+
+
+def test_openpi_masked_loss_excludes_nonfinite_invalid_elements():
+    from rlinf.models.embodiment.openpi.sft_loss import masked_action_loss
+
+    loss = torch.tensor([[[2.0, 6.0, float("nan")]]], requires_grad=True)
+    mask = torch.tensor([[[True, True, False]]])
+    reduced = masked_action_loss(loss, mask)
+    assert reduced.item() == 4
+    reduced.backward()
+    torch.testing.assert_close(loss.grad, torch.tensor([[[0.5, 0.5, 0.0]]]))
+    with pytest.raises(ValueError, match="finite"):
+        masked_action_loss(loss, torch.ones_like(mask))
+
+
+def test_openpi_masked_accumulation_and_rank_average_equal_global_mean():
+    from rlinf.models.embodiment.openpi.sft_loss import normalize_masked_micro_batches
+    from toolkits.realworld_check.validate_fr3_training import SyntheticLossProbe
+
+    ranks = [
+        [_openpi_masked_probe_batch(4, 1), _openpi_masked_probe_batch(4, 2)],
+        [_openpi_masked_probe_batch(4, 3), _openpi_masked_probe_batch(4, 4)],
+    ]
+    count = sum(int(b["action_loss_mask"].sum()) for rank in ranks for b in rank)
+    gradients, values = [], []
+    for rank in ranks:
+        model = SyntheticLossProbe()
+        normalized = normalize_masked_micro_batches(
+            rank, world_size=2, global_valid_count=count
+        )
+        for b in normalized:
+            loss = model.sft_forward(b) / len(rank)
+            values.append(loss.item() / 2)
+            loss.backward()
+        gradients.append(model.probe.grad)
+    reference = SyntheticLossProbe()
+    numerator = sum(
+        (reference.probe[None, None, :] - b["actions"])
+        .square()[b["action_loss_mask"]]
+        .sum()
+        for rank in ranks
+        for b in rank
+    )
+    expected = numerator / count
+    expected.backward()
+    torch.testing.assert_close(torch.stack(gradients).mean(0), reference.probe.grad)
+    assert sum(values) == pytest.approx(expected.item())
+    assert all("action_loss_normalizer" not in b for rank in ranks for b in rank)
+    with pytest.raises(ValueError, match="include all local"):
+        normalize_masked_micro_batches(ranks[0], world_size=2, global_valid_count=1)
+
+
+def test_openpi_masked_and_legacy_worker_batch_paths():
+    from contextlib import nullcontext
+
+    from rlinf.workers.sft.fsdp_vla_sft_worker import FSDPVlaSftWorker
+    from toolkits.realworld_check.validate_fr3_training import SyntheticLossProbe
+
+    # Exercise batch methods without initializing a scheduler or model worker.
+    worker = object.__new__(FSDPVlaSftWorker)
+    worker.gradient_accumulation = 2
+    worker._world_size, worker.device = 1, torch.device("cpu")
+    worker._data_epoch = worker._data_iter_offset = 0
+    batches = [_openpi_masked_probe_batch(valid=1), _openpi_masked_probe_batch(valid=3)]
+    worker.data_loader = SimpleNamespace(uses_action_loss_masks=True)
+    worker.data_iter = iter(batches)
+    worker.model, worker.amp_context = SyntheticLossProbe(), nullcontext()
+    normalized = list(worker._training_micro_batches())
+    assert worker._data_iter_offset == 2
+    assert all(b["action_loss_normalizer"] == 14 for b in normalized)
+    for b in normalized:
+        loss, metrics = worker.get_train_model_output(b)
+        assert metrics["loss"] == loss.item()
+    with pytest.raises(ValueError, match="worker-normalized"):
+        worker.get_train_model_output(batches[0])
+    worker.data_loader = SimpleNamespace(uses_action_loss_masks=False)
+    worker.data_iter = iter(["first", "second"])
+    worker._data_iter_offset = 0
+    legacy = worker._training_micro_batches()
+    assert next(legacy) == "first" and worker._data_iter_offset == 1
+    assert next(legacy) == "second" and worker._data_iter_offset == 2
+
+
+def test_openpi_legacy_unmasked_sft_mean_remains_unchanged():
+    from toolkits.realworld_check.validate_fr3_training import SyntheticLossProbe
+
+    batch = _openpi_masked_probe_batch()
+    del batch["action_loss_mask"]
+    batch["action_loss_mask_required"] = False
+    model = SyntheticLossProbe()
+    torch.testing.assert_close(
+        model.sft_forward(batch), batch["actions"].square().mean()
+    )
+
+
+def test_openpi_full_checkpoint_rejects_schema_probe_batch():
+    from rlinf.models.embodiment.openpi.pi0 import Pi0
+
+    with pytest.raises(ValueError, match="CHECKPOINT_UNVERIFIED"):
+        Pi0.sft_forward(SimpleNamespace(), _openpi_masked_probe_batch())
+
+
+def test_openpi_masked_chunk_slice_and_external_normalizer_contract():
+    from rlinf.models.embodiment.openpi.pi0 import Pi0
+
+    model = SimpleNamespace(action_chunk=1, action_env_dim=2)
+    loss = torch.arange(12, dtype=torch.float32).reshape(1, 3, 4)
+    mask = torch.ones_like(loss, dtype=torch.bool)
+    assert Pi0._reduce_sft_loss(model, loss, True, mask).item() == 0.5
+    with pytest.raises(ValueError, match="cannot also slice"):
+        Pi0._reduce_sft_loss(model, loss, True, mask, 2.0)
+    with pytest.raises(ValueError, match="requires an explicit mask"):
+        Pi0._reduce_sft_loss(model, loss, False, None, 2.0)
+
+
+def test_openpi_masked_rlt_preserves_auxiliary_weighting():
+    from toolkits.realworld_check.validate_fr3_training import SyntheticLossProbe
+
+    class AuxiliaryProbe(SyntheticLossProbe):
+        def _sft_forward_with_rlt_prefix(self, observation, actions):
+            return (
+                self.compute_loss(observation, actions),
+                torch.zeros(1),
+                torch.ones(1),
+            )
+
+        def _rlt_forward(self, prefix_output, prefix_mask):
+            return torch.tensor(3.0), None
+
+    model = AuxiliaryProbe()
+    from dataclasses import replace
+
+    model.rlt_cfg = replace(model.rlt_cfg, use_rlt=True, rlt_alpha=2.0)
+    batch = _openpi_masked_probe_batch()
+    result = model.sft_forward(batch)
+    expected = batch["actions"].square()[batch["action_loss_mask"]].mean()
+    torch.testing.assert_close(result["vla_loss"], expected)
+    torch.testing.assert_close(result["loss"], torch.tensor(3.0) + 2 * expected)
+
+
+def test_openpi_missing_converted_weights_fail_before_model_assembly(tmp_path):
+    from rlinf.models.embodiment.openpi import get_model as get_openpi_model
+
+    cfg = OmegaConf.create(
+        {
+            "model_path": str(tmp_path / "missing-checkpoint"),
+            "openpi": {"torch_compile": False},
+            "pi05": True,
+            "precision": "fp32",
+        }
+    )
+    with pytest.raises(FileNotFoundError, match="openpi checkpoint not found"):
+        get_openpi_model(cfg)

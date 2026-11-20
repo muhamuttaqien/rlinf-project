@@ -278,10 +278,9 @@ def audit_synthetic_export(
                 "Incorrect export frame/episode/index association",
             )
             require(
-                abs(
-                    float(actual["timestamp"]) - step * manifest["step_period_ns"] / 1e9
-                )
-                < 1e-7,
+                actual["timestamp"].dtype == torch.float32
+                and float(actual["timestamp"])
+                == float(np.float32(step * manifest["step_period_ns"] / 1e9)),
                 "Incorrect export relative timestamp",
             )
             for key, value in expected.items():

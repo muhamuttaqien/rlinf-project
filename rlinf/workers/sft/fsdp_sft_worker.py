@@ -162,25 +162,12 @@ class FSDPSftWorker(FSDPModelManager, Worker):
 
             metrics = {}
 
-            for idx in range(self.gradient_accumulation):
+            for idx, batch in enumerate(self._training_micro_batches()):
                 # set the gradient accumulation backward_ctx
                 backward_ctx = self.before_micro_batch(
                     self.model,
                     is_last_micro_batch=(idx + 1) == self.gradient_accumulation,
                 )
-
-                try:
-                    batch = next(self.data_iter)
-                    self._data_iter_offset += 1
-                except StopIteration:
-                    self._data_epoch += 1
-                    logging.info(
-                        f"[INFO] data_iter exhausted, reset iterator self._data_epoch {self._data_epoch}"
-                    )
-                    forward_set_epoch(self.data_loader, self._data_epoch)
-                    self.data_iter = iter(self.data_loader)
-                    batch = next(self.data_iter)
-                    self._data_iter_offset = 1
 
                 loss, step_metrics = self.get_train_model_output(batch)
                 append_to_dict(metrics, step_metrics)
@@ -215,6 +202,23 @@ class FSDPSftWorker(FSDPModelManager, Worker):
             )
 
             return train_metrics
+
+    def _training_micro_batches(self):
+        """Yield accumulation batches in the legacy data/forward RNG order."""
+        for _ in range(self.gradient_accumulation):
+            try:
+                batch = next(self.data_iter)
+                self._data_iter_offset += 1
+            except StopIteration:
+                self._data_epoch += 1
+                logging.info(
+                    f"[INFO] data_iter exhausted, reset iterator self._data_epoch {self._data_epoch}"
+                )
+                forward_set_epoch(self.data_loader, self._data_epoch)
+                self.data_iter = iter(self.data_loader)
+                batch = next(self.data_iter)
+                self._data_iter_offset = 1
+            yield batch
 
     @abstractmethod
     def build_dataloader(self):

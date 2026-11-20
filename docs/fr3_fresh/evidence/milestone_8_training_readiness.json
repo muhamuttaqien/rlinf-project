@@ -1,0 +1,1167 @@
+{
+  "baseline_rlinf_commit": "cd584a203918e38fb20d81dfdb4f20a12cdf8d0f",
+  "batch": {
+    "actions": [
+      2,
+      20,
+      32
+    ],
+    "images": {
+      "base_0_rgb": [
+        2,
+        224,
+        224,
+        3
+      ],
+      "left_wrist_0_rgb": [
+        2,
+        224,
+        224,
+        3
+      ],
+      "right_wrist_0_rgb": [
+        2,
+        224,
+        224,
+        3
+      ]
+    },
+    "mask": [
+      2,
+      20,
+      32
+    ],
+    "native_state": [
+      2,
+      42
+    ],
+    "prompt_tokens": [
+      2,
+      200
+    ],
+    "scope": "synthetic_math_only",
+    "state": [
+      2,
+      42
+    ]
+  },
+  "checkpoint_small_assets": {
+    "action_in_projection": [
+      32,
+      1024
+    ],
+    "action_out_projection": [
+      1024,
+      32
+    ],
+    "downloaded_asset_bytes": 4298682,
+    "files_verified": 6,
+    "fr3_normalization_compatibility": "INCOMPATIBLE_42_STATE_7_ACTION_VS_8_8",
+    "normalization_dimensions": {
+      "droid": {
+        "actions": 8,
+        "state": 8
+      },
+      "franka": {
+        "actions": 8,
+        "state": 8
+      }
+    },
+    "state_projection_present": false,
+    "status": "PASS_SMALL_ASSET_IDENTITIES_ONLY",
+    "tensor_metadata_arrays": 51,
+    "weights_restored": false
+  },
+  "conversion": {
+    "destination_weight_shape": [
+      4,
+      3
+    ],
+    "eligible_checkpoint": false,
+    "fixture_path": "/tmp/fr3-milestone8-qualified/synthetic_conversion_audit/synthetic_projection_fixture.safetensors",
+    "fixture_sha256": "8455c97f2d3b5e228b25c7302087236d4b3f807b7cee31502ecf24238051c479",
+    "full_weight_conversion": "WEIGHT_CONVERSION_NOT_EXECUTED",
+    "independent_native_reload": true,
+    "recipe": {
+      "expected_arrays": {
+        "params.PaliGemma.img.Transformer.encoder_norm.bias": [
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoder_norm.scale": [
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_0.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_0.scale": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_1.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_1.scale": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_0.bias": [
+          27,
+          4304
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_0.kernel": [
+          27,
+          1152,
+          4304
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_1.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_1.kernel": [
+          27,
+          4304,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.key.bias": [
+          27,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.key.kernel": [
+          27,
+          1152,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.out.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.out.kernel": [
+          27,
+          16,
+          72,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.query.bias": [
+          27,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.query.kernel": [
+          27,
+          1152,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.value.bias": [
+          27,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.value.kernel": [
+          27,
+          1152,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.embedding.bias": [
+          1152
+        ],
+        "params.PaliGemma.img.embedding.kernel": [
+          14,
+          14,
+          3,
+          1152
+        ],
+        "params.PaliGemma.img.head.bias": [
+          2048
+        ],
+        "params.PaliGemma.img.head.kernel": [
+          1152,
+          2048
+        ],
+        "params.PaliGemma.img.pos_embedding": [
+          1,
+          256,
+          1152
+        ],
+        "params.PaliGemma.llm.embedder.input_embedding": [
+          257152,
+          2048
+        ],
+        "params.PaliGemma.llm.final_norm.scale": [
+          2048
+        ],
+        "params.PaliGemma.llm.final_norm_1.Dense_0.bias": [
+          3072
+        ],
+        "params.PaliGemma.llm.final_norm_1.Dense_0.kernel": [
+          1024,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.attn.attn_vec_einsum.w": [
+          18,
+          8,
+          256,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.attn.attn_vec_einsum_1.w": [
+          18,
+          8,
+          256,
+          1024
+        ],
+        "params.PaliGemma.llm.layers.attn.kv_einsum.w": [
+          18,
+          2,
+          1,
+          2048,
+          256
+        ],
+        "params.PaliGemma.llm.layers.attn.kv_einsum_1.w": [
+          18,
+          2,
+          1,
+          1024,
+          256
+        ],
+        "params.PaliGemma.llm.layers.attn.q_einsum.w": [
+          18,
+          8,
+          2048,
+          256
+        ],
+        "params.PaliGemma.llm.layers.attn.q_einsum_1.w": [
+          18,
+          8,
+          1024,
+          256
+        ],
+        "params.PaliGemma.llm.layers.mlp.gating_einsum": [
+          18,
+          2,
+          2048,
+          16384
+        ],
+        "params.PaliGemma.llm.layers.mlp.linear": [
+          18,
+          16384,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.mlp_1.gating_einsum": [
+          18,
+          2,
+          1024,
+          4096
+        ],
+        "params.PaliGemma.llm.layers.mlp_1.linear": [
+          18,
+          4096,
+          1024
+        ],
+        "params.PaliGemma.llm.layers.pre_attention_norm.scale": [
+          18,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.pre_attention_norm_1.Dense_0.bias": [
+          18,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.pre_attention_norm_1.Dense_0.kernel": [
+          18,
+          1024,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.pre_ffw_norm.scale": [
+          18,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.pre_ffw_norm_1.Dense_0.bias": [
+          18,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.pre_ffw_norm_1.Dense_0.kernel": [
+          18,
+          1024,
+          3072
+        ],
+        "params.action_in_proj.bias": [
+          1024
+        ],
+        "params.action_in_proj.kernel": [
+          32,
+          1024
+        ],
+        "params.action_out_proj.bias": [
+          32
+        ],
+        "params.action_out_proj.kernel": [
+          1024,
+          32
+        ],
+        "params.time_mlp_in.bias": [
+          1024
+        ],
+        "params.time_mlp_in.kernel": [
+          1024,
+          1024
+        ],
+        "params.time_mlp_out.bias": [
+          1024
+        ],
+        "params.time_mlp_out.kernel": [
+          1024,
+          1024
+        ]
+      },
+      "native_converter_sha256": "c1207b5f6625ce9c850b4bc95775caa3b40010ffe114c631ad63da971bca97ac",
+      "native_key_mapping": "rlinf.utils.ckpt_convertor.openpi.openpi_pytorch_to_openpi.old_to_new_state_dict",
+      "required_audits": [
+        "all_29_generation_pinned_objects",
+        "51_source_arrays_shapes_dtypes_checksums",
+        "every_destination_key_shape_and_value",
+        "tied_weights",
+        "strict_missing_and_unexpected_key_audit",
+        "native_independent_load",
+        "assets_from_checkpoint_root_assets_not_parent",
+        "source_and_output_sha256",
+        "immutable_configuration"
+      ],
+      "risks": [
+        "official converter branches on pi05 substring in staging path",
+        "official load_state_dict strict=False requires separate full coverage audit",
+        "official assets copy uses checkpoint parent/assets; explicit verified root/assets transfer required"
+      ],
+      "routes": {
+        "params.PaliGemma.img.*": "slice_paligemma_state_dict: HWIO->OIHW conv, encoder stack indexing, QKV projection reshape/transpose",
+        "params.PaliGemma.llm.*": "slice_paligemma_state_dict then slice_gemma_state_dict: split VLM/expert by source suffix and layer; transpose/reshape attention/MLP; AdaRMS mapping for pi05 path",
+        "params.{action_in_proj,action_out_proj,time_mlp_in,time_mlp_out}.*": "kernel transpose, bias identity; native bare projection names"
+      },
+      "source_path": "examples/convert_jax_model_to_pytorch.py",
+      "source_revision": "215abfb217dbac7d5f1273282331b9b1866c0479",
+      "source_snapshot_sha256": "bede0083b8c2cb3b38965a84d1343a03b50b8a471cfd5000e6cd7ca5da236665",
+      "status": "WEIGHT_CONVERSION_NOT_EXECUTED"
+    },
+    "source_kernel_shape": [
+      3,
+      4
+    ],
+    "status": "PASS_SYNTHETIC_PROJECTION_SUBSET"
+  },
+  "dataset": {
+    "dataset_id": "dataset:d8b4aa98f42f4c74b45bff36df0013d8",
+    "episodes": 2,
+    "source_manifest_sha256": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220",
+    "synthetic_training_frames": 4,
+    "transitions": 8
+  },
+  "decisions": {
+    "action_target_semantics": {
+      "status": "UNQUALIFIED"
+    },
+    "action_target_structure": {
+      "scope": "offline_synthetic_software_only",
+      "status": "PASS"
+    },
+    "camera_preprocessing": {
+      "reason": "Synthetic resize/masks pass; physical camera roles/calibration unavailable",
+      "status": "UNQUALIFIED"
+    },
+    "checkpoint_execution": {
+      "status": "UNQUALIFIED"
+    },
+    "checkpoint_source": {
+      "scope": "offline_synthetic_software_only",
+      "status": "PASS"
+    },
+    "converted_weights": {
+      "reason": "WEIGHT_CONVERSION_NOT_EXECUTED",
+      "status": "NOT_EXECUTED"
+    },
+    "episode_split": {
+      "reason": "Test-only partition; no approved real training split",
+      "status": "UNQUALIFIED"
+    },
+    "fr3_training_schema": {
+      "scope": "offline_synthetic_software_only",
+      "status": "PASS"
+    },
+    "loss_mask_integration": {
+      "scope": "offline_synthetic_software_only",
+      "status": "PASS"
+    },
+    "model_runtime": {
+      "reason": "Isolated environment required; dependency/ownership conflicts",
+      "status": "UNQUALIFIED"
+    },
+    "native_dataset_validity": {
+      "scope": "offline_synthetic_software_only",
+      "status": "PASS"
+    },
+    "physical_execution": {
+      "authorization": "NO_GO / NOT_GRANTED",
+      "status": "UNQUALIFIED"
+    },
+    "recap_experiments": {
+      "status": "UNQUALIFIED"
+    },
+    "state_preprocessing": {
+      "reason": "42D fixture-normalized structure passes; checkpoint semantics unavailable",
+      "status": "UNQUALIFIED"
+    },
+    "task_instructions": {
+      "reason": "Only explicitly attributed synthetic fixture text exists",
+      "status": "UNQUALIFIED"
+    },
+    "training_normalization": {
+      "reason": "Constant synthetic math fixtures; production qualification disabled",
+      "status": "UNQUALIFIED"
+    }
+  },
+  "diagnostics": [],
+  "eligible_real_demonstration": false,
+  "environment": {
+    "actual_import_versions": {
+      "torch": "2.11.0+cu130",
+      "transformers": "4.53.2"
+    },
+    "cpu_only": true,
+    "python": "3.11.15"
+  },
+  "implementation_sha256": {
+    "pyproject.toml": "d378ad9816d711b714f0cf9ff8d375063fba321ffe8cb446d5fab455a18fe7c4",
+    "rlinf/data/datasets/openpi/fr3_checkpoint_audit.py": "8905d20a6fa578809cafffd7081b61080c9f8dcd69d38db3ccbe6630a6d9fcfe",
+    "rlinf/data/datasets/openpi/fr3_pipeline.py": "396f97de43e405491152bdf3d260c28af70d457c18cd3c0e10e5b3a425b353ac",
+    "rlinf/data/datasets/openpi/fr3_training.py": "a47f3fbdf45088e31fd40a34c9e4d7c25c74c72788a9b8e6a3e31ccfb5a96a04",
+    "rlinf/data/datasets/openpi/fr3_training_v1.json": "757e563d076ca213ba3a628026e7678edf95631dd494b71108f22c3e1c5108c9",
+    "rlinf/data/storage/lerobot/fr3_export.py": "b9c1cd52186921b9641c19c4354df8e8d4a0e3328885848ac50ef01c855095dd",
+    "rlinf/models/embodiment/openpi/pi0.py": "fdad549442b81a826cb82f53e6059d4d553681ef64127c8345bbd41044ee3eb5",
+    "rlinf/models/embodiment/openpi/sft_loss.py": "645ab3d9a9283f267c8c4c8942d6a2026a33363a2f994874193acf284545124e",
+    "rlinf/workers/sft/fsdp_sft_worker.py": "66d59b32b4602f496426c738a92c4941ce23228e8e8f190431e8fc8592bbb574",
+    "rlinf/workers/sft/fsdp_vla_sft_worker.py": "9ebb43f057b8bdb3288c323d9dfdac7ef7a5c871e7617096546a6340f480c2de",
+    "toolkits/realworld_check/validate_fr3_training.py": "d9f9e27bdb6e1daa7c3d59a25b124d3164e5d0a111ffcea8f819ddbf996eb466"
+  },
+  "long_episode_fixture": {
+    "episodes": 2,
+    "selection_audit": [
+      {
+        "admitted": 52,
+        "cross_episode_windows": 0,
+        "excluded_incomplete": 0,
+        "horizon": 1
+      },
+      {
+        "admitted": 49,
+        "cross_episode_windows": 0,
+        "excluded_incomplete": 3,
+        "horizon": 4
+      },
+      {
+        "admitted": 33,
+        "cross_episode_windows": 0,
+        "excluded_incomplete": 19,
+        "horizon": 20
+      },
+      {
+        "admitted": 3,
+        "cross_episode_windows": 0,
+        "excluded_incomplete": 49,
+        "horizon": 50
+      }
+    ],
+    "steps_per_episode": 52,
+    "synthetic": true,
+    "test_status": "PASS_ALL_FOUR_HORIZONS",
+    "train_episode_count": 1,
+    "transitions": 104,
+    "window_policy": "require_full_window"
+  },
+  "offline_smoke_complete": true,
+  "physical_command_authorization": "NOT_GRANTED",
+  "physical_execution": false,
+  "physical_safety_qualification": "NOT_QUALIFIED",
+  "qualification_gate": "NO_GO",
+  "runtime": {
+    "constraints": {
+      "jax": "==0.5.3",
+      "jaxlib": "==0.5.3",
+      "numpy": ">=1.25,<2",
+      "orbax-checkpoint": "==0.11.13",
+      "python": "3.11",
+      "qualification": "partial_source_constraints_not_solved_lock",
+      "rlinf-openpi": "==0.1.1",
+      "rlinf-transformer-openpi": "==4.53.2",
+      "sentencepiece": ">=0.2.0",
+      "stock_transformers_distribution": "must_be_absent_in_candidate_isolated_environment",
+      "tokenizers": ">=0.21,<0.22",
+      "torch": "==2.7.1"
+    },
+    "distributions": {
+      "jax": "0.5.3",
+      "jaxlib": "0.5.3",
+      "numpy": "1.26.4",
+      "orbax-checkpoint": "0.11.13",
+      "rlinf-openpi": "0.1.1",
+      "rlinf-transformer-openpi": "4.53.2",
+      "sentencepiece": "0.2.2",
+      "tokenizers": "0.21.4",
+      "torch": "2.11.0+cu130",
+      "transformers": "4.57.6"
+    },
+    "full_model_import_or_execution_qualification": false,
+    "isolated_environment_required": true,
+    "large_dependency_installation_performed": false,
+    "overlapping_file_ownership": [
+      {
+        "owners": {
+          "rlinf-transformer-openpi": {
+            "actual_sha256": "e836e1f26d287c46c7e2bb06eccc597152daa1a262c601f4367d890f3070692d",
+            "record_hash": "<FileHash mode: sha256 value: 6Dbh8m0ofEbH4rsG7MxZcVLaoaJixgH0Nn2JDzBwaS0>"
+          },
+          "transformers": {
+            "actual_sha256": "e836e1f26d287c46c7e2bb06eccc597152daa1a262c601f4367d890f3070692d",
+            "record_hash": "<FileHash mode: sha256 value: qoy1TaSIz0O6N7mVW7bA2E0gANsDBval8cILaEJILQQ>"
+          }
+        },
+        "path": "transformers/__init__.py"
+      },
+      {
+        "owners": {
+          "rlinf-transformer-openpi": {
+            "actual_sha256": "17eeb54e277939e58cd6f8a92719a275e36baf0c9f463b2754227d42f87aedde",
+            "record_hash": "<FileHash mode: sha256 value: F-61Tid5OeWM1vipJxmideNrrwyfRjsnVCJ9Qvh67d4>"
+          },
+          "transformers": {
+            "actual_sha256": "17eeb54e277939e58cd6f8a92719a275e36baf0c9f463b2754227d42f87aedde",
+            "record_hash": "<FileHash mode: sha256 value: eazxkgEDGd7kDjO55lvHL3MFYDSmf1r4VTvSMqnnAI0>"
+          }
+        },
+        "path": "transformers/models/gemma/modeling_gemma.py"
+      },
+      {
+        "owners": {
+          "rlinf-transformer-openpi": {
+            "actual_sha256": "c945d330b829264f927f3ee5339f977238631772de07a28e855e265bb85fd53c",
+            "record_hash": "<FileHash mode: sha256 value: yUXTMLgpJk-Sfz7lM5-XcjhjF3LeB6KOhV4mW7hf1Tw>"
+          },
+          "transformers": {
+            "actual_sha256": "c945d330b829264f927f3ee5339f977238631772de07a28e855e265bb85fd53c",
+            "record_hash": "<FileHash mode: sha256 value: ta1GVvFatkYZY6o-N-N7oJxD8aVhA4WTxC-awk18DNk>"
+          }
+        },
+        "path": "transformers/models/paligemma/modeling_paligemma.py"
+      }
+    ],
+    "requirement_violations": [
+      {
+        "installed": "2.11.0+cu130",
+        "owner": "rlinf-openpi",
+        "requirement": "torch==2.7.1"
+      },
+      {
+        "installed": "0.21.4",
+        "owner": "transformers",
+        "requirement": "tokenizers<=0.23.0,>=0.22.0"
+      }
+    ],
+    "status": "UNQUALIFIED"
+  },
+  "schema": "fr3_training_readiness_v1",
+  "synthetic": true,
+  "training_contract": {
+    "actions": {
+      "execution_allowed": false,
+      "meaningful_dimension": 7,
+      "normalization_order": "42_state_and_7_requests_before_action_padding",
+      "original_checkpoint_target_qualified": false,
+      "padded_dimension": 32,
+      "target": "synthetic_normalized_request_imitation_proposal"
+    },
+    "baseline_rlinf_commit": "cd584a203918e38fb20d81dfdb4f20a12cdf8d0f",
+    "candidate_id": "pi05_base_gcs_generation_set:a8116db1d3a556f5c0b77f3c50950d38a22c7b3fac06ad8a0782f19b4948c633",
+    "conversion": {
+      "expected_arrays": {
+        "params.PaliGemma.img.Transformer.encoder_norm.bias": [
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoder_norm.scale": [
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_0.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_0.scale": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_1.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.LayerNorm_1.scale": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_0.bias": [
+          27,
+          4304
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_0.kernel": [
+          27,
+          1152,
+          4304
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_1.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MlpBlock_0.Dense_1.kernel": [
+          27,
+          4304,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.key.bias": [
+          27,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.key.kernel": [
+          27,
+          1152,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.out.bias": [
+          27,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.out.kernel": [
+          27,
+          16,
+          72,
+          1152
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.query.bias": [
+          27,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.query.kernel": [
+          27,
+          1152,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.value.bias": [
+          27,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.Transformer.encoderblock.MultiHeadDotProductAttention_0.value.kernel": [
+          27,
+          1152,
+          16,
+          72
+        ],
+        "params.PaliGemma.img.embedding.bias": [
+          1152
+        ],
+        "params.PaliGemma.img.embedding.kernel": [
+          14,
+          14,
+          3,
+          1152
+        ],
+        "params.PaliGemma.img.head.bias": [
+          2048
+        ],
+        "params.PaliGemma.img.head.kernel": [
+          1152,
+          2048
+        ],
+        "params.PaliGemma.img.pos_embedding": [
+          1,
+          256,
+          1152
+        ],
+        "params.PaliGemma.llm.embedder.input_embedding": [
+          257152,
+          2048
+        ],
+        "params.PaliGemma.llm.final_norm.scale": [
+          2048
+        ],
+        "params.PaliGemma.llm.final_norm_1.Dense_0.bias": [
+          3072
+        ],
+        "params.PaliGemma.llm.final_norm_1.Dense_0.kernel": [
+          1024,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.attn.attn_vec_einsum.w": [
+          18,
+          8,
+          256,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.attn.attn_vec_einsum_1.w": [
+          18,
+          8,
+          256,
+          1024
+        ],
+        "params.PaliGemma.llm.layers.attn.kv_einsum.w": [
+          18,
+          2,
+          1,
+          2048,
+          256
+        ],
+        "params.PaliGemma.llm.layers.attn.kv_einsum_1.w": [
+          18,
+          2,
+          1,
+          1024,
+          256
+        ],
+        "params.PaliGemma.llm.layers.attn.q_einsum.w": [
+          18,
+          8,
+          2048,
+          256
+        ],
+        "params.PaliGemma.llm.layers.attn.q_einsum_1.w": [
+          18,
+          8,
+          1024,
+          256
+        ],
+        "params.PaliGemma.llm.layers.mlp.gating_einsum": [
+          18,
+          2,
+          2048,
+          16384
+        ],
+        "params.PaliGemma.llm.layers.mlp.linear": [
+          18,
+          16384,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.mlp_1.gating_einsum": [
+          18,
+          2,
+          1024,
+          4096
+        ],
+        "params.PaliGemma.llm.layers.mlp_1.linear": [
+          18,
+          4096,
+          1024
+        ],
+        "params.PaliGemma.llm.layers.pre_attention_norm.scale": [
+          18,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.pre_attention_norm_1.Dense_0.bias": [
+          18,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.pre_attention_norm_1.Dense_0.kernel": [
+          18,
+          1024,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.pre_ffw_norm.scale": [
+          18,
+          2048
+        ],
+        "params.PaliGemma.llm.layers.pre_ffw_norm_1.Dense_0.bias": [
+          18,
+          3072
+        ],
+        "params.PaliGemma.llm.layers.pre_ffw_norm_1.Dense_0.kernel": [
+          18,
+          1024,
+          3072
+        ],
+        "params.action_in_proj.bias": [
+          1024
+        ],
+        "params.action_in_proj.kernel": [
+          32,
+          1024
+        ],
+        "params.action_out_proj.bias": [
+          32
+        ],
+        "params.action_out_proj.kernel": [
+          1024,
+          32
+        ],
+        "params.time_mlp_in.bias": [
+          1024
+        ],
+        "params.time_mlp_in.kernel": [
+          1024,
+          1024
+        ],
+        "params.time_mlp_out.bias": [
+          1024
+        ],
+        "params.time_mlp_out.kernel": [
+          1024,
+          1024
+        ]
+      },
+      "native_converter_sha256": "c1207b5f6625ce9c850b4bc95775caa3b40010ffe114c631ad63da971bca97ac",
+      "native_key_mapping": "rlinf.utils.ckpt_convertor.openpi.openpi_pytorch_to_openpi.old_to_new_state_dict",
+      "required_audits": [
+        "all_29_generation_pinned_objects",
+        "51_source_arrays_shapes_dtypes_checksums",
+        "every_destination_key_shape_and_value",
+        "tied_weights",
+        "strict_missing_and_unexpected_key_audit",
+        "native_independent_load",
+        "assets_from_checkpoint_root_assets_not_parent",
+        "source_and_output_sha256",
+        "immutable_configuration"
+      ],
+      "risks": [
+        "official converter branches on pi05 substring in staging path",
+        "official load_state_dict strict=False requires separate full coverage audit",
+        "official assets copy uses checkpoint parent/assets; explicit verified root/assets transfer required"
+      ],
+      "routes": {
+        "params.PaliGemma.img.*": "slice_paligemma_state_dict: HWIO->OIHW conv, encoder stack indexing, QKV projection reshape/transpose",
+        "params.PaliGemma.llm.*": "slice_paligemma_state_dict then slice_gemma_state_dict: split VLM/expert by source suffix and layer; transpose/reshape attention/MLP; AdaRMS mapping for pi05 path",
+        "params.{action_in_proj,action_out_proj,time_mlp_in,time_mlp_out}.*": "kernel transpose, bias identity; native bare projection names"
+      },
+      "source_path": "examples/convert_jax_model_to_pytorch.py",
+      "source_revision": "215abfb217dbac7d5f1273282331b9b1866c0479",
+      "source_snapshot_sha256": "bede0083b8c2cb3b38965a84d1343a03b50b8a471cfd5000e6cd7ca5da236665",
+      "status": "WEIGHT_CONVERSION_NOT_EXECUTED"
+    },
+    "loss": {
+      "formula": "sum(valid_element_loss)/sum(valid_mask)",
+      "gradient_reduction": "standard_FSDP_world_average",
+      "input_padding": "zero_before_compute_loss",
+      "legacy_unmasked_behavior": "unchanged",
+      "worker_denominator": "global_valid_count/(world_size*gradient_accumulation)",
+      "zero_valid_supervision": "reject"
+    },
+    "native_source_sha256": {
+      "rlinf/data/datasets/openpi/fr3_pipeline.py": "396f97de43e405491152bdf3d260c28af70d457c18cd3c0e10e5b3a425b353ac",
+      "rlinf/data/datasets/openpi/fr3_training.py": "a47f3fbdf45088e31fd40a34c9e4d7c25c74c72788a9b8e6a3e31ccfb5a96a04",
+      "rlinf/data/storage/lerobot/fr3_export.py": "b9c1cd52186921b9641c19c4354df8e8d4a0e3328885848ac50ef01c855095dd",
+      "rlinf/models/embodiment/openpi/checkpoint.py": "4378efa63bb3d08ee077083c5fa14d119bfbd04618810c432588cc677a8cf9c1",
+      "rlinf/models/embodiment/openpi/pi0.py": "fdad549442b81a826cb82f53e6059d4d553681ef64127c8345bbd41044ee3eb5",
+      "rlinf/models/embodiment/openpi/sft_loss.py": "645ab3d9a9283f267c8c4c8942d6a2026a33363a2f994874193acf284545124e",
+      "rlinf/utils/ckpt_convertor/openpi/openpi_pytorch_to_openpi.py": "c1207b5f6625ce9c850b4bc95775caa3b40010ffe114c631ad63da971bca97ac",
+      "rlinf/workers/sft/fsdp_sft_worker.py": "66d59b32b4602f496426c738a92c4941ce23228e8e8f190431e8fc8592bbb574",
+      "rlinf/workers/sft/fsdp_vla_sft_worker.py": "9ebb43f057b8bdb3288c323d9dfdac7ef7a5c871e7617096546a6340f480c2de"
+    },
+    "normalization": {
+      "production_qualification": false,
+      "required_binding": [
+        "dataset_id",
+        "source_manifest_sha256",
+        "training_episode_ids",
+        "training_split_sha256",
+        "sample_count",
+        "state_feature_order",
+        "action_feature_order",
+        "transform_version",
+        "checkpoint_candidate_id",
+        "statistics_provenance"
+      ],
+      "schema": "fr3_training_normalization_v1",
+      "scope": "synthetic_math_only"
+    },
+    "physical_command_authorization": "NOT_GRANTED",
+    "physical_execution": false,
+    "predecessor_source_sha256": {
+      "rlinf/data/datasets/openpi/official_sft_data_loader.py": "c3b051730e7dcccab4abdd230fdd9fc7b0c48b5de6c3c197f4171f0275bc41ef",
+      "rlinf/models/embodiment/openpi/dataconfig/__init__.py": "92e72b786e89753419b81cb69bcd5e91ab3c82d5767a3a09b6930917a56e9843",
+      "rlinf/models/embodiment/openpi/pi0.py": "ad69c5fd5f5e65e5cc947d6be384e1354c8aa33f1d4db187d6f5da279f46523b",
+      "rlinf/models/embodiment/openpi/pi0_config.py": "3f848a22de2bb5a458b25714880fd565d23bb30fc6831ceef1e336480b1321e1"
+    },
+    "qualification_gate": "NO_GO",
+    "runtime_constraints": {
+      "jax": "==0.5.3",
+      "jaxlib": "==0.5.3",
+      "numpy": ">=1.25,<2",
+      "orbax-checkpoint": "==0.11.13",
+      "python": "3.11",
+      "qualification": "partial_source_constraints_not_solved_lock",
+      "rlinf-openpi": "==0.1.1",
+      "rlinf-transformer-openpi": "==4.53.2",
+      "sentencepiece": ">=0.2.0",
+      "stock_transformers_distribution": "must_be_absent_in_candidate_isolated_environment",
+      "tokenizers": ">=0.21,<0.22",
+      "torch": "==2.7.1"
+    },
+    "schema": "fr3_training_batch_v1",
+    "state": {
+      "checkpoint_dimension": null,
+      "fields": [
+        {
+          "frame": "joint_space",
+          "name": "arm_joint_effort",
+          "start": 0,
+          "stop": 7,
+          "units": "N m"
+        },
+        {
+          "frame": "joint_space",
+          "name": "arm_joint_position",
+          "start": 7,
+          "stop": 14,
+          "units": "rad"
+        },
+        {
+          "frame": "joint_space",
+          "name": "arm_joint_velocity",
+          "start": 14,
+          "stop": 21,
+          "units": "rad/s"
+        },
+        {
+          "frame": "synthetic/base",
+          "name": "base_force",
+          "start": 21,
+          "stop": 24,
+          "units": "N"
+        },
+        {
+          "frame": "synthetic/base",
+          "name": "base_torque",
+          "start": 24,
+          "stop": 27,
+          "units": "N m"
+        },
+        {
+          "frame": "robotiq_85_left_knuckle_joint",
+          "name": "knuckle_position_rad",
+          "start": 27,
+          "stop": 28,
+          "units": "rad"
+        },
+        {
+          "frame": "robotiq_normalized_joint",
+          "name": "normalized_closure",
+          "start": 28,
+          "stop": 29,
+          "units": "dimensionless [0,1]"
+        },
+        {
+          "frame": "synthetic/fr3_link2",
+          "name": "tcp_force",
+          "start": 29,
+          "stop": 32,
+          "units": "N"
+        },
+        {
+          "frame": "synthetic/base",
+          "name": "tcp_pose",
+          "start": 32,
+          "stop": 39,
+          "units": "xyz m; quaternion xyzw"
+        },
+        {
+          "frame": "synthetic/fr3_link2",
+          "name": "tcp_torque",
+          "start": 39,
+          "stop": 42,
+          "units": "N m"
+        }
+      ],
+      "joint_names": [
+        "fr3_joint1",
+        "fr3_joint2",
+        "fr3_joint3",
+        "fr3_joint4",
+        "fr3_joint5",
+        "fr3_joint6",
+        "fr3_joint7"
+      ],
+      "native_dimension": 42,
+      "omitted_fields": [],
+      "quaternion": "xyzw_unit",
+      "quaternion_norm_atol": 1e-05,
+      "structural_dimension": 42,
+      "transform": "lossless_float32_identity_v1",
+      "unavailable": [
+        "tcp_vel",
+        "arm_jacobian",
+        "opening_width_m",
+        "grip_force"
+      ]
+    },
+    "training_execution_allowed": false,
+    "windows": {
+      "boundary": "native_lerobot_repeat_last_with_mask_v1",
+      "original_pretraining_horizon": null,
+      "policies": [
+        "masked_padded_windows",
+        "require_full_window"
+      ],
+      "reference_inspection_horizon": 20,
+      "tested_horizons": [
+        1,
+        4,
+        20,
+        50
+      ]
+    }
+  },
+  "training_enabled": false,
+  "verification": {
+    "data": {
+      "known_vlm_deselected": 1,
+      "new_cases": 44,
+      "optional_asset_skips": 0,
+      "passed": 356,
+      "warnings": 636
+    },
+    "documentation": {
+      "en_sphinx_warnings": 0,
+      "markup": "PASS",
+      "symbols": "PASS",
+      "zh_sphinx_warnings": 0
+    },
+    "environment": {
+      "passed": 280,
+      "placement_deselected": 18,
+      "warnings": 1
+    },
+    "focused_pipeline": {
+      "includes_one_existing_tokenizer_case": true,
+      "passed": 45
+    },
+    "format": "PASS",
+    "fsdp_cpu_mesh": {
+      "passed": 12,
+      "warnings": 16
+    },
+    "full_model_execution": false,
+    "full_weight_conversion_executed": false,
+    "full_weights_downloaded": false,
+    "guarded_cli": {
+      "full_model_constructors_forbidden": true,
+      "input_dataset_and_asset_hashes_unchanged": true,
+      "network_forbidden": true,
+      "optimizers_forbidden": true,
+      "physical_sdks_forbidden": true,
+      "ray_workers_forbidden": true,
+      "status": "PASS"
+    },
+    "hydra_offline_config": "PASS",
+    "known_vlm": {
+      "reason": "VideoMetadata.__init__ rejects frames_indices",
+      "status": "FAILED_UNCHANGED"
+    },
+    "model_helpers": {
+      "new_cases": 16,
+      "passed": 31,
+      "skip_reason": "existing nonexistent transformers.Gemma3ForCausalLM module import",
+      "skipped": 1,
+      "unselected": 46,
+      "warnings": 16
+    },
+    "optimizer_step": false,
+    "package_initializers": "PASS",
+    "packaging": {
+      "independent_unpacked_source_transition_and_import": "PASS",
+      "status": "PASS_OFFLINE_WHEEL",
+      "wheel_sha256": "e370aac22da0325ae968afb61bec853d3b768b4b8c6738e0f27bdb1654d3088d"
+    },
+    "recap_experiments": false,
+    "robotics": {
+      "passed": 495,
+      "placement_deselected": 8
+    },
+    "ruff": "PASS"
+  },
+  "windows": [
+    {
+      "cross_episode_windows": 0,
+      "horizon": 1,
+      "loss_probe": {
+        "checkpoint_eligible": false,
+        "expected_loss": 7.0839364525454585e-06,
+        "full_model_constructed": false,
+        "loss": 7.083936679919134e-06,
+        "micro_batches": 2,
+        "optimizer_created": false,
+        "padded_channel_gradient_max": 0.0,
+        "padding_value_invariance": true,
+        "status": "PASS",
+        "valid_elements": 28
+      },
+      "padded_future_steps": 0,
+      "policy": "masked_padded_windows",
+      "samples": 4
+    },
+    {
+      "cross_episode_windows": 0,
+      "horizon": 4,
+      "loss_probe": {
+        "checkpoint_eligible": false,
+        "expected_loss": 7.566150998172816e-06,
+        "full_model_constructed": false,
+        "loss": 7.5661503160517896e-06,
+        "micro_batches": 2,
+        "optimizer_created": false,
+        "padded_channel_gradient_max": 0.0,
+        "padding_value_invariance": true,
+        "status": "PASS",
+        "valid_elements": 70
+      },
+      "padded_future_steps": 6,
+      "policy": "masked_padded_windows",
+      "samples": 4
+    },
+    {
+      "cross_episode_windows": 0,
+      "horizon": 20,
+      "loss_probe": {
+        "checkpoint_eligible": false,
+        "expected_loss": 7.566150998172816e-06,
+        "full_model_constructed": false,
+        "loss": 7.5661503160517896e-06,
+        "micro_batches": 2,
+        "optimizer_created": false,
+        "padded_channel_gradient_max": 0.0,
+        "padding_value_invariance": true,
+        "status": "PASS",
+        "valid_elements": 70
+      },
+      "padded_future_steps": 70,
+      "policy": "masked_padded_windows",
+      "samples": 4
+    },
+    {
+      "cross_episode_windows": 0,
+      "horizon": 50,
+      "loss_probe": {
+        "checkpoint_eligible": false,
+        "expected_loss": 7.566150998172816e-06,
+        "full_model_constructed": false,
+        "loss": 7.5661503160517896e-06,
+        "micro_batches": 2,
+        "optimizer_created": false,
+        "padded_channel_gradient_max": 0.0,
+        "padding_value_invariance": true,
+        "status": "PASS",
+        "valid_elements": 70
+      },
+      "padded_future_steps": 190,
+      "policy": "masked_padded_windows",
+      "samples": 4
+    }
+  ]
+}

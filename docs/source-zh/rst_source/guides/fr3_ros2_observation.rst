@@ -192,4 +192,22 @@ LeRobot 重新加载成功只确认导出子集及其归档的兼容性。OpenPI
 
 命令验证完整 generation 集合标识、原生归档、小型资产、真实 tokenizer fixture、请求 target 提案及 batch 容器。流程不下载权重，也不构建模型。返回零表示离线检查完成；checkpoint、训练数据及 RECAP 就绪状态仍分别标为未获得资格确认。实际 Franka/DROID 统计量均为 8D，不能用于 42D state 或七个已记录的请求通道。
 
-提案保留请求值，显式填充动作通道，并在提议的 loss mask 中将重复的未来 endpoint 标为 false。原生 SFT 不消费逐样本 mask，因此这些填充窗口仍不能用于训练。真实指令、采集 session 标识、物理相机配置、split 来源、FR3 归一化资产及经过验证的转换后 checkpoint 仍待补齐。物理授权保持 ``NO_GO / NOT_GRANTED``。
+提案保留请求值，显式填充动作通道，并在提议的 loss mask 中将重复的未来 endpoint 标为 false。原生 SFT 通过下文介绍的独立训练 batch 接口接收 mask；Milestone 7 提案本身仍是检查格式。真实指令、采集 session 标识、物理相机配置、split 来源、FR3 归一化资产及经过验证的转换后 checkpoint 仍待补齐。物理授权保持 ``NO_GO / NOT_GRANTED``。
+
+
+验证带 Mask 的训练 Batch
+--------------------------------------------
+
+使用硬件不可访问的 smoke 命令检查 FR3 训练 batch schema 和原生 masked loss。输入现有合成导出包及已固定的小型资产，并选择新的输出目录：
+
+.. code-block:: bash
+
+   OPENPI_DATA_HOME=/tmp/fr3-milestone7-assets JAX_PLATFORMS=cpu HF_HUB_OFFLINE=1 \
+     HF_DATASETS_CACHE=/tmp/fr3-milestone8-hf-cache PYTHONPATH="$PWD" \
+     python -m toolkits.realworld_check.validate_fr3_training \
+     --export /tmp/fr3-milestone5-final/export --assets /tmp/fr3-milestone7-assets \
+     --output /tmp/fr3-milestone8-qualified
+
+原生 stateful loader 在 collation 中保留 42D state、合成图像及指令 fixture、32D 动作提案和 Boolean mask。只有真实存在的未来步骤中的七个通道计入 loss。原生 worker 使用跨 microbatch 和 rank 的全局有效元素数作为归一化依据；未提供 mask 的既有路径保持原有均值行为。``masked_padded_windows`` 保留 endpoint 重复值并标记为无效；``require_full_window`` 则记录并排除不完整窗口。
+
+命令验证四种 horizon、确定性 loss/gradient、运行时约束及明确标注的小型转换 fixture，不创建 optimizer 或预训练模型。输出 ``readiness.json`` 继续禁用训练及完整 checkpoint 执行。原生路径、source pin 和剩余的归一化、metadata、转换及运行时要求见 ``docs/fr3_fresh/milestone_8_training_pipeline_readiness.md``。物理执行仍为 ``NO_GO / NOT_GRANTED``。

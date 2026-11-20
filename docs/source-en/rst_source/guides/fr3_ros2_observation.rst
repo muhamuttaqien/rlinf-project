@@ -344,8 +344,39 @@ remain separate unqualified decisions. The actual Franka/DROID statistics are
 
 The proposal preserves request values, pads action channels explicitly and
 marks repeated future endpoints false in its proposed loss mask. Native SFT
-does not consume this per-sample mask, so these padded windows remain blocked
-for training. Authentic instructions, collection-session identity, physical
+consumes the separate training-batch mask described below; the Milestone 7
+proposal alone remains an inspection format. Authentic instructions,
+collection-session identity, physical
 camera configuration, split provenance, FR3 normalization assets and a verified
 converted checkpoint are still required. Physical authorization remains
 ``NO_GO / NOT_GRANTED``.
+
+
+Validate Masked Training Batches
+--------------------------------
+
+Inspect the FR3 training batch schema and native masked-loss path with the
+hardware-inaccessible smoke command. Use the existing synthetic export and
+pinned small assets, with a new output directory:
+
+.. code-block:: bash
+
+   OPENPI_DATA_HOME=/tmp/fr3-milestone7-assets JAX_PLATFORMS=cpu HF_HUB_OFFLINE=1 \
+     HF_DATASETS_CACHE=/tmp/fr3-milestone8-hf-cache PYTHONPATH="$PWD" \
+     python -m toolkits.realworld_check.validate_fr3_training \
+     --export /tmp/fr3-milestone5-final/export --assets /tmp/fr3-milestone7-assets \
+     --output /tmp/fr3-milestone8-qualified
+
+The native stateful loader carries the 42D state, synthetic image/instruction
+fixtures, 32D action proposals and Boolean masks through collation. Only seven
+channels at original future steps contribute loss. The native worker uses a
+global valid-element count across microbatches and ranks; legacy unmasked means
+retain their behavior. ``masked_padded_windows`` retains endpoint repeats with
+false masks; ``require_full_window`` records and excludes incomplete windows.
+
+The command checks all four horizons, deterministic loss/gradients, runtime
+constraints and a tiny labeled conversion fixture. It creates no optimizer or
+pretrained model. Its ``readiness.json`` keeps training and full-checkpoint gates
+disabled. See ``docs/fr3_fresh/milestone_8_training_pipeline_readiness.md`` for the
+native path, source pins and remaining normalization, metadata, conversion and
+runtime requirements. Physical execution remains ``NO_GO / NOT_GRANTED``.

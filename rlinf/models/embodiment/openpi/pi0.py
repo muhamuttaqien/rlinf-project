@@ -751,7 +751,11 @@ class Pi0(model.BaseModel):
         )
 
     def _reduce_sft_loss(
-        self, per_element_loss: torch.Tensor, use_action_chunk_loss: bool
+        self,
+        per_element_loss: torch.Tensor,
+        use_action_chunk_loss: bool,
+        action_loss_mask: torch.Tensor | None = None,
+        action_loss_normalizer: torch.Tensor | float | None = None,
     ) -> torch.Tensor:
         """Mean flow-matching MSE, optionally restricted to the env action chunk.
 
@@ -759,6 +763,29 @@ class Pi0(model.BaseModel):
         matches the old OpenPI wrapper by dropping padded action dims and
         unexecuted horizon steps before the mean.
         """
+        if action_loss_mask is not None:
+            from rlinf.models.embodiment.openpi.sft_loss import (
+                masked_action_loss,
+                validate_action_loss_mask,
+            )
+
+            action_loss_mask = validate_action_loss_mask(
+                action_loss_mask, per_element_loss
+            )
+            if use_action_chunk_loss:
+                if action_loss_normalizer is not None:
+                    raise ValueError(
+                        "Worker-normalized masks cannot also slice the action chunk"
+                    )
+                horizon = self.action_chunk or per_element_loss.shape[1]
+                env_dim = self.action_env_dim or per_element_loss.shape[-1]
+                per_element_loss = per_element_loss[:, :horizon, :env_dim]
+                action_loss_mask = action_loss_mask[:, :horizon, :env_dim]
+            return masked_action_loss(
+                per_element_loss, action_loss_mask, action_loss_normalizer
+            )
+        if action_loss_normalizer is not None:
+            raise ValueError("Action loss normalizer requires an explicit mask")
         if use_action_chunk_loss:
             horizon = (
                 self.action_chunk
@@ -826,19 +853,48 @@ class Pi0(model.BaseModel):
     ) -> torch.Tensor | dict[str, torch.Tensor]:
         """Flow-matching SFT loss. Shared by SFT, DAgger, and PPO co-train."""
         del kwargs
+        if (
+            isinstance(data, dict)
+            and data.get("offline_schema_probe", False)
+            and not getattr(self, "_offline_fr3_loss_probe", False)
+        ):
+            raise ValueError(
+                "CHECKPOINT_UNVERIFIED: offline FR3 batches require the isolated loss probe"
+            )
         if hasattr(self, "gradient_checkpointing_disable"):
             self.gradient_checkpointing_disable()
         observation, actions = self._unpack_sft_batch(data)
         observation = self._observation_to_device(observation)
         actions = self._actions_to_device(actions)
+        action_mask = data.get("action_loss_mask") if isinstance(data, dict) else None
+        normalizer = (
+            data.get("action_loss_normalizer") if isinstance(data, dict) else None
+        )
+        if (
+            isinstance(data, dict)
+            and data.get("action_loss_mask_required", False)
+            and action_mask is None
+        ):
+            raise ValueError("Masked SFT batch is missing action_loss_mask")
+        if action_mask is not None:
+            from rlinf.models.embodiment.openpi.sft_loss import (
+                validate_action_loss_mask,
+            )
+
+            action_mask = validate_action_loss_mask(action_mask, actions)
+            actions = torch.where(action_mask, actions, torch.zeros_like(actions))
         if not self.rlt_cfg.use_rlt:
             per_element_loss = self.compute_loss(observation, actions, train=True)
-            return self._reduce_sft_loss(per_element_loss, use_action_chunk_loss)
+            return self._reduce_sft_loss(
+                per_element_loss, use_action_chunk_loss, action_mask, normalizer
+            )
 
         per_element_loss, prefix_output, prefix_mask = (
             self._sft_forward_with_rlt_prefix(observation, actions)
         )
-        vla_loss = self._reduce_sft_loss(per_element_loss, use_action_chunk_loss)
+        vla_loss = self._reduce_sft_loss(
+            per_element_loss, use_action_chunk_loss, action_mask, normalizer
+        )
         rlt_loss, _ = self._rlt_forward(prefix_output, prefix_mask)
         return {
             "loss": rlt_loss + self.rlt_cfg.rlt_alpha * vla_loss,

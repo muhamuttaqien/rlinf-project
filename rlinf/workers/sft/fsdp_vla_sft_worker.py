@@ -84,6 +84,11 @@ class FSDPVlaSftWorker(FSDPSftWorker):
         raise NotImplementedError("eval is not supported for embodied sft right now.")
 
     def get_train_model_output(self, batch: Any) -> tuple[torch.Tensor, dict[str, Any]]:
+        if isinstance(batch, dict) and "action_loss_mask" in batch:
+            if "action_loss_normalizer" not in batch:
+                raise ValueError(
+                    "Masked SFT requires worker-normalized accumulation batches"
+                )
         with self.amp_context:
             output = self.model(forward_type=ForwardType.SFT, data=batch)
 
@@ -103,6 +108,31 @@ class FSDPVlaSftWorker(FSDPSftWorker):
                 elif isinstance(value, (float, int)):
                     step_metrics[key] = value
         return loss, step_metrics
+
+    def _training_micro_batches(self):
+        if not getattr(self.data_loader, "uses_action_loss_masks", False):
+            yield from super()._training_micro_batches()
+            return
+        from rlinf.models.embodiment.openpi.sft_loss import (
+            masked_micro_batch_count,
+            normalize_masked_micro_batches,
+        )
+
+        batches = list(super()._training_micro_batches())
+        local_count = sum(masked_micro_batch_count(batch) for batch in batches)
+        count = torch.tensor(local_count, dtype=torch.int64, device=self.device)
+        if self._world_size > 1:
+            if (
+                not torch.distributed.is_initialized()
+                or torch.distributed.get_world_size() != self._world_size
+            ):
+                raise ValueError(
+                    "Masked SFT requires the complete FSDP data-parallel group"
+                )
+            torch.distributed.all_reduce(count, op=torch.distributed.ReduceOp.SUM)
+        yield from normalize_masked_micro_batches(
+            batches, world_size=self._world_size, global_valid_count=int(count.item())
+        )
 
     def save_checkpoint(self, save_path: str, step: int = 0) -> None:
         super().save_checkpoint(save_path, step)
