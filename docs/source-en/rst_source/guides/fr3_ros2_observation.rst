@@ -233,3 +233,45 @@ grasp. Physical qualification and authorization remain ``NOT_QUALIFIED`` and
 ``NOT_GRANTED`` with gate ``NO_GO``. See
 ``docs/fr3_fresh/milestone_4_data_collection_integration.md`` for schemas,
 failure handling and validation results.
+
+Assess and Export the Synthetic Dataset
+---------------------------------------
+
+Use the dataset assessor to produce a separate quality report with per-episode
+and per-transition diagnostics, modality checks and timestamp distributions.
+The optional export uses RLinf's native LeRobot writer and preserves the exact
+native files in an accompanying archive for fields outside the frame table.
+Choose new output directories for each command:
+
+.. code-block:: bash
+
+   PYTHONPATH="$PWD" HF_HUB_OFFLINE=1 HF_DATASETS_CACHE=/tmp/fr3-milestone5-hf-cache \
+     python -m toolkits.realworld_check.validate_fr3_dataset \
+     --dataset /tmp/fr3-milestone4-synthetic \
+     --output /tmp/fr3-milestone5-validation --export
+   PYTHONPATH="$PWD" HF_HUB_OFFLINE=1 HF_DATASETS_CACHE=/tmp/fr3-milestone5-hf-cache \
+     python -m toolkits.realworld_check.validate_fr3_dataset \
+     --dataset /tmp/fr3-milestone4-synthetic \
+     --output /tmp/fr3-milestone5-independent-reload \
+     --reload-export /tmp/fr3-milestone5-validation/export
+
+The first command writes ``quality.json`` and a new export bundle. The second
+loads that bundle in a separate process, verifies the native archive hashes,
+then compares every supported LeRobot field with its native source. Omit
+``--export`` for assessment alone. Invalid records remain available for audit;
+the report distinguishes incomplete episodes, invalid schemas, rejected actions
+and corrupted artifacts. Validation and reload do not modify the source dataset.
+
+Synthetic source-age and skew ceilings are 50 ms and 20 ms. These are fixture
+validation limits, with explicit clock domains, rather than qualified physical
+timing budgets. Exported task text labels unscored synthetic pipeline validation;
+the original trajectories do not retain a recoverable task instruction. Full
+request, admission and mock-result journals remain in the native archive.
+
+LeRobot reload success qualifies the exported subset with that archive. OpenPI
+pi0.5 compatibility remains unqualified: FR3 state has 42 values while the existing
+realworld transform requires 19, and checkpoint action semantics, normalization,
+camera roles and horizon handling still require verification. RECAP also needs
+qualified outcomes, rollout/checkpoint identities, interventions and split
+metadata. See ``docs/fr3_fresh/milestone_5_dataset_validation.md`` for the audited
+schema and results. Physical execution remains ``NO_GO / NOT_GRANTED``.

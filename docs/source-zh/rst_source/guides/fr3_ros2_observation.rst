@@ -133,3 +133,26 @@ JSON 结果包含 ``offline_synthetic``、固定的 ``fr3_offline`` 注册项及
 原生 ``demos`` 目录包含两个轨迹文件及 replay 索引。每个 episode 的 JSON/JSONL 附属文件与 ``manifest.json`` 记录其合成来源。输出目录已存在时会拒绝写入；只有经过验证且状态为 ``COMPLETE`` 的 manifest 才会被接受，中断或写入失败会保留未完成状态。
 
 Fixture 的源时间与到达时间使用显式合成时钟，实际本地接收、动作和记录器时间戳保留独立的主机时钟标识。动作前最近采样策略会拒绝缺失、过期、延迟或时间偏差超限的 fixture，且不使用旧帧替代。固定 seed 可复现数值载荷及逻辑时间，主机接收时间和 session 标识会随运行变化。零奖励表示未评分 fixture，模拟夹爪完成也不代表实际抓取成功。物理资格仍为 ``NOT_QUALIFIED``，授权仍为 ``NOT_GRANTED``，资格门禁保持 ``NO_GO``。Schema、失败处理及验证结果见 ``docs/fr3_fresh/milestone_4_data_collection_integration.md``。
+
+评估并导出合成数据集
+--------------------
+
+使用数据集评估入口，在独立目录中生成质量报告，查看每个 episode 和 transition 的诊断、各模态检查结果及时间偏差分布。可选导出通过 RLinf 原生 LeRobot writer 完成，并将原生文件原样保存在随附归档中，以保留 frame table 无法表达的字段。每条命令都应选择新的输出目录：
+
+.. code-block:: bash
+
+   PYTHONPATH="$PWD" HF_HUB_OFFLINE=1 HF_DATASETS_CACHE=/tmp/fr3-milestone5-hf-cache \
+     python -m toolkits.realworld_check.validate_fr3_dataset \
+     --dataset /tmp/fr3-milestone4-synthetic \
+     --output /tmp/fr3-milestone5-validation --export
+   PYTHONPATH="$PWD" HF_HUB_OFFLINE=1 HF_DATASETS_CACHE=/tmp/fr3-milestone5-hf-cache \
+     python -m toolkits.realworld_check.validate_fr3_dataset \
+     --dataset /tmp/fr3-milestone4-synthetic \
+     --output /tmp/fr3-milestone5-independent-reload \
+     --reload-export /tmp/fr3-milestone5-validation/export
+
+第一条命令写入 ``quality.json`` 和新的导出包。第二条命令在独立进程中加载该包，验证原生归档的哈希，再逐字段比较 LeRobot 数据与原始记录。仅需评估时，省略 ``--export``。无效记录会保留供审计；报告分别标记未完成的 episode、无效 schema、被拒绝的动作及损坏的文件。验证和重新加载均不修改原始数据集。
+
+合成数据的源采样年龄和跨流时间偏差上限分别为 50 ms 和 20 ms。这些值是带显式时钟域的 fixture 验证限制，不是经过资格验证的物理时序预算。导出的任务文本表示未评分的合成流水线验证；原生轨迹没有保留可恢复的任务指令。完整请求、准入及模拟结果日志保存在原生归档中。
+
+LeRobot 重新加载成功只确认导出子集及其归档的兼容性。OpenPI pi0.5 兼容性仍未获得资格确认：FR3 state 包含 42 个值，现有 realworld transform 要求 19 个值；checkpoint 的动作语义、归一化、相机角色及 horizon 处理还需核实。RECAP 还需要经过资格验证的结果、rollout/checkpoint 标识、干预记录及数据划分信息。审计 schema 与验证结果见 ``docs/fr3_fresh/milestone_5_dataset_validation.md``。物理执行仍为 ``NO_GO / NOT_GRANTED``。

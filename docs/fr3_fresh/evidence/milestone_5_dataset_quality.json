@@ -1,0 +1,956 @@
+{
+  "action_provenance": {
+    "event_counts": {
+      "acceptance_unknown": 8,
+      "admitted": 16,
+      "created": 16,
+      "mock_acknowledged": 8,
+      "mock_canceled": 8,
+      "mock_completed": 8,
+      "submitted": 16,
+      "validated": 16
+    },
+    "physical_controller_acceptance": "UNAVAILABLE",
+    "physical_execution": false,
+    "physical_grasp_success": null
+  },
+  "counts": {
+    "corrupted_episodes": 0,
+    "episodes": 2,
+    "incomplete_episodes": 0,
+    "invalid_episodes": 0,
+    "invalid_transitions": 0,
+    "rejected_transitions": 0,
+    "transitions": 8,
+    "valid_episodes": 2,
+    "valid_transitions": 8
+  },
+  "dataset_id": "dataset:d8b4aa98f42f4c74b45bff36df0013d8",
+  "diagnostics": [],
+  "downstream": {
+    "openpi_pi05": {
+      "gaps": [
+        "checkpoint_and_training_config_unselected",
+        "physical_camera_roles_and_calibration_unknown",
+        "state_42_incompatible_with_realworld_input_19",
+        "normalized_offset_semantics_not_checkpoint_verified",
+        "action_horizon_and_boundary_padding_unselected",
+        "normalization_statistics_unqualified",
+        "task_instruction_missing_from_native_tensors",
+        "fr3_preprocessing_transform_missing"
+      ],
+      "status": "UNQUALIFIED"
+    },
+    "recap": {
+      "missing": [
+        "task_identity_and_instruction",
+        "policy_rollout_id",
+        "policy_checkpoint_version",
+        "real_operator_interventions",
+        "physical_controller_acceptance",
+        "evaluated_outcomes_and_success_annotations",
+        "train_eval_split",
+        "qualified_rewards_returns_advantages"
+      ],
+      "status": "SYNTHETIC_PIPELINE_ONLY"
+    }
+  },
+  "eligible_real_demonstration": false,
+  "episodes": [
+    {
+      "diagnostics": [],
+      "episode_id": "synthetic:episode:000000",
+      "index": 0,
+      "status": "VALID_SYNTHETIC",
+      "transitions": [
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 0
+        },
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 1
+        },
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 2
+        },
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 3
+        }
+      ]
+    },
+    {
+      "diagnostics": [],
+      "episode_id": "synthetic:episode:000001",
+      "index": 1,
+      "status": "VALID_SYNTHETIC",
+      "transitions": [
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 0
+        },
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 1
+        },
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 2
+        },
+        {
+          "diagnostics": [],
+          "status": "VALID_SYNTHETIC",
+          "step_index": 3
+        }
+      ]
+    }
+  ],
+  "export": {
+    "audit": {
+      "eligible_real_demonstration": false,
+      "episodes": 2,
+      "fields_compared": {
+        "actions": 8,
+        "dones": 8,
+        "extra_view_image": 8,
+        "image": 8,
+        "logical_ns": 8,
+        "next_extra_view_image": 8,
+        "next_image": 8,
+        "next_logical_ns": 8,
+        "next_state": 8,
+        "outcome_recorder_ns": 8,
+        "physical_execution": 8,
+        "request_recorder_ns": 8,
+        "rewards": 8,
+        "state": 8,
+        "synthetic": 8,
+        "task": 8,
+        "terminations": 8,
+        "truncations": 8
+      },
+      "independent_loader": "LeRobotDataset",
+      "native_archive_hash_verified": true,
+      "physical_command_authorization": "NOT_GRANTED",
+      "physical_execution": false,
+      "physical_safety_qualification": "NOT_QUALIFIED",
+      "qualification_gate": "NO_GO",
+      "status": "PASS",
+      "synthetic": true,
+      "transitions": 8
+    },
+    "dataset_root": "lerobot",
+    "eligible_real_demonstration": false,
+    "field_mapping": {
+      "actions": "submitted normalized mock payload, never physical execution",
+      "extra_view_image": "D405 current frame",
+      "image": "D435i current frame",
+      "next_state": "next_obs.states[step,0]",
+      "state": "curr_obs.states[step,0]",
+      "timestamp": "episode-relative frame_index / synthetic FPS"
+    },
+    "files": {
+      "lerobot/data/chunk-000/episode_000000.parquet": "370fb0b2de820bb0a86624fc5d367c83d2eff8966b25fa539a719cda0cf30396",
+      "lerobot/data/chunk-000/episode_000001.parquet": "c027716ea7eb1bb5cc09cb737c0eccf8a5bed16d518a3a473cc73ec63fbaee14",
+      "lerobot/images/extra_view_image/episode_000000/frame_000000.png": "f227d900a5780d9344255eb5be3b4d0d7fa0cecc82b433fef745c3f7c5b0a79f",
+      "lerobot/images/extra_view_image/episode_000000/frame_000001.png": "8fcae2a891e5bd14aa3bc9aa33e2f9de6aad21e1e5fee271061cbff7fbbcb011",
+      "lerobot/images/extra_view_image/episode_000000/frame_000002.png": "d7779784b69983ac9ee6975bed2e66b8426a4f30d7f3d7ff85c1b18a2833990b",
+      "lerobot/images/extra_view_image/episode_000000/frame_000003.png": "d1487655c17f701a3056487c9a2c161c22985c779200247b0fea7762b1e222fe",
+      "lerobot/images/extra_view_image/episode_000001/frame_000000.png": "a8f4744b630099ab957fac76444b995a62d757c1b1d2b9dfb46d30e236e279b2",
+      "lerobot/images/extra_view_image/episode_000001/frame_000001.png": "fe74229c447e8bf5560c855f2473733a00dd4595d0cd5972755ac6073ecf5a77",
+      "lerobot/images/extra_view_image/episode_000001/frame_000002.png": "053f5a01ca5af7e6044e4016b3213b7484bf67ada81fd6d1ce145d3ae16e9fe8",
+      "lerobot/images/extra_view_image/episode_000001/frame_000003.png": "0bc91bf7ab84065a289beb16f0b48651d35fdaf94d29034ab89fc0f9aace2ded",
+      "lerobot/images/image/episode_000000/frame_000000.png": "89d8ac6b74731f8763480e712f8001b34f2ae3438864fa09f929ae585fbb16d8",
+      "lerobot/images/image/episode_000000/frame_000001.png": "8a5b62ac982071d3345108da5b45b8497c30a08f1ec5da4e4b25fb2a666277e4",
+      "lerobot/images/image/episode_000000/frame_000002.png": "1ca636471dea7143198e01f35fcc0194291ffe46983b9609a135e58083e15b84",
+      "lerobot/images/image/episode_000000/frame_000003.png": "754699eda80d103e8adc333901ef4e41bcfc9bee584608efb2b95fe5288ff21f",
+      "lerobot/images/image/episode_000001/frame_000000.png": "049acd59283e01990eb6cfcfdf5e10cd88e35448ec1ccf8d5b7c2e82ef5a6b69",
+      "lerobot/images/image/episode_000001/frame_000001.png": "d7a98752d3ad28073e17d3e5551f3c48ad7295a595ab98b1ef93315a0a7d1548",
+      "lerobot/images/image/episode_000001/frame_000002.png": "f7d53eff6f87ebed597fc2cd7bfd02a8115d9cc7babe2d97accf4f048daf059f",
+      "lerobot/images/image/episode_000001/frame_000003.png": "94ad854c3408adc0296c8f49dd452b7fb096cb108417c1a87473c7732637a427",
+      "lerobot/images/next_extra_view_image/episode_000000/frame_000000.png": "8fcae2a891e5bd14aa3bc9aa33e2f9de6aad21e1e5fee271061cbff7fbbcb011",
+      "lerobot/images/next_extra_view_image/episode_000000/frame_000001.png": "d7779784b69983ac9ee6975bed2e66b8426a4f30d7f3d7ff85c1b18a2833990b",
+      "lerobot/images/next_extra_view_image/episode_000000/frame_000002.png": "d1487655c17f701a3056487c9a2c161c22985c779200247b0fea7762b1e222fe",
+      "lerobot/images/next_extra_view_image/episode_000000/frame_000003.png": "7c30c92ede8995b6c6d5b7b14b6d84d35eca6b3f346b61950d6dc0aa12534069",
+      "lerobot/images/next_extra_view_image/episode_000001/frame_000000.png": "fe74229c447e8bf5560c855f2473733a00dd4595d0cd5972755ac6073ecf5a77",
+      "lerobot/images/next_extra_view_image/episode_000001/frame_000001.png": "053f5a01ca5af7e6044e4016b3213b7484bf67ada81fd6d1ce145d3ae16e9fe8",
+      "lerobot/images/next_extra_view_image/episode_000001/frame_000002.png": "0bc91bf7ab84065a289beb16f0b48651d35fdaf94d29034ab89fc0f9aace2ded",
+      "lerobot/images/next_extra_view_image/episode_000001/frame_000003.png": "45878aac58c776983e23f0395cde7549617aa99f9ddc382ec557fd898c79915d",
+      "lerobot/images/next_image/episode_000000/frame_000000.png": "8a5b62ac982071d3345108da5b45b8497c30a08f1ec5da4e4b25fb2a666277e4",
+      "lerobot/images/next_image/episode_000000/frame_000001.png": "1ca636471dea7143198e01f35fcc0194291ffe46983b9609a135e58083e15b84",
+      "lerobot/images/next_image/episode_000000/frame_000002.png": "754699eda80d103e8adc333901ef4e41bcfc9bee584608efb2b95fe5288ff21f",
+      "lerobot/images/next_image/episode_000000/frame_000003.png": "f8a6577418a5df31344fe1a7899ad387b8dfbe82eaf9d9b78d3e1bb9f931e678",
+      "lerobot/images/next_image/episode_000001/frame_000000.png": "d7a98752d3ad28073e17d3e5551f3c48ad7295a595ab98b1ef93315a0a7d1548",
+      "lerobot/images/next_image/episode_000001/frame_000001.png": "f7d53eff6f87ebed597fc2cd7bfd02a8115d9cc7babe2d97accf4f048daf059f",
+      "lerobot/images/next_image/episode_000001/frame_000002.png": "94ad854c3408adc0296c8f49dd452b7fb096cb108417c1a87473c7732637a427",
+      "lerobot/images/next_image/episode_000001/frame_000003.png": "fd485e5f49361bccc42e15da256a669c5eae896b44f42a2552b8b4a61a037f62",
+      "lerobot/meta/episodes.jsonl": "d6cbe2d023ea41235b93de5b115702bf965d9e4f696de063aea414ad32b65f71",
+      "lerobot/meta/episodes_stats.jsonl": "52903da344bf141459434cf88598fb24bd9c72f3735d03df8aaffce0c04198b3",
+      "lerobot/meta/info.json": "14664e2adf01b0052878230f4f39f460ce406cf88efac360de8738a30630129b",
+      "lerobot/meta/tasks.jsonl": "825d381df2cf282ddddb5fe8f83831fa0a4c4e93cad6ba97901ede2b38bd1d85",
+      "native/demos/metadata.json": "be0472dcb6f4895f1b147b39cdc42c76f7d54b730bac4b7fac069808bdb32b4c",
+      "native/demos/trajectory_0_e58eb380-d5b9-5265-a382-0fc33930cf3e.pt": "bd3919b8e378fbefc7221d00d263c12345099927e1568171660f4cf4a15e459d",
+      "native/demos/trajectory_1_e58eb380-d5b9-5265-a382-0fc33930cf3e.pt": "6b7552f51a0022135d03e62b142681812e18cf29582fbfc9dd06d854d6eccde3",
+      "native/demos/trajectory_index.json": "a0308d1eb0e7291b53324402c249828c21265fef941a6f3c5522357e3cd36d99",
+      "native/episodes/episode_000000/episode.json": "5c61662bdc84a177a9a0916eadd38f39f0bd728b9192ae109d0354e094e720a2",
+      "native/episodes/episode_000000/steps.jsonl": "d6ca64b136c622ecf4000c6c50529573c21f25500b1d48fb6759147ec11928bb",
+      "native/episodes/episode_000001/episode.json": "450567f88b5c5ad2b10184bba5c81b6de612e17f20f08c3e5344e74f013c3121",
+      "native/episodes/episode_000001/steps.jsonl": "15f4080d64136ac838e18093b61d635c933b8c647314413d455dbbb22fe91833",
+      "native/manifest.json": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220"
+    },
+    "lerobot_version": "0.3.3",
+    "native_archive": "native",
+    "physical_command_authorization": "NOT_GRANTED",
+    "physical_execution": false,
+    "physical_safety_qualification": "NOT_QUALIFIED",
+    "qualification_gate": "NO_GO",
+    "repo_id": "rlinf/fr3-synthetic-pipeline",
+    "schema": "fr3_synthetic_lerobot_export_v1",
+    "sidecar_only_fields": [
+      "typed_requests",
+      "action_events",
+      "operator_request",
+      "stream_source_and_receipt_timing",
+      "clock_domains",
+      "session_and_authority",
+      "unavailable_measurements",
+      "configuration_and_interface_hashes"
+    ],
+    "source_manifest_sha256": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220",
+    "status": "COMPLETE",
+    "synthetic": true,
+    "task": "synthetic FR3 pipeline validation (unscored; no physical execution)",
+    "task_origin": "derived synthetic pipeline label; original instruction unavailable",
+    "unsupported": [
+      "real task instructions",
+      "physical calibration",
+      "physical controller acceptance",
+      "physical outcomes"
+    ]
+  },
+  "missing_features": {
+    "camera_calibrations": 2,
+    "physical_camera_roles": 2,
+    "physical_controller_acceptance": 8,
+    "physical_device_timestamps_camera_and_input": 30,
+    "recoverable_resolved_config": 1,
+    "task_instruction": 2
+  },
+  "modalities": {
+    "actions": {
+      "checks": 8,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "arm": {
+      "checks": 16,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "association": {
+      "checks": 30,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "d405": {
+      "checks": 16,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "d435i": {
+      "checks": 16,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "gripper": {
+      "checks": 16,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "spacemouse": {
+      "checks": 16,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "tensors": {
+      "checks": 10,
+      "failures": 0,
+      "status": "PASS"
+    },
+    "timing": {
+      "checks": 32,
+      "failures": 0,
+      "status": "PASS"
+    }
+  },
+  "observation_contract": {
+    "arm_joint_effort": {
+      "dimension": 7,
+      "units": "N m"
+    },
+    "arm_joint_position": {
+      "dimension": 7,
+      "units": "rad"
+    },
+    "arm_joint_velocity": {
+      "dimension": 7,
+      "units": "rad/s"
+    },
+    "base_force": {
+      "dimension": 3,
+      "units": "N"
+    },
+    "base_torque": {
+      "dimension": 3,
+      "units": "N m"
+    },
+    "knuckle_position_rad": {
+      "dimension": 1,
+      "units": "rad"
+    },
+    "normalized_closure": {
+      "dimension": 1,
+      "units": "dimensionless [0,1]"
+    },
+    "tcp_force": {
+      "dimension": 3,
+      "units": "N"
+    },
+    "tcp_pose": {
+      "dimension": 7,
+      "units": "xyz m; quaternion xyzw"
+    },
+    "tcp_torque": {
+      "dimension": 3,
+      "units": "N m"
+    }
+  },
+  "physical_command_authorization": "NOT_GRANTED",
+  "physical_execution": false,
+  "physical_safety_qualification": "NOT_QUALIFIED",
+  "qualification_gate": "NO_GO",
+  "readiness": {
+    "lerobot_export": "PASS_COMPATIBLE_SUBSET_WITH_NATIVE_ARCHIVE",
+    "multimodal_schema": "PASS",
+    "native_rlinf_serialization": "PASS",
+    "openpi_pi05_schema": "UNQUALIFIED",
+    "real_world_demonstration": "NOT_QUALIFIED",
+    "synthetic_temporal_consistency": "PASS",
+    "typed_action_provenance": "PASS"
+  },
+  "schema": "fr3_dataset_quality_v1",
+  "source_manifest_sha256": "7101f7c37cf402e1f01ce54bc31072a9500df47aa32168d8f982d7584148b220",
+  "synthetic": true,
+  "timestamp_statistics": {
+    "arrival_age_ns/arm": {
+      "count": 10,
+      "histogram": {
+        "2000000": 10
+      },
+      "max": 2000000,
+      "mean": 2000000.0,
+      "min": 2000000,
+      "p50": 2000000.0,
+      "p95": 2000000.0
+    },
+    "arrival_age_ns/d405": {
+      "count": 10,
+      "histogram": {
+        "4000000": 10
+      },
+      "max": 4000000,
+      "mean": 4000000.0,
+      "min": 4000000,
+      "p50": 4000000.0,
+      "p95": 4000000.0
+    },
+    "arrival_age_ns/d435i": {
+      "count": 10,
+      "histogram": {
+        "2000000": 10
+      },
+      "max": 2000000,
+      "mean": 2000000.0,
+      "min": 2000000,
+      "p50": 2000000.0,
+      "p95": 2000000.0
+    },
+    "arrival_age_ns/gripper": {
+      "count": 10,
+      "histogram": {
+        "1000000": 10
+      },
+      "max": 1000000,
+      "mean": 1000000.0,
+      "min": 1000000,
+      "p50": 1000000.0,
+      "p95": 1000000.0
+    },
+    "arrival_age_ns/spacemouse": {
+      "count": 10,
+      "histogram": {
+        "0": 10
+      },
+      "max": 0,
+      "mean": 0.0,
+      "min": 0,
+      "p50": 0.0,
+      "p95": 0.0
+    },
+    "cross_stream_skew_ns": {
+      "count": 10,
+      "histogram": {
+        "7000000": 10
+      },
+      "max": 7000000,
+      "mean": 7000000.0,
+      "min": 7000000,
+      "p50": 7000000.0,
+      "p95": 7000000.0
+    },
+    "receipt_age_at_request_ns/arm/joints": {
+      "count": 8,
+      "histogram": {
+        "20509134": 1,
+        "22137711": 1,
+        "24023834": 1,
+        "30551777": 1,
+        "30978206": 1,
+        "34487008": 1,
+        "7524410": 1,
+        "8187484": 1
+      },
+      "max": 34487008,
+      "mean": 22299945.5,
+      "min": 7524410,
+      "p50": 23080772.5,
+      "p95": 33258927.299999997
+    },
+    "receipt_age_at_request_ns/arm/pose": {
+      "count": 8,
+      "histogram": {
+        "20462629": 1,
+        "22094717": 1,
+        "23983849": 1,
+        "30512430": 1,
+        "30961343": 1,
+        "34444287": 1,
+        "7471880": 1,
+        "8144363": 1
+      },
+      "max": 34444287,
+      "mean": 22259437.25,
+      "min": 7471880,
+      "p50": 23039283.0,
+      "p95": 33225256.599999998
+    },
+    "receipt_age_at_request_ns/arm/wrench_base": {
+      "count": 8,
+      "histogram": {
+        "20438358": 1,
+        "22064217": 1,
+        "23473643": 1,
+        "30491815": 1,
+        "30953209": 1,
+        "34423116": 1,
+        "7443700": 1,
+        "8120492": 1
+      },
+      "max": 34423116,
+      "mean": 22176068.75,
+      "min": 7443700,
+      "p50": 22768930.0,
+      "p95": 33208648.549999997
+    },
+    "receipt_age_at_request_ns/arm/wrench_stiffness": {
+      "count": 8,
+      "histogram": {
+        "20419562": 1,
+        "22047546": 1,
+        "23452970": 1,
+        "30220324": 1,
+        "30946969": 1,
+        "34406748": 1,
+        "7418076": 1,
+        "8103132": 1
+      },
+      "max": 34406748,
+      "mean": 22126915.875,
+      "min": 7418076,
+      "p50": 22750258.0,
+      "p95": 33195825.349999998
+    },
+    "receipt_age_at_request_ns/gripper/knuckle": {
+      "count": 8,
+      "histogram": {
+        "19813874": 1,
+        "21782509": 1,
+        "23190782": 1,
+        "29961482": 1,
+        "30790418": 1,
+        "34145479": 1,
+        "6956057": 1,
+        "7755571": 1
+      },
+      "max": 34145479,
+      "mean": 21799521.5,
+      "min": 6956057,
+      "p50": 22486645.5,
+      "p95": 32971207.65
+    },
+    "receipt_age_at_request_ns/gripper/normalized": {
+      "count": 8,
+      "histogram": {
+        "19778749": 1,
+        "21750963": 1,
+        "23161465": 1,
+        "29934682": 1,
+        "30780550": 1,
+        "34117776": 1,
+        "6917173": 1,
+        "7729841": 1
+      },
+      "max": 34117776,
+      "mean": 21771399.875,
+      "min": 6917173,
+      "p50": 22456214.0,
+      "p95": 32949746.9
+    },
+    "recorder_minus_receipt_ns/arm/joints": {
+      "count": 10,
+      "histogram": {
+        "10126391": 1,
+        "11815793": 1,
+        "13579378": 1,
+        "16982600": 1,
+        "20229555": 1,
+        "20651151": 1,
+        "23705836": 1,
+        "27392188": 1,
+        "5574201": 1,
+        "6976561": 1
+      },
+      "max": 27392188,
+      "mean": 15703365.4,
+      "min": 5574201,
+      "p50": 15280989.0,
+      "p95": 25733329.599999998
+    },
+    "recorder_minus_receipt_ns/arm/pose": {
+      "count": 10,
+      "histogram": {
+        "10079886": 1,
+        "11772799": 1,
+        "13539393": 1,
+        "16948048": 1,
+        "20190208": 1,
+        "20634288": 1,
+        "23663115": 1,
+        "27352362": 1,
+        "5521671": 1,
+        "6933440": 1
+      },
+      "max": 27352362,
+      "mean": 15663521.0,
+      "min": 5521671,
+      "p50": 15243720.5,
+      "p95": 25692200.849999998
+    },
+    "recorder_minus_receipt_ns/arm/wrench_base": {
+      "count": 10,
+      "histogram": {
+        "10055615": 1,
+        "11742299": 1,
+        "13029187": 1,
+        "16928304": 1,
+        "20169593": 1,
+        "20626154": 1,
+        "23641944": 1,
+        "27332410": 1,
+        "5493491": 1,
+        "6909569": 1
+      },
+      "max": 27332410,
+      "mean": 15592856.6,
+      "min": 5493491,
+      "p50": 14978745.5,
+      "p95": 25671700.299999997
+    },
+    "recorder_minus_receipt_ns/arm/wrench_stiffness": {
+      "count": 10,
+      "histogram": {
+        "10036819": 1,
+        "11725628": 1,
+        "13008514": 1,
+        "16910175": 1,
+        "19898102": 1,
+        "20619914": 1,
+        "23625576": 1,
+        "27316780": 1,
+        "5467867": 1,
+        "6892209": 1
+      },
+      "max": 27316780,
+      "mean": 15550158.4,
+      "min": 5467867,
+      "p50": 14959344.5,
+      "p95": 25655738.199999996
+    },
+    "recorder_minus_receipt_ns/d405": {
+      "count": 10,
+      "histogram": {
+        "12823505": 1,
+        "16805919": 1,
+        "17900832": 1,
+        "19177310": 1,
+        "24301877": 1,
+        "2875353": 1,
+        "4894390": 1,
+        "5685472": 1,
+        "7509513": 1,
+        "9669995": 1
+      },
+      "max": 24301877,
+      "mean": 12164416.6,
+      "min": 2875353,
+      "p50": 11246750.0,
+      "p95": 21995821.849999994
+    },
+    "recorder_minus_receipt_ns/d435i": {
+      "count": 10,
+      "histogram": {
+        "12649998": 1,
+        "16694513": 1,
+        "18102363": 1,
+        "19002769": 1,
+        "24236224": 1,
+        "2615631": 1,
+        "4618172": 1,
+        "5540808": 1,
+        "7601646": 1,
+        "9872145": 1
+      },
+      "max": 24236224,
+      "mean": 12093426.9,
+      "min": 2615631,
+      "p50": 11261071.5,
+      "p95": 21881169.249999993
+    },
+    "recorder_minus_receipt_ns/gripper/knuckle": {
+      "count": 10,
+      "histogram": {
+        "11460591": 1,
+        "12746326": 1,
+        "16616336": 1,
+        "19639260": 1,
+        "20463363": 1,
+        "23364307": 1,
+        "27076436": 1,
+        "5005848": 1,
+        "6544648": 1,
+        "9431131": 1
+      },
+      "max": 27076436,
+      "mean": 15234824.6,
+      "min": 5005848,
+      "p50": 14681331.0,
+      "p95": 25405977.949999996
+    },
+    "recorder_minus_receipt_ns/gripper/normalized": {
+      "count": 10,
+      "histogram": {
+        "11429045": 1,
+        "12717009": 1,
+        "16590676": 1,
+        "19612460": 1,
+        "20453495": 1,
+        "23336604": 1,
+        "27048268": 1,
+        "4966964": 1,
+        "6518918": 1,
+        "9396006": 1
+      },
+      "max": 27048268,
+      "mean": 15206944.5,
+      "min": 4966964,
+      "p50": 14653842.5,
+      "p95": 25378019.199999996
+    },
+    "recorder_minus_receipt_ns/spacemouse": {
+      "count": 10,
+      "histogram": {
+        "10658879": 1,
+        "11521739": 1,
+        "15598743": 1,
+        "18920423": 1,
+        "19562421": 1,
+        "21959198": 1,
+        "26085624": 1,
+        "4210819": 1,
+        "5841746": 1,
+        "8214281": 1
+      },
+      "max": 26085624,
+      "mean": 14257387.3,
+      "min": 4210819,
+      "p50": 13560241.0,
+      "p95": 24228732.299999997
+    },
+    "request_to_submission_ns/arm": {
+      "count": 8,
+      "histogram": {
+        "10027804": 1,
+        "10404867": 1,
+        "11636325": 1,
+        "11741869": 1,
+        "9384806": 1,
+        "9440192": 1,
+        "9524040": 1,
+        "9924666": 1
+      },
+      "max": 11741869,
+      "mean": 10260571.125,
+      "min": 9384806,
+      "p50": 9976235.0,
+      "p95": 11704928.6
+    },
+    "request_to_submission_ns/end_effector": {
+      "count": 8,
+      "histogram": {
+        "10626219": 1,
+        "10648944": 1,
+        "10743280": 1,
+        "11173662": 1,
+        "11309751": 1,
+        "11609915": 1,
+        "12952611": 1,
+        "13011347": 1
+      },
+      "max": 13011347,
+      "mean": 11509466.125,
+      "min": 10626219,
+      "p50": 11241706.5,
+      "p95": 12990789.4
+    },
+    "source_age_ns/arm": {
+      "count": 10,
+      "histogram": {
+        "3000000": 10
+      },
+      "max": 3000000,
+      "mean": 3000000.0,
+      "min": 3000000,
+      "p50": 3000000.0,
+      "p95": 3000000.0
+    },
+    "source_age_ns/d405": {
+      "count": 10,
+      "histogram": {
+        "8000000": 10
+      },
+      "max": 8000000,
+      "mean": 8000000.0,
+      "min": 8000000,
+      "p50": 8000000.0,
+      "p95": 8000000.0
+    },
+    "source_age_ns/d435i": {
+      "count": 10,
+      "histogram": {
+        "5000000": 10
+      },
+      "max": 5000000,
+      "mean": 5000000.0,
+      "min": 5000000,
+      "p50": 5000000.0,
+      "p95": 5000000.0
+    },
+    "source_age_ns/gripper": {
+      "count": 10,
+      "histogram": {
+        "2000000": 10
+      },
+      "max": 2000000,
+      "mean": 2000000.0,
+      "min": 2000000,
+      "p50": 2000000.0,
+      "p95": 2000000.0
+    },
+    "source_age_ns/spacemouse": {
+      "count": 10,
+      "histogram": {
+        "1000000": 10
+      },
+      "max": 1000000,
+      "mean": 1000000.0,
+      "min": 1000000,
+      "p50": 1000000.0,
+      "p95": 1000000.0
+    },
+    "source_minus_arm_ns/arm": {
+      "count": 10,
+      "histogram": {
+        "0": 10
+      },
+      "max": 0,
+      "mean": 0.0,
+      "min": 0,
+      "p50": 0.0,
+      "p95": 0.0
+    },
+    "source_minus_arm_ns/d405": {
+      "count": 10,
+      "histogram": {
+        "-5000000": 10
+      },
+      "max": -5000000,
+      "mean": -5000000.0,
+      "min": -5000000,
+      "p50": -5000000.0,
+      "p95": -5000000.0
+    },
+    "source_minus_arm_ns/d435i": {
+      "count": 10,
+      "histogram": {
+        "-2000000": 10
+      },
+      "max": -2000000,
+      "mean": -2000000.0,
+      "min": -2000000,
+      "p50": -2000000.0,
+      "p95": -2000000.0
+    },
+    "source_minus_arm_ns/gripper": {
+      "count": 10,
+      "histogram": {
+        "1000000": 10
+      },
+      "max": 1000000,
+      "mean": 1000000.0,
+      "min": 1000000,
+      "p50": 1000000.0,
+      "p95": 1000000.0
+    },
+    "source_minus_arm_ns/spacemouse": {
+      "count": 10,
+      "histogram": {
+        "2000000": 10
+      },
+      "max": 2000000,
+      "mean": 2000000.0,
+      "min": 2000000,
+      "p50": 2000000.0,
+      "p95": 2000000.0
+    },
+    "submission_to_outcome_ns/arm": {
+      "count": 8,
+      "histogram": {
+        "12269012": 1,
+        "13954555": 1,
+        "15546874": 1,
+        "18862753": 1,
+        "22186102": 1,
+        "22506712": 1,
+        "25596812": 1,
+        "29264945": 1
+      },
+      "max": 29264945,
+      "mean": 20023470.625,
+      "min": 12269012,
+      "p50": 20524427.5,
+      "p95": 27981098.45
+    },
+    "submission_to_outcome_ns/end_effector": {
+      "count": 8,
+      "histogram": {
+        "10987065": 1,
+        "12579533": 1,
+        "14282736": 1,
+        "17613757": 1,
+        "20975360": 1,
+        "21320685": 1,
+        "24377572": 1,
+        "28059897": 1
+      },
+      "max": 28059897,
+      "mean": 18774575.625,
+      "min": 10987065,
+      "p50": 19294558.5,
+      "p95": 26771083.25
+    },
+    "transport_delay_ns/arm": {
+      "count": 10,
+      "histogram": {
+        "1000000": 10
+      },
+      "max": 1000000,
+      "mean": 1000000.0,
+      "min": 1000000,
+      "p50": 1000000.0,
+      "p95": 1000000.0
+    },
+    "transport_delay_ns/d405": {
+      "count": 10,
+      "histogram": {
+        "4000000": 10
+      },
+      "max": 4000000,
+      "mean": 4000000.0,
+      "min": 4000000,
+      "p50": 4000000.0,
+      "p95": 4000000.0
+    },
+    "transport_delay_ns/d435i": {
+      "count": 10,
+      "histogram": {
+        "3000000": 10
+      },
+      "max": 3000000,
+      "mean": 3000000.0,
+      "min": 3000000,
+      "p50": 3000000.0,
+      "p95": 3000000.0
+    },
+    "transport_delay_ns/gripper": {
+      "count": 10,
+      "histogram": {
+        "1000000": 10
+      },
+      "max": 1000000,
+      "mean": 1000000.0,
+      "min": 1000000,
+      "p50": 1000000.0,
+      "p95": 1000000.0
+    },
+    "transport_delay_ns/spacemouse": {
+      "count": 10,
+      "histogram": {
+        "1000000": 10
+      },
+      "max": 1000000,
+      "mean": 1000000.0,
+      "min": 1000000,
+      "p50": 1000000.0,
+      "p95": 1000000.0
+    }
+  },
+  "timing_contract": {
+    "max_cross_stream_skew_ns": 20000000,
+    "max_source_age_ns": 50000000,
+    "physical_budget_qualified": false,
+    "sampling": "initial observation plus each next observation; shared references checked separately",
+    "units": "ns"
+  },
+  "unindexed_artifacts": [],
+  "valid": true,
+  "validator_version": "fr3-offline-validator-v1"
+}

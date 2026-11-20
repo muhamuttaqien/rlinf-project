@@ -15,6 +15,7 @@
 """LeRobot dataset writer for saving rollout data."""
 
 import gc
+from pathlib import Path
 from typing import Any
 
 from rlinf.data.storage.lerobot.compat import add_frame_to_dataset
@@ -72,6 +73,7 @@ class LeRobotDatasetWriter:
         extra_view_image_keys: dict[str, tuple[int, ...]] | None = None,
         has_intervene_flag: bool = True,
         has_segment_id: bool = False,
+        root: str | Path | None = None,
     ) -> None:
         """
         Create a new LeRobot dataset.
@@ -99,6 +101,7 @@ class LeRobotDatasetWriter:
             has_segment_id: Whether to include per-frame ``segment_id``
                 (uint8, shape ``(1,)``) in auto-generated features. Used for
                 in-episode sub-task boundaries set by KeyboardStartEndWrapper.
+            root: New local dataset directory. None uses LeRobot's default cache.
 
         """
 
@@ -169,6 +172,7 @@ class LeRobotDatasetWriter:
             features=features,
             image_writer_threads=image_writer_threads,
             image_writer_processes=image_writer_processes,
+            **({"root": root} if root is not None else {}),
         )
 
     def add_episode(self, episode_data: list[dict[str, Any]]) -> None:

@@ -3548,3 +3548,500 @@ def test_fr3_missing_initial_observation_rolls_back_owned_resources(
         )
     finally:
         env.close()
+
+
+def _fr3_dataset_hashes(root):
+    from rlinf.data.storage.fr3_synthetic import file_digest
+
+    return {
+        str(p.relative_to(root)): file_digest(p) for p in root.rglob("*") if p.is_file()
+    }
+
+
+def _fr3_rehash(root):
+    from rlinf.data.storage.fr3_synthetic import file_digest
+
+    manifest = json.loads((root / "manifest.json").read_text())
+    for relative in manifest["files"]:
+        path = root / relative
+        if path.is_file():
+            manifest["files"][relative] = file_digest(path)
+    (root / "manifest.json").write_text(json.dumps(manifest))
+
+
+def test_fr3_quality_report_and_non_destructive_reload(fr3_dataset):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root, _ = fr3_dataset
+    original = _fr3_dataset_hashes(root)
+    report = assess_synthetic_dataset(root)
+    assert report["valid"], report["diagnostics"]
+    assert report == assess_synthetic_dataset(root)
+    assert original == _fr3_dataset_hashes(root)
+    assert report["counts"]["valid_episodes"] == 2
+    assert report["counts"]["valid_transitions"] == 6
+    assert report["counts"]["invalid_transitions"] == 0
+    skew = report["timestamp_statistics"]["cross_stream_skew_ns"]
+    assert skew["count"] == 8  # Two initial snapshots plus six next snapshots.
+    assert skew["min"] == skew["max"] == 7_000_000
+    assert (
+        report["timestamp_statistics"]["source_minus_arm_ns/d405"]["min"] == -5_000_000
+    )
+    assert report["readiness"]["native_rlinf_serialization"] == "PASS"
+    assert report["readiness"]["openpi_pi05_schema"] == "UNQUALIFIED"
+    assert report["readiness"]["real_world_demonstration"] == "NOT_QUALIFIED"
+    assert all(v["failures"] == 0 for v in report["modalities"].values())
+    assert report["source_manifest_sha256"] == original["manifest.json"]
+    json.dumps(report, allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "content", ["{", "[]", '{"schema":1,"schema":2}', '{"schema":NaN}']
+)
+def test_fr3_quality_invalid_manifests_are_diagnostic(tmp_path, content):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    (tmp_path / "manifest.json").write_text(content)
+    report = assess_synthetic_dataset(tmp_path)
+    assert not report["valid"]
+    assert report["diagnostics"][0]["path"] == "manifest.json"
+    assert report["diagnostics"][0]["error_type"]
+    assert report["readiness"]["native_rlinf_serialization"] == "FAIL"
+
+
+@pytest.mark.parametrize(
+    "failure,diagnostic",
+    [
+        ("missing_episode", "Missing artifact"),
+        ("corrupt_pt", "Native transition payload unavailable"),
+        ("state_dim", "state [T,1,42]"),
+        ("nonfinite", "finite"),
+        ("quaternion", "unit xyzw quaternion"),
+        ("action_kind", "discriminator"),
+        ("action_range", "channel limits"),
+        ("provenance", "typed_requests"),
+        ("physical_claim", "physical_execution=false"),
+        ("frame_order", "frame"),
+        ("duplicate", "transition identifier"),
+        ("missing_camera", "camera"),
+        ("skew", "skew"),
+        ("clock", "clock"),
+        ("stale", "stale"),
+        ("duplicate_timestamp", "timestamp"),
+        ("incomplete", "Incomplete episode"),
+        ("schema_version", "schema version"),
+        ("joint_order", "joint names/order"),
+        ("closure", "closure outside"),
+        ("encoding", "encoding"),
+        ("mouse_dimension", "SpaceMouse axes"),
+        ("rejected", "Rejected transition"),
+        ("expiry", "Expired"),
+        ("source_identity", "source"),
+        ("episode_id", "Duplicate episode"),
+        ("index", "index identity"),
+        ("forward_action", "forward_inputs.action"),
+        ("receipt_order", "receipt"),
+        ("reward_dtype", "rewards"),
+        ("partial_log", "Incomplete JSONL"),
+    ],
+)
+def test_fr3_quality_failure_injection(fr3_dataset, failure, diagnostic):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root, _ = fr3_dataset
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    entry = manifest["episodes"][0]
+    ep_path = root / entry["metadata_path"]
+    log_path = root / entry["provenance_path"]
+    records = [json.loads(s) for s in log_path.read_text().splitlines()]
+    obs = records[0]["observation_before"]
+    native = next((root / "demos").glob("trajectory_0_*.pt"))
+    if failure == "missing_episode":
+        ep_path.unlink()
+    elif failure == "corrupt_pt":
+        native.write_bytes(b"broken trajectory")
+    elif failure in {"state_dim", "nonfinite", "forward_action", "reward_dtype"}:
+        payload = torch.load(native, weights_only=True)
+        if failure == "state_dim":
+            payload["curr_obs"]["states"] = payload["curr_obs"]["states"][..., :-1]
+        elif failure == "nonfinite":
+            payload["next_obs"]["states"][0, 0, 0] = float("nan")
+        elif failure == "forward_action":
+            payload["forward_inputs"]["action"][0, 0, 0] += 0.1
+        else:
+            payload["rewards"] = payload["rewards"].double()
+        torch.save(payload, native)
+    elif failure in {"incomplete", "episode_id"}:
+        ep = json.loads(ep_path.read_text())
+        if failure == "incomplete":
+            ep["status"] = "INCOMPLETE"
+        else:
+            ep2 = root / manifest["episodes"][1]["metadata_path"]
+            e = json.loads(ep2.read_text())
+            e["episode_id"] = ep["episode_id"]
+            ep2.write_text(json.dumps(e))
+        ep_path.write_text(json.dumps(ep))
+    elif failure == "schema_version":
+        manifest["observation_schema_version"] = 99
+        manifest_path.write_text(json.dumps(manifest))
+    elif failure == "index":
+        p = root / "demos/trajectory_index.json"
+        idx = json.loads(p.read_text())
+        idx["trajectory_index"]["0"]["num_samples"] += 1
+        p.write_text(json.dumps(idx))
+    elif failure == "partial_log":
+        log_path.write_bytes(log_path.read_bytes()[:-2])
+    else:
+        if failure == "quaternion":
+            obs["arm"]["state"]["tcp_pose"][3:] = [0.0] * 4
+            obs["arm"]["ros2"]["streams"]["pose"]["sample"]["data"]["tcp_pose"][3:] = [
+                0.0
+            ] * 4
+        elif failure == "action_kind":
+            records[0]["typed_requests"]["arm"]["kind"] = "twist"
+        elif failure == "action_range":
+            records[0]["typed_requests"]["arm"]["values"][0] = 2.0
+            records[0]["operator_request"]["arm_values"][0] = 2.0
+            for e in records[1]["action_events"]["arm"]:
+                e["request"]["values"][0] = 2.0
+        elif failure == "provenance":
+            del records[0]["typed_requests"]
+        elif failure == "physical_claim":
+            records[1]["physical_execution"] = True
+        elif failure in {
+            "frame_order",
+            "skew",
+            "clock",
+            "stale",
+            "duplicate_timestamp",
+        }:
+            timing = obs["cameras"]["d405"]["metadata"]["fixture_timing"]
+            if failure == "frame_order":
+                timing["frame_index"] += 1
+            elif failure == "clock":
+                timing["clock_domain"] = "other-host-monotonic"
+            elif failure == "stale":
+                timing["source_ns"] -= 100_000_000
+            elif failure == "duplicate_timestamp":
+                after = records[1]["observation_after"]["cameras"]["d405"]["metadata"][
+                    "fixture_timing"
+                ]
+                after["source_ns"] = timing["source_ns"]
+            else:
+                timing["source_ns"] -= 30_000_000
+        elif failure == "duplicate":
+            records[2:4] = copy.deepcopy(records[0:2])
+        elif failure == "missing_camera":
+            del obs["cameras"]["d405"]
+        elif failure == "joint_order":
+            obs["arm"]["ros2"]["streams"]["joints"]["sample"]["data"]["names"].reverse()
+        elif failure == "closure":
+            obs["gripper"]["state"]["normalized_closure"] = 2.0
+            obs["gripper"]["ros2"]["streams"]["normalized"]["sample"]["data"][
+                "position"
+            ] = [2.0]
+        elif failure == "encoding":
+            obs["cameras"]["d405"]["metadata"]["encoding"] = "BGR"
+        elif failure == "mouse_dimension":
+            obs["spacemouse"]["axes"].pop()
+        elif failure == "rejected":
+            records[1]["valid"] = False
+        elif failure == "expiry":
+            request = records[0]["typed_requests"]["arm"]
+            request["deadline_ns"] = request["generated_ns"]
+            for e in records[1]["action_events"]["arm"]:
+                e["request"]["deadline_ns"] = request["deadline_ns"]
+        elif failure == "source_identity":
+            records[0]["operator_request"]["source_id"] = "physical-operator"
+        elif failure == "receipt_order":
+            obs["cameras"]["d405"]["metadata"]["receipt_monotonic_ns"] = (
+                records[0]["recorder_ns"] + 1
+            )
+        log_path.write_text("".join(json.dumps(r) + "\n" for r in records))
+    # Update hashes so semantic checks, rather than only hash checks, are exercised.
+    _fr3_rehash(root)
+    original = _fr3_dataset_hashes(root)
+    report = assess_synthetic_dataset(root)
+    assert not report["valid"]
+    messages = "\n".join(e["message"] for e in report["diagnostics"])
+    assert diagnostic.lower() in messages.lower(), messages
+    assert report["readiness"]["native_rlinf_serialization"] == "FAIL"
+    assert original == _fr3_dataset_hashes(root)
+    if failure == "incomplete":
+        assert report["counts"]["incomplete_episodes"] == 1
+    if failure in {"missing_episode", "corrupt_pt", "partial_log"}:
+        assert report["counts"]["corrupted_episodes"] == 1
+    if failure == "rejected":
+        assert report["counts"]["rejected_transitions"] == 1
+
+
+def test_fr3_quality_openpi_required_fields_remain_unqualified(fr3_dataset):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    report = assess_synthetic_dataset(fr3_dataset[0])
+    gates = report["downstream"]["openpi_pi05"]
+    assert gates["status"] == "UNQUALIFIED"
+    assert "task_instruction_missing_from_native_tensors" in gates["gaps"]
+    assert "state_42_incompatible_with_realworld_input_19" in gates["gaps"]
+    assert report["missing_features"]["task_instruction"] == 2
+    assert "policy_checkpoint_version" in report["downstream"]["recap"]["missing"]
+
+
+def test_fr3_lerobot_real_export_round_trip(fr3_dataset, tmp_path, monkeypatch):
+    pytest.importorskip("lerobot")
+    import datasets.config
+
+    from rlinf.data.storage.lerobot.fr3_export import (
+        audit_synthetic_export,
+        export_synthetic_dataset,
+    )
+
+    monkeypatch.setattr(datasets.config, "HF_DATASETS_CACHE", tmp_path / "hf-cache")
+    root, _ = fr3_dataset
+    original = _fr3_dataset_hashes(root)
+    dest = tmp_path / "export"
+    report = export_synthetic_dataset(root, dest)
+    assert report["status"] == "COMPLETE"
+    audit = audit_synthetic_export(dest)
+    assert audit == report["audit"]
+    assert audit["episodes"] == 2 and audit["transitions"] == 6
+    assert all(n == 6 for n in audit["fields_compared"].values())
+    assert _fr3_dataset_hashes(dest / "native") == original
+    with pytest.raises(FileExistsError):
+        export_synthetic_dataset(root, dest)
+    assert _fr3_dataset_hashes(root) == original
+    # A rehashed frame-table mutation must fail field comparison on independent reload.
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    parquet = next((dest / "lerobot/data").rglob("*.parquet"))
+    table = pq.read_table(parquet)
+    column = table.column_names.index("actions")
+    rows = table.column(column).to_pylist()
+    rows[0][0] += 0.1
+    table = table.set_column(
+        column, table.field(column), pa.array(rows, type=table.field(column).type)
+    )
+    pq.write_table(table, parquet)
+    from rlinf.data.storage.fr3_synthetic import file_digest
+
+    metadata = json.loads((dest / "export.json").read_text())
+    metadata["files"][str(parquet.relative_to(dest))] = file_digest(parquet)
+    (dest / "export.json").write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="field differs.*actions"):
+        audit_synthetic_export(dest)
+
+
+@pytest.mark.parametrize("label", ["", "pick up object", "unknown task", None])
+def test_fr3_lerobot_invalid_task_labels_create_no_output(fr3_dataset, tmp_path, label):
+    from rlinf.data.storage.lerobot.fr3_export import export_synthetic_dataset
+
+    dest = tmp_path / "invalid-export"
+    with pytest.raises(ValueError, match="synthetic task label"):
+        export_synthetic_dataset(fr3_dataset[0], dest, task_label=label)
+    assert not dest.exists()
+
+
+@pytest.mark.parametrize("stage", ["create", "reload"])
+def test_fr3_lerobot_failure_preserves_audit(fr3_dataset, tmp_path, monkeypatch, stage):
+    pytest.importorskip("lerobot")
+    import datasets.config
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+    from rlinf.data.storage.lerobot.fr3_export import export_synthetic_dataset
+
+    monkeypatch.setattr(datasets.config, "HF_DATASETS_CACHE", tmp_path / "hf-cache")
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("injected LeRobot " + stage)
+
+    monkeypatch.setattr(
+        LeRobotDataset, "create" if stage == "create" else "__init__", fail
+    )
+    original = _fr3_dataset_hashes(fr3_dataset[0])
+    dest = tmp_path / "failed-export"
+    with pytest.raises(RuntimeError, match="injected LeRobot"):
+        export_synthetic_dataset(fr3_dataset[0], dest)
+    report = json.loads((dest / "export.json").read_text())
+    assert report["status"] == "FAILED"
+    assert report["physical_execution"] is False
+    assert report["error"]["type"] == "RuntimeError"
+    assert _fr3_dataset_hashes(fr3_dataset[0]) == original
+
+
+def test_fr3_quality_cli_hardware_inaccessible(fr3_dataset, tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    program = r"""
+import builtins, sys
+original = builtins.__import__
+def guarded(name, globals=None, locals=None, fromlist=(), level=0):
+    if level == 0 and name.split('.')[0] in {'rclpy','rospy','franky','pyrealsense2','hid','hidapi','spnav','pyspacemouse','pymodbus'}:
+        raise AssertionError('hardware SDK import: ' + name)
+    return original(name, globals, locals, fromlist, level)
+builtins.__import__ = guarded
+from toolkits.realworld_check.validate_fr3_dataset import main
+raise SystemExit(main())
+"""
+    source, output = fr3_dataset[0], tmp_path / "quality"
+    env = {
+        **os.environ,
+        "HF_HUB_OFFLINE": "1",
+        "HF_DATASETS_CACHE": str(tmp_path / "hf-cache"),
+    }
+    command = [
+        sys.executable,
+        "-c",
+        program,
+        "--dataset",
+        str(source),
+        "--output",
+        str(output),
+    ]
+    first = subprocess.run(
+        [*command, "--export"], env=env, capture_output=True, text=True, timeout=60
+    )
+    assert first.returncode == 0, first.stdout + first.stderr
+    reload = subprocess.run(
+        [
+            *command[:-1],
+            str(tmp_path / "reload"),
+            "--reload-export",
+            str(output / "export"),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert reload.returncode == 0, reload.stdout + reload.stderr
+    report = json.loads((tmp_path / "reload/quality.json").read_text())
+    assert report["export"]["audit"]["transitions"] == 6
+    original = _fr3_dataset_hashes(source)
+    fail = subprocess.run(
+        command[:-1] + [str(source / "quality")],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert fail.returncode == 1
+    assert _fr3_dataset_hashes(source) == original
+
+
+def test_fr3_quality_retains_unindexed_incomplete_episode(
+    tmp_path, fr3_recorder_config
+):
+    from rlinf.data.collectors.fr3_offline import (
+        SyntheticScenario,
+        collect_synthetic_dataset,
+    )
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root = tmp_path / "incomplete"
+    with pytest.raises(ValueError):
+        collect_synthetic_dataset(
+            fr3_recorder_config, root, scenario=SyntheticScenario("invalid_action")
+        )
+    original = _fr3_dataset_hashes(root)
+    report = assess_synthetic_dataset(root)
+    assert not report["valid"]
+    assert report["counts"]["incomplete_episodes"] == 1
+    assert report["counts"]["rejected_transitions"] == 1
+    assert report["unindexed_artifacts"]
+    assert original == _fr3_dataset_hashes(root)
+
+
+@pytest.mark.parametrize("events", [[], {"arm": None}, {"arm": [None]}])
+def test_fr3_quality_malformed_action_journal_is_diagnostic(fr3_dataset, events):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root, _ = fr3_dataset
+    path = root / "episodes/episode_000000/steps.jsonl"
+    records = [json.loads(s) for s in path.read_text().splitlines()]
+    records[1]["action_events"] = events
+    path.write_text("".join(json.dumps(r) + "\n" for r in records))
+    _fr3_rehash(root)
+    report = assess_synthetic_dataset(root)
+    assert not report["valid"]
+    assert any(
+        e["category"] == "actions" and e["path"] == "episodes/0/steps/0"
+        for e in report["diagnostics"]
+    )
+
+
+@pytest.mark.parametrize(
+    "relative", ["../outside.json", "/tmp/outside.json", "symlink.json"]
+)
+def test_fr3_quality_unsafe_artifacts_are_diagnostic(fr3_dataset, tmp_path, relative):
+    from rlinf.data.storage.fr3_synthetic import file_digest
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root, _ = fr3_dataset
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    if relative == "symlink.json":
+        (root / relative).symlink_to(outside)
+    path = root / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["files"][relative] = file_digest(outside)
+    path.write_text(json.dumps(manifest))
+    report = assess_synthetic_dataset(root)
+    assert not report["valid"]
+    assert any(
+        "artifact path" in e["message"] or "Symlink artifact" in e["message"]
+        for e in report["diagnostics"]
+    )
+    assert outside.read_text() == "{}"
+
+
+@pytest.mark.parametrize(
+    "field", ["step_period_ns", "episode_path", "metadata_path", "episode_start"]
+)
+def test_fr3_quality_malformed_nested_schema_is_diagnostic(fr3_dataset, field):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root, _ = fr3_dataset
+    path = root / "manifest.json"
+    manifest = json.loads(path.read_text())
+    if field == "step_period_ns":
+        manifest[field] = None
+    elif field == "episode_path":
+        manifest["episodes"][0]["provenance_path"] = []
+    elif field == "metadata_path":
+        manifest["episodes"][0]["metadata_path"] = []
+    else:
+        episode_path = root / manifest["episodes"][0]["metadata_path"]
+        episode = json.loads(episode_path.read_text())
+        episode["start_logical_ns"] = None
+        episode_path.write_text(json.dumps(episode))
+    path.write_text(json.dumps(manifest))
+    _fr3_rehash(root)
+    report = assess_synthetic_dataset(root)
+    assert not report["valid"]
+    assert report["diagnostics"]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("physical_execution", True),
+        ("last_disposition", "rejected"),
+        ("session_id", "other-session"),
+    ],
+)
+def test_fr3_quality_mock_snapshot_must_agree_with_journal(fr3_dataset, field, value):
+    from rlinf.data.storage.fr3_validation import assess_synthetic_dataset
+
+    root, _ = fr3_dataset
+    path = root / "episodes/episode_000000/steps.jsonl"
+    records = [json.loads(s) for s in path.read_text().splitlines()]
+    records[1]["mock_states"]["arm"][field] = value
+    path.write_text("".join(json.dumps(r) + "\n" for r in records))
+    _fr3_rehash(root)
+    report = assess_synthetic_dataset(root)
+    assert not report["valid"]
+    assert report["readiness"]["typed_action_provenance"] == "FAIL"
